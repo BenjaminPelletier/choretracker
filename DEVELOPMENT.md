@@ -19,7 +19,16 @@ These instructions describe how to set up a development environment for the Chor
    uv sync
    ```
    This creates a `.venv` directory using Python 3.13 and installs all project dependencies.
-3. In PyCharm, select **Add Interpreter** and point it to the `.venv/bin/python` (macOS/Linux) or `.venv\Scripts\python.exe` (Windows) inside the project directory.
+3. Configure PyCharm to use the `uv` environment:
+   1. Open **File > Settings > Python Interpreter** (macOS: **PyCharm > Settings**).
+   2. Click the gear icon and choose **Add Interpreter...**, then **Add Local Interpreter**.
+   3. Select **uv** on the left.
+   4. If you already ran `uv sync` and see a `.venv` folder in the project root:
+      - Choose **Existing environment**.
+      - For **uv environment**, browse to the hidden `.venv` directory (enable *Show Hidden Files* if needed).
+   5. Otherwise, let PyCharm create the env for you:
+      - Choose **New environment** and set the location to the project root.
+      - Ensure **Python** is set to **3.13** and click **OK**. PyCharm will run `uv sync` automatically.
 
 ## Running the Development Server
 From the PyCharm terminal or a system shell, start the server with:
