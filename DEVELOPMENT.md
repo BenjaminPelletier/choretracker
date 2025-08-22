@@ -28,5 +28,16 @@ uv run uvicorn choretracker.app:app --reload
 ```
 The application will be available at http://localhost:8000.
 
+## Running or Debugging via PyCharm
+To run or debug the server directly from PyCharm:
+1. Open **Run > Edit Configurations...**
+2. Click the **+** icon and choose **Python**
+3. Name the configuration (e.g., `Run Server`)
+4. Set **Module name** to `uvicorn`
+5. In **Parameters**, enter `choretracker.app:app --reload`
+6. Set **Working directory** to the project root
+7. Ensure the Python interpreter points to the project's virtual environment (`.venv`)
+8. Click **OK** to save, then use the Run or Debug button to start the server
+
 ## Stopping the Server
 Press `Ctrl+C` in the terminal where the server is running.
