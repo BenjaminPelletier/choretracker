@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}New {{ entry_type }} - Chore Tracker{% endblock %}
+{% block title %}{% if entry %}Edit{% else %}New{% endif %} {{ entry_type }} - Chore Tracker{% endblock %}
 
 {% block content %}
-<h1>New {{ entry_type }}</h1>
-<form id="entry-form" class="form" method="post" action="/calendar/new">
+<h1>{% if entry %}Edit{% else %}New{% endif %} {{ entry_type }}</h1>
+<form id="entry-form" class="form" method="post" action="{% if entry %}{{ url_for('update_calendar_entry', entry_id=entry.id) }}{% else %}/calendar/new{% endif %}">
     <input type="hidden" name="type" value="{{ entry_type }}">
 
     <div class="field">
@@ -124,9 +124,32 @@ document.addEventListener('DOMContentLoaded', function () {
     const recurrences = document.getElementById('recurrences');
     const recurrenceTemplate = document.getElementById('recurrence-template');
     const addRecurrence = document.getElementById('add-recurrence');
-    addRecurrence.addEventListener('click', function () {
+    function addRecurrenceItem(rec) {
         const clone = recurrenceTemplate.content.cloneNode(true);
+        if (rec) {
+            clone.querySelector('select[name="recurrence_type[]"]').value = rec.type;
+            if (rec.offset) {
+                if (rec.offset.exact_duration_seconds) {
+                    const dur = rec.offset.exact_duration_seconds;
+                    const hours = Math.floor(dur / 3600);
+                    const minutes = Math.floor((dur % 3600) / 60);
+                    clone.querySelector('input[name="offset_hours[]"]').value = hours || '';
+                    clone.querySelector('input[name="offset_minutes[]"]').value = minutes || '';
+                    const days = Math.floor(dur / 86400);
+                    if (days) clone.querySelector('input[name="offset_days[]"]').value = days;
+                }
+                if (rec.offset.months) {
+                    clone.querySelector('input[name="offset_months[]"]').value = rec.offset.months;
+                }
+                if (rec.offset.years) {
+                    clone.querySelector('input[name="offset_years[]"]').value = rec.offset.years;
+                }
+            }
+        }
         recurrences.appendChild(clone);
+    }
+    addRecurrence.addEventListener('click', function () {
+        addRecurrenceItem();
     });
     recurrences.addEventListener('click', function (e) {
         if (e.target.closest('.remove-recurrence')) {
@@ -173,6 +196,27 @@ document.addEventListener('DOMContentLoaded', function () {
             responsibleDropdown.classList.remove('show');
         }
     });
+
+    {% if entry_json %}
+    const data = JSON.parse(`{{ entry_json | replace('`','\`') }}`);
+    document.getElementById('title').value = data.title;
+    document.getElementById('description').value = data.description;
+    document.getElementById('first_start').value = data.first_start.slice(0,16);
+    const dur = data.duration_seconds;
+    const weeks = Math.floor(dur / (7*24*3600));
+    const days = Math.floor((dur % (7*24*3600)) / 86400);
+    const hours = Math.floor((dur % 86400) / 3600);
+    const minutes = Math.floor((dur % 3600) / 60);
+    document.querySelector('input[name="duration_weeks"]').value = weeks || '';
+    document.querySelector('input[name="duration_days"]').value = days || '';
+    document.querySelector('input[name="duration_hours"]').value = hours || '';
+    document.querySelector('input[name="duration_minutes"]').value = minutes || '';
+    if (data.none_after) {
+        document.getElementById('none_after').value = data.none_after.slice(0,16);
+    }
+    data.recurrences.forEach(r => addRecurrenceItem(r));
+    data.responsible.forEach(u => addUser(u));
+    {% endif %}
 
     // form submits normally to backend
 });

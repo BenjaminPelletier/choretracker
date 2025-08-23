@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}{{ entry.title }} - Chore Tracker{% endblock %}
+
+{% block content %}
+<h1>{{ entry.title }}
+    {% if can_edit %}
+    <a href="{{ url_for('edit_calendar_entry', entry_id=entry.id) }}" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></a>
+    {% endif %}
+</h1>
+<p>{{ entry.description }}</p>
+<dl>
+    <dt>Type</dt><dd>{{ entry.type.value }}</dd>
+    <dt>First start</dt><dd>{{ entry.first_start }}</dd>
+    <dt>Duration</dt><dd>{{ entry.duration }}</dd>
+    <dt>Recurrences</dt>
+    <dd>
+        {% if entry.recurrences %}
+        <ul>
+            {% for rec in entry.recurrences %}
+            <li>{{ rec.type.value }}{% if rec.offset %} (offset:
+                {% if rec.offset.exact_duration_seconds %}
+                    {{ timedelta(seconds=rec.offset.exact_duration_seconds) }}
+                {% endif %}
+                {% if rec.offset.months %} {{ rec.offset.months }} months{% endif %}
+                {% if rec.offset.years %} {{ rec.offset.years }} years{% endif %}
+                ){% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        None
+        {% endif %}
+    </dd>
+    <dt>None after</dt><dd>{{ entry.none_after }}</dd>
+    <dt>Responsible</dt><dd>{{ entry.responsible|join(', ') }}</dd>
+    <dt>Owner</dt><dd>{{ entry.owner }}</dd>
+</dl>
+{% endblock %}

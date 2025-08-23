@@ -66,6 +66,31 @@ class CalendarEntryStore:
             session.add(entry)
             session.commit()
 
+    def get(self, entry_id: int) -> Optional[CalendarEntry]:
+        with Session(self.engine) as session:
+            entry = session.get(CalendarEntry, entry_id)
+            if entry:
+                entry.recurrences = [
+                    rec if isinstance(rec, Recurrence) else Recurrence.model_validate(rec)
+                    for rec in entry.recurrences
+                ]
+            return entry
+
+    def update(self, entry_id: int, new_data: CalendarEntry) -> None:
+        with Session(self.engine) as session:
+            entry = session.get(CalendarEntry, entry_id)
+            if not entry:
+                return
+            entry.title = new_data.title
+            entry.description = new_data.description
+            entry.first_start = new_data.first_start
+            entry.duration_seconds = new_data.duration_seconds
+            entry.recurrences = new_data.recurrences
+            entry.none_after = new_data.none_after
+            entry.responsible = new_data.responsible
+            session.add(entry)
+            session.commit()
+
     def list_entries(self) -> List[CalendarEntry]:
         with Session(self.engine) as session:
             entries = session.exec(select(CalendarEntry)).all()

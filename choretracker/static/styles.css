@@ -27,6 +27,7 @@ h1 {
     align-items: center;
     justify-content: space-between;
     padding: 0.25rem 0.5rem;
+    min-height: 2.5rem;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     z-index: 1000;
 }
@@ -174,6 +175,11 @@ h1 {
 }
 
 .create-menu {
+    position: relative;
+    margin-right: 0.5rem;
+}
+
+.list-menu {
     position: relative;
     margin-right: 0.5rem;
 }

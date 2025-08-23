@@ -14,6 +14,24 @@
         {% set current_user = request.session.get('user') %}
         {% if current_user %}
         <div class="nav-actions">
+            {% if user_has(current_user, 'events.read') or user_has(current_user, 'reminders.read') or user_has(current_user, 'chores.read') %}
+            <div class="list-menu">
+                <button class="icon-button" id="list-button">
+                    <img src="{{ url_for('static', path='list.svg') }}" alt="List" class="icon">
+                </button>
+                <div class="dropdown" id="list-dropdown">
+                    {% if user_has(current_user, 'events.read') %}
+                    <a href="{{ url_for('list_calendar_entries', entry_type='Event') }}">Events</a>
+                    {% endif %}
+                    {% if user_has(current_user, 'reminders.read') %}
+                    <a href="{{ url_for('list_calendar_entries', entry_type='Reminder') }}">Reminders</a>
+                    {% endif %}
+                    {% if user_has(current_user, 'chores.read') %}
+                    <a href="{{ url_for('list_calendar_entries', entry_type='Chore') }}">Chores</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
             {% if user_has(current_user, 'events.write') or user_has(current_user, 'reminders.write') or user_has(current_user, 'chores.write') %}
             <div class="create-menu">
                 <button class="icon-button" id="create-button">
@@ -66,6 +84,19 @@
             document.addEventListener('click', function (e) {
                 if (!createDropdown.contains(e.target) && e.target !== createButton) {
                     createDropdown.classList.remove('show');
+                }
+            });
+        }
+        var listButton = document.getElementById('list-button');
+        var listDropdown = document.getElementById('list-dropdown');
+        if (listButton && listDropdown) {
+            listButton.addEventListener('click', function (e) {
+                e.stopPropagation();
+                listDropdown.classList.toggle('show');
+            });
+            document.addEventListener('click', function (e) {
+                if (!listDropdown.contains(e.target) && e.target !== listButton) {
+                    listDropdown.classList.remove('show');
                 }
             });
         }
