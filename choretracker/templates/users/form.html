@@ -10,11 +10,23 @@
 
 {% block content %}
 <h1>{{ page_title }}</h1>
-<form method="post">
-    <label>Username: <input type="text" name="username" value="{{ user.username if user else '' }}"></label><br>
-    <label>New Password: <input type="password" name="password" autocomplete="new-password"></label><br>
-    <label>New PIN: <input type="password" name="pin" pattern="\d*" autocomplete="off"></label><br>
-    <label><input type="checkbox" name="iam" {% if user and 'iam' in user.permissions %}checked{% endif %}> Can manage users</label><br>
+<form method="post" class="form">
+    <label>
+        <span>Username</span>
+        <input type="text" name="username" value="{{ user.username if user else '' }}">
+    </label>
+    <label>
+        <span>New Password</span>
+        <input type="password" name="password" autocomplete="new-password">
+    </label>
+    <label>
+        <span>New PIN</span>
+        <input type="password" name="pin" pattern="\d*" autocomplete="off">
+    </label>
+    <label class="checkbox">
+        <input type="checkbox" name="iam" {% if user and 'iam' in user.permissions %}checked{% endif %}>
+        <span>Can manage users</span>
+    </label>
     <p>Leave password or PIN blank to keep the existing value.</p>
     <button type="submit">Save</button>
 </form>
