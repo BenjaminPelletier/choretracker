@@ -48,9 +48,11 @@
         <div class="label-row">
             <span>Recurrences</span>
             <span class="help" data-help="Schedules on which this repeats">?</span>
+            <button type="button" id="add-recurrence" class="icon-button">
+                <img src="{{ url_for('static', path='plus.svg') }}" alt="Add recurrence" class="icon">
+            </button>
         </div>
         <div id="recurrences"></div>
-        <button type="button" id="add-recurrence">Add recurrence</button>
     </div>
 
     <div class="field">
@@ -85,7 +87,7 @@
         <button type="button" class="remove-recurrence">
             <img src="{{ url_for('static', path='trash.svg') }}" alt="Remove" class="icon">
         </button>
-        <div class="field">
+        <div class="group">
             <div class="label-row">
                 <span class="group-title">Type</span>
                 <span class="help" data-help="Type of recurrence">?</span>
@@ -103,14 +105,14 @@
                 <span class="help" data-help="Offset from nominal schedule">?</span>
             </div>
             <div class="offset-inputs">
-                <div class="time-row">
-                    <input type="number" name="offset_hours[]" placeholder="Hours" min="0" max="23">
-                    <input type="number" name="offset_minutes[]" placeholder="Minutes" min="0" max="59">
-                </div>
                 <div class="date-row">
                     <input type="number" name="offset_days[]" placeholder="Days" min="0">
                     <input type="number" name="offset_months[]" placeholder="Months" min="0">
                     <input type="number" name="offset_years[]" placeholder="Years" min="0">
+                </div>
+                <div class="time-row">
+                    <input type="number" name="offset_hours[]" placeholder="Hours" min="0" max="23">
+                    <input type="number" name="offset_minutes[]" placeholder="Minutes" min="0" max="59">
                 </div>
             </div>
         </div>

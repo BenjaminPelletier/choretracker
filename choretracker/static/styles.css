@@ -119,6 +119,10 @@ h1 {
     font-weight: inherit;
 }
 
+.label-row .icon-button {
+    margin-left: 0.25rem;
+}
+
 .help {
     display: inline-flex;
     align-items: center;
@@ -213,6 +217,10 @@ h1 {
     flex-wrap: wrap;
 }
 
+.offset-inputs .date-row {
+    margin-bottom: 0.25rem;
+}
+
 .duration-inputs input,
 .offset-inputs input {
     margin-right: 0.25rem;
@@ -222,7 +230,7 @@ h1 {
 .responsible-selector {
     position: relative;
     display: inline-block;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.25rem;
 }
 
 .responsible-selector .dropdown {
@@ -234,12 +242,14 @@ h1 {
 #responsible-list {
     list-style: none;
     padding-left: 0;
+    margin-top: 0;
+    margin-left: 1rem;
 }
 
 #responsible-list li {
     display: flex;
     align-items: center;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.125rem;
 }
 
 #responsible-list li button {
