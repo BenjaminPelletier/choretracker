@@ -188,6 +188,10 @@ h1 {
     margin-left: 1rem;
 }
 
+.group > h3 {
+    margin-top: 0;
+}
+
 .recurrence-item {
     position: relative;
 }
