@@ -12,4 +12,5 @@ dependencies = [
     "alembic>=1.16.4",
     "itsdangerous>=2.2.0",
     "apscheduler>=3.11.0",
+    "python-multipart>=0.0.20",
 ]
