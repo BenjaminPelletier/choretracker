@@ -41,15 +41,34 @@ app = FastAPI()
 
 BASE_PATH = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_PATH / "templates"))
-templates.env.globals["all_users"] = lambda: [u.username for u in user_store.list_users()]
+templates.env.globals["all_users"] = lambda: sorted(
+    [u.username for u in user_store.list_users(include_viewer=True)],
+    key=lambda name: (name != "Viewer", name),
+)
 templates.env.globals["user_has"] = user_store.has_permission
 app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="static")
+
+ALL_PERMISSIONS = [
+    "chores.read",
+    "chores.write",
+    "chores.edit_others",
+    "events.read",
+    "events.write",
+    "events.edit_others",
+    "reminders.read",
+    "reminders.write",
+    "reminders.edit_others",
+    "iam",
+]
 
 
 def require_permission(request: Request, permission: str) -> None:
     username = request.session.get("user")
     if not username or not user_store.has_permission(username, permission):
-        raise HTTPException(status_code=403)
+        request.session["flash"] = "You are not allowed to perform that action."
+        raise HTTPException(
+            status_code=303, headers={"Location": str(request.url_for("index"))}
+        )
 
 
 class EnsureUserMiddleware(BaseHTTPMiddleware):
@@ -128,6 +147,12 @@ async def logout(request: Request):
 async def new_calendar_entry(request: Request, entry_type: str):
     if entry_type not in {"Event", "Reminder", "Chore"}:
         raise HTTPException(status_code=404)
+    perm_map = {
+        "Event": "events.write",
+        "Reminder": "reminders.write",
+        "Chore": "chores.write",
+    }
+    require_permission(request, perm_map[entry_type])
     return templates.TemplateResponse(
         "calendar/form.html", {"request": request, "entry_type": entry_type}
     )
@@ -143,6 +168,12 @@ async def create_calendar_entry(request: Request):
         entry_type = CalendarEntryType(entry_type_str)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid entry type")
+    perm_map = {
+        CalendarEntryType.Event: "events.write",
+        CalendarEntryType.Reminder: "reminders.write",
+        CalendarEntryType.Chore: "chores.write",
+    }
+    require_permission(request, perm_map[entry_type])
 
     first_start_str = form.get("first_start")
     if not first_start_str:
@@ -195,6 +226,7 @@ async def create_calendar_entry(request: Request):
         recurrences=recurrences,
         none_after=none_after,
         responsible=responsible,
+        owner=request.session.get("user", ""),
     )
     calendar_store.create(entry)
     return RedirectResponse(url="/", status_code=303)
@@ -221,7 +253,9 @@ async def create_user(request: Request):
     username = form.get("username", "").strip()
     password = form.get("password") or None
     pin = form.get("pin") or None
-    permissions = {"iam"} if form.get("iam") else set()
+    permissions = {p for p in ALL_PERMISSIONS if form.get(p)}
+    if form.get("admin") and user_store.has_permission(request.session.get("user"), "admin"):
+        permissions.add("admin")
     user_store.create(username, password, pin, permissions)
     return RedirectResponse(url="/users", status_code=303)
 
@@ -230,7 +264,7 @@ async def create_user(request: Request):
 async def edit_user(request: Request, username: str):
     require_permission(request, "iam")
     user = user_store.get(username)
-    if not user:
+    if not user or user.username == "Viewer":
         raise HTTPException(status_code=404)
     return templates.TemplateResponse("users/form.html", {"request": request, "user": user})
 
@@ -242,14 +276,45 @@ async def update_user(request: Request, username: str):
     new_username = form.get("username", "").strip()
     password = form.get("password") or None
     pin = form.get("pin") or None
-    permissions = {"iam"} if form.get("iam") else set()
-    user_store.update(username, new_username, password, pin, permissions)
+    remove_password = bool(form.get("remove_password"))
+    remove_pin = bool(form.get("remove_pin"))
+    existing = user_store.get(username)
+    if not existing or existing.username == "Viewer":
+        raise HTTPException(status_code=404)
+    permissions = {p for p in ALL_PERMISSIONS if form.get(p)}
+    current_user = request.session.get("user")
+    if form.get("admin") and user_store.has_permission(current_user, "admin"):
+        permissions.add("admin")
+    elif "admin" in existing.permissions:
+        permissions.add("admin")
+    if "admin" in existing.permissions and "admin" not in permissions:
+        admins = [u for u in user_store.list_users() if "admin" in u.permissions and u.username != username]
+        if not admins:
+            request.session["flash"] = "Cannot remove the last admin user."
+            raise HTTPException(status_code=303, headers={"Location": str(request.url_for("edit_user", username=username))})
+    user_store.update(
+        username,
+        new_username,
+        password,
+        pin,
+        permissions,
+        remove_password=remove_password,
+        remove_pin=remove_pin,
+    )
     return RedirectResponse(url="/users", status_code=303)
 
 
 @app.post("/users/{username}/delete")
 async def delete_user(request: Request, username: str):
     require_permission(request, "iam")
+    user = user_store.get(username)
+    if not user or user.username == "Viewer":
+        raise HTTPException(status_code=404)
+    if "admin" in user.permissions:
+        admins = [u for u in user_store.list_users() if "admin" in u.permissions and u.username != username]
+        if not admins:
+            request.session["flash"] = "Cannot delete the last admin user."
+            raise HTTPException(status_code=303, headers={"Location": str(request.url_for("list_users"))})
     user_store.delete(username)
     return RedirectResponse(url="/users", status_code=303)
 
