@@ -33,7 +33,7 @@ These instructions describe how to set up a development environment for the Chor
 ## Running the Development Server
 From the PyCharm terminal or a system shell, start the server with:
 ```bash
-uv run uvicorn choretracker.app:app --reload
+uv run uvicorn choretracker.app:app --host 0.0.0.0 --port 8000 --reload --reload-exclude-dir .venv
 ```
 The application will be available at http://localhost:8000.
 
@@ -43,7 +43,7 @@ To run or debug the server directly from PyCharm:
 2. Click the **+** icon and choose **Python**
 3. Name the configuration (e.g., `Run Server`)
 4. Set **Module name** to `uvicorn`
-5. In **Parameters**, enter `choretracker.app:app --reload`
+5. In **Parameters**, enter `choretracker.app:app --host 0.0.0.0 --port 8000 --reload --reload-exclude-dir .venv`
 6. Set **Working directory** to the project root
 7. Ensure the Python interpreter points to the project's virtual environment (`.venv`)
 8. Click **OK** to save, then use the Run or Debug button to start the server
