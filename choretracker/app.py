@@ -41,7 +41,10 @@ app = FastAPI()
 
 BASE_PATH = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_PATH / "templates"))
-templates.env.globals["all_users"] = lambda: [u.username for u in user_store.list_users(include_viewer=True)]
+templates.env.globals["all_users"] = lambda: sorted(
+    [u.username for u in user_store.list_users(include_viewer=True)],
+    key=lambda name: (name != "Viewer", name),
+)
 templates.env.globals["user_has"] = user_store.has_permission
 app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="static")
 

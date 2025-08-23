@@ -11,47 +11,58 @@
 {% block content %}
 <h1>{{ page_title }}</h1>
 <form method="post" class="form">
-    <label>
-        <span>Username</span>
-        <input type="text" name="username" value="{{ user.username if user else '' }}">
-    </label>
-    <label>
-        <span>New Password</span>
-        <input type="password" name="password" autocomplete="new-password">
-    </label>
-    {% if user %}
-    <label class="checkbox">
-        <input type="checkbox" name="remove_password">
-        <span>Remove password</span>
-    </label>
+    <div class="field">
+        <label>
+            <span>Username</span>
+            <input type="text" name="username" value="{{ user.username if user else '' }}">
+        </label>
+    </div>
+    <div class="field">
+        <label>
+            <span>New Password</span>
+            <input type="password" name="password" autocomplete="new-password">
+        </label>
+    </div>
+    {% if user and user.password_hash %}
+    <div class="field">
+        <label class="checkbox">
+            <input type="checkbox" name="remove_password">
+            <span>Remove password</span>
+        </label>
+    </div>
     {% endif %}
-    <label>
-        <span>New PIN</span>
-        <input type="password" name="pin" pattern="\d*" autocomplete="off">
-    </label>
-    {% if user %}
-    <label class="checkbox">
-        <input type="checkbox" name="remove_pin">
-        <span>Remove PIN</span>
-    </label>
+    <div class="field">
+        <label>
+            <span>New PIN</span>
+            <input type="password" name="pin" pattern="\d*" autocomplete="off">
+        </label>
+    </div>
+    {% if user and user.pin_hash %}
+    <div class="field">
+        <label class="checkbox">
+            <input type="checkbox" name="remove_pin">
+            <span>Remove PIN</span>
+        </label>
+    </div>
     {% endif %}
+    <p>Leave password or PIN blank to keep the existing value.</p>
     <h2>Permissions</h2>
     <div class="group">
-        <h3>User Management</h3>
         <div class="group">
-            <label class="checkbox">
-                <input type="checkbox" name="iam" {% if user and 'iam' in user.permissions %}checked{% endif %}>
-                <span>Can manage users</span>
-            </label>
+            <h3>User Management</h3>
             {% if user_has(request.session.get('user'), 'admin') %}
             <label class="checkbox">
                 <input type="checkbox" name="admin" {% if user and 'admin' in user.permissions %}checked{% endif %}>
                 <span>Admin</span>
             </label>
             {% endif %}
+            <label class="checkbox">
+                <input type="checkbox" name="iam" {% if user and 'iam' in user.permissions %}checked{% endif %}>
+                <span>Can manage users</span>
+            </label>
         </div>
-        <h3>Chores</h3>
         <div class="group">
+            <h3>Chores</h3>
             <label class="checkbox">
                 <input type="checkbox" name="chores.read" {% if (user and 'chores.read' in user.permissions) or (not user) %}checked{% endif %}>
                 <span>Read</span>
@@ -65,8 +76,8 @@
                 <span>Edit others'</span>
             </label>
         </div>
-        <h3>Events</h3>
         <div class="group">
+            <h3>Events</h3>
             <label class="checkbox">
                 <input type="checkbox" name="events.read" {% if (user and 'events.read' in user.permissions) or (not user) %}checked{% endif %}>
                 <span>Read</span>
@@ -80,8 +91,8 @@
                 <span>Edit others'</span>
             </label>
         </div>
-        <h3>Reminders</h3>
         <div class="group">
+            <h3>Reminders</h3>
             <label class="checkbox">
                 <input type="checkbox" name="reminders.read" {% if (user and 'reminders.read' in user.permissions) or (not user) %}checked{% endif %}>
                 <span>Read</span>
@@ -96,7 +107,6 @@
             </label>
         </div>
     </div>
-    <p>Leave password or PIN blank to keep the existing value.</p>
     <button type="submit">Save</button>
 </form>
 {% endblock %}
