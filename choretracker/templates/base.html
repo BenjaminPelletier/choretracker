@@ -14,16 +14,24 @@
         {% set current_user = request.session.get('user') %}
         {% if current_user %}
         <div class="nav-actions">
+            {% if user_has(current_user, 'events.write') or user_has(current_user, 'reminders.write') or user_has(current_user, 'chores.write') %}
             <div class="create-menu">
                 <button class="icon-button" id="create-button">
                     <img src="{{ url_for('static', path='plus.svg') }}" alt="Add" class="icon">
                 </button>
                 <div class="dropdown" id="create-dropdown">
+                    {% if user_has(current_user, 'events.write') %}
                     <a href="{{ url_for('new_calendar_entry', entry_type='Event') }}">Event</a>
+                    {% endif %}
+                    {% if user_has(current_user, 'reminders.write') %}
                     <a href="{{ url_for('new_calendar_entry', entry_type='Reminder') }}">Reminder</a>
+                    {% endif %}
+                    {% if user_has(current_user, 'chores.write') %}
                     <a href="{{ url_for('new_calendar_entry', entry_type='Chore') }}">Chore</a>
+                    {% endif %}
                 </div>
             </div>
+            {% endif %}
             <div class="user-menu">
                 <button class="user-button">{{ current_user }}</button>
                 <div class="dropdown">
@@ -40,6 +48,10 @@
         {% endif %}
     </nav>
     <main class="content">
+        {% set flash = request.session.pop('flash', None) %}
+        {% if flash %}
+        <div class="flash">{{ flash }}</div>
+        {% endif %}
         {% block content %}{% endblock %}
     </main>
     <script>

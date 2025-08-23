@@ -27,6 +27,48 @@
         <input type="checkbox" name="iam" {% if user and 'iam' in user.permissions %}checked{% endif %}>
         <span>Can manage users</span>
     </label>
+    {% if user_has(request.session.get('user'), 'admin') %}
+    <label class="checkbox">
+        <input type="checkbox" name="admin" {% if user and 'admin' in user.permissions %}checked{% endif %}>
+        <span>Admin</span>
+    </label>
+    {% endif %}
+    <label class="checkbox">
+        <input type="checkbox" name="chores.read" {% if user and 'chores.read' in user.permissions %}checked{% endif %}>
+        <span>Read chores</span>
+    </label>
+    <label class="checkbox">
+        <input type="checkbox" name="chores.write" {% if user and 'chores.write' in user.permissions %}checked{% endif %}>
+        <span>Create chores</span>
+    </label>
+    <label class="checkbox">
+        <input type="checkbox" name="chores.edit_others" {% if user and 'chores.edit_others' in user.permissions %}checked{% endif %}>
+        <span>Edit others' chores</span>
+    </label>
+    <label class="checkbox">
+        <input type="checkbox" name="events.read" {% if user and 'events.read' in user.permissions %}checked{% endif %}>
+        <span>Read events</span>
+    </label>
+    <label class="checkbox">
+        <input type="checkbox" name="events.write" {% if user and 'events.write' in user.permissions %}checked{% endif %}>
+        <span>Create events</span>
+    </label>
+    <label class="checkbox">
+        <input type="checkbox" name="events.edit_others" {% if user and 'events.edit_others' in user.permissions %}checked{% endif %}>
+        <span>Edit others' events</span>
+    </label>
+    <label class="checkbox">
+        <input type="checkbox" name="reminders.read" {% if user and 'reminders.read' in user.permissions %}checked{% endif %}>
+        <span>Read reminders</span>
+    </label>
+    <label class="checkbox">
+        <input type="checkbox" name="reminders.write" {% if user and 'reminders.write' in user.permissions %}checked{% endif %}>
+        <span>Create reminders</span>
+    </label>
+    <label class="checkbox">
+        <input type="checkbox" name="reminders.edit_others" {% if user and 'reminders.edit_others' in user.permissions %}checked{% endif %}>
+        <span>Edit others' reminders</span>
+    </label>
     <p>Leave password or PIN blank to keep the existing value.</p>
     <button type="submit">Save</button>
 </form>

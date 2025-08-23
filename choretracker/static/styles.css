@@ -258,3 +258,11 @@ h1 {
     cursor: pointer;
     margin-left: 0.25rem;
 }
+
+.flash {
+    padding: 0.5rem;
+    background-color: #fee2e2;
+    color: #b91c1c;
+    border: 1px solid #fca5a5;
+    margin-bottom: 0.5rem;
+}

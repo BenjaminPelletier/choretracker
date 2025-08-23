@@ -46,7 +46,7 @@ class UserStore:
 
     def list_users(self) -> List[User]:
         with Session(self.engine) as session:
-            return session.exec(select(User)).all()
+            return session.exec(select(User).where(User.username != "Viewer")).all()
 
     def get(self, username: str) -> Optional[User]:
         with Session(self.engine) as session:
@@ -55,6 +55,8 @@ class UserStore:
     def create(
         self, username: str, password: Optional[str], pin: Optional[str], permissions: Set[str]
     ) -> None:
+        if username == "Viewer":
+            return
         with Session(self.engine) as session:
             user = User(
                 username=username,
@@ -73,6 +75,8 @@ class UserStore:
         pin: Optional[str],
         permissions: Set[str],
     ) -> None:
+        if old_username == "Viewer":
+            return
         with Session(self.engine) as session:
             user = session.exec(select(User).where(User.username == old_username)).first()
             if not user:
@@ -87,6 +91,8 @@ class UserStore:
             session.commit()
 
     def delete(self, username: str) -> None:
+        if username == "Viewer":
+            return
         with Session(self.engine) as session:
             user = session.exec(select(User).where(User.username == username)).first()
             if user:
@@ -95,7 +101,7 @@ class UserStore:
 
     def has_permission(self, username: str, permission: str) -> bool:
         user = self.get(username)
-        return permission in user.permissions if user else False
+        return bool(user) and ("admin" in user.permissions or permission in user.permissions)
 
     def verify(self, username: str, password: str) -> bool:
         user = self.get(username)
@@ -108,8 +114,8 @@ def init_db(engine) -> None:
     db_path = Path(engine.url.database)
     first_run = not db_path.exists()
     SQLModel.metadata.create_all(engine)
-    if first_run:
-        with Session(engine) as session:
+    with Session(engine) as session:
+        if first_run:
             admin = User(
                 username="Admin",
                 password_hash=hash_secret("admin"),
@@ -117,5 +123,20 @@ def init_db(engine) -> None:
                 permissions=["admin", "iam"],
             )
             session.add(admin)
-            session.commit()
+        viewer_perms = ["chores.read", "events.read", "reminders.read"]
+        viewer = session.exec(select(User).where(User.username == "Viewer")).first()
+        if not viewer:
+            viewer = User(
+                username="Viewer",
+                password_hash=hash_secret(""),
+                pin_hash=hash_secret(""),
+                permissions=viewer_perms,
+            )
+            session.add(viewer)
+        else:
+            viewer.password_hash = hash_secret("")
+            viewer.pin_hash = hash_secret("")
+            viewer.permissions = viewer_perms
+            session.add(viewer)
+        session.commit()
 
