@@ -5,8 +5,17 @@
 {% block content %}
 <h1>Calendar Entries</h1>
 <ul>
-    {% for entry in entries %}
-    <li>{{ entry.title }}</li>
+    {% for entry, periods in entries %}
+    <li>
+        {{ entry.title }}
+        {% if periods %}
+        <ul>
+            {% for period in periods %}
+            <li>{{ period.start }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </li>
     {% else %}
     <li>No entries yet</li>
     {% endfor %}
