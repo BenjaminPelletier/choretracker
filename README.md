@@ -30,7 +30,7 @@ location, set the `CHORETRACKER_DB` environment variable to the desired path.
 ### Direct execution
 
 ```bash
-CHORETRACKER_DB=/path/to/choretracker.db uv run uvicorn choretracker.app:app --host 0.0.0.0 --port 8000 --reload --reload-exclude-dir .venv
+CHORETRACKER_DB=/path/to/choretracker.db uv run uvicorn choretracker.app:app --host 0.0.0.0 --port 8000 --reload --reload-exclude .venv
 ```
 
 ### Docker
