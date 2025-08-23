@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 LOGOUT_DURATION = timedelta(minutes=1)
@@ -18,7 +19,6 @@ USERS: Dict[str, Optional[str]] = {
 }
 
 app = FastAPI()
-app.add_middleware(SessionMiddleware, secret_key="change-me")
 
 BASE_PATH = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_PATH / "templates"))
@@ -26,24 +26,28 @@ templates.env.globals["ALL_USERS"] = list(USERS.keys())
 app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="static")
 
 
-@app.middleware("http")
-async def ensure_user(request: Request, call_next):
-    session = request.session
-    path = request.url.path
+class EnsureUserMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        session = request.session
+        path = request.url.path
 
-    user = session.get("user")
-    now = datetime.utcnow().timestamp()
-    if user:
-        last = session.get("last_active", now)
-        if user != "Viewer" and now - last > LOGOUT_DURATION.total_seconds():
-            session["user"] = "Viewer"
-            user = "Viewer"
-        session["last_active"] = now
-    elif not (path == "/login" or path.startswith("/static")):
-        return RedirectResponse(url="/login")
+        user = session.get("user")
+        now = datetime.utcnow().timestamp()
+        if user:
+            last = session.get("last_active", now)
+            if user != "Viewer" and now - last > LOGOUT_DURATION.total_seconds():
+                session["user"] = "Viewer"
+                user = "Viewer"
+            session["last_active"] = now
+        elif not (path == "/login" or path.startswith("/static")):
+            return RedirectResponse(url="/login")
 
-    response = await call_next(request)
-    return response
+        response = await call_next(request)
+        return response
+
+
+app.add_middleware(EnsureUserMiddleware)
+app.add_middleware(SessionMiddleware, secret_key="change-me")
 
 
 @app.get("/", response_class=HTMLResponse)
