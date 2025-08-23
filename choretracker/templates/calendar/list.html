@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}{{ entry_type.value }}s - Chore Tracker{% endblock %}
+
+{% block content %}
+<h1>{{ entry_type.value }}s</h1>
+<ul>
+    {% for entry in entries %}
+    <li>
+        <a href="{{ url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a>
+        {% set write_perm = WRITE_PERMS[entry_type] %}
+        {% set edit_perm = EDIT_OTHER_PERMS[entry_type] %}
+        {% if user_has(current_user, write_perm) and (entry.owner == current_user or user_has(current_user, edit_perm)) %}
+        <a href="{{ url_for('edit_calendar_entry', entry_id=entry.id) }}" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></a>
+        {% endif %}
+    </li>
+    {% else %}
+    <li>No entries found.</li>
+    {% endfor %}
+</ul>
+{% endblock %}
