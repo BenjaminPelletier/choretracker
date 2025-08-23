@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% if user %}
+    {% set page_title = 'Edit user' %}
+{% else %}
+    {% set page_title = 'New user' %}
+{% endif %}
+
+{% block title %}{{ page_title }} - Chore Tracker{% endblock %}
+
+{% block content %}
+<h1>{{ page_title }}</h1>
+<form method="post">
+    <label>Username: <input type="text" name="username" value="{{ user.username if user else '' }}"></label><br>
+    <label>Password: <input type="text" name="password" value="{{ user.password if user and user.password else '' }}"></label><br>
+    <label><input type="checkbox" name="iam" {% if user and 'iam' in user.permissions %}checked{% endif %}> Can manage users</label><br>
+    <button type="submit">Save</button>
+</form>
+{% endblock %}

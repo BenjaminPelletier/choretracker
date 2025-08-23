@@ -16,9 +16,12 @@
         <div class="user-menu">
             <button class="user-button">{{ current_user }}</button>
             <div class="dropdown">
-                {% for u in ALL_USERS if u != current_user %}
+                {% for u in all_users() if u != current_user %}
                 <a href="{{ url_for('switch_user', username=u) }}">{{ u }}</a>
                 {% endfor %}
+                {% if user_has(current_user, 'iam') %}
+                <a href="{{ url_for('list_users') }}">Manage users</a>
+                {% endif %}
                 <a href="{{ url_for('logout') }}">Sign out</a>
             </div>
         </div>
