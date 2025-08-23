@@ -3,15 +3,14 @@
 {% block title %}Users - Chore Tracker{% endblock %}
 
 {% block content %}
-<h1>Users</h1>
-<p><a href="{{ url_for('new_user') }}">New user</a></p>
+<h1>Users <a href="{{ url_for('new_user') }}"><img src="{{ url_for('static', path='plus.svg') }}" alt="New user" class="icon"></a></h1>
 <ul>
 {% for u in users %}
     <li>
         {{ u.username }}{% if 'iam' in u.permissions %} (iam){% endif %}
-        <a href="{{ url_for('edit_user', username=u.username) }}">Edit</a>
+        <a href="{{ url_for('edit_user', username=u.username) }}"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></a>
         <form method="post" action="{{ url_for('delete_user', username=u.username) }}" style="display:inline">
-            <button type="submit">Delete</button>
+            <button type="submit" class="icon-button"><img src="{{ url_for('static', path='trash.svg') }}" alt="Delete" class="icon"></button>
         </form>
     </li>
 {% endfor %}

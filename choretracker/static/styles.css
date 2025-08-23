@@ -2,11 +2,19 @@
     box-sizing: border-box;
 }
 
+html {
+    font-size: 300%;
+}
+
 body {
     margin: 0;
     font-family: system-ui, sans-serif;
     background-color: #f9fafb;
     color: #111827;
+}
+
+h1 {
+    margin-top: 0;
 }
 
 .navbar {
@@ -28,9 +36,15 @@ body {
     align-items: center;
 }
 
-.navbar .icon {
+
+.icon {
     width: 1.5rem;
     height: 1.5rem;
+}
+
+.navbar .icon {
+    width: 2rem;
+    height: 2rem;
 }
 
 .content {
@@ -70,4 +84,36 @@ body {
 
 .user-menu .dropdown a:hover {
     background-color: #f3f4f6;
+}
+
+.icon-button {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+}
+
+.login-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
+}
+
+.login-form label {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1rem;
+}
+
+.login-form input {
+    font-size: 1rem;
+    padding: 0.5rem;
+}
+
+.login-form button {
+    font-size: 1rem;
+    padding: 0.5rem 1rem;
 }
