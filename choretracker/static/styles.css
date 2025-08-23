@@ -26,7 +26,7 @@ h1 {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.5rem 1rem;
+    padding: 0.25rem 0.5rem;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     z-index: 1000;
 }
@@ -48,8 +48,8 @@ h1 {
 }
 
 .content {
-    padding: 1rem;
-    margin-top: 3rem; /* prevent content from hiding under navbar */
+    padding: 0.5rem;
+    margin-top: 2.5rem; /* prevent content from hiding under navbar */
 }
 
 .user-menu {
@@ -75,9 +75,10 @@ h1 {
     display: block;
 }
 
+
 .user-menu .dropdown a {
     display: block;
-    padding: 0.5rem 1rem;
+    padding: 0.25rem 0.5rem;
     color: #111827;
     text-decoration: none;
 }
@@ -99,21 +100,34 @@ h1 {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    padding: 1rem;
+    padding: 0.5rem;
 }
-
-.login-form label {
+.form label {
     display: flex;
     flex-direction: column;
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
 }
 
-.login-form input {
+.form input {
     font-size: 1rem;
     padding: 0.5rem;
 }
 
-.login-form button {
+.form input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+}
+
+.form label.checkbox {
+    flex-direction: row;
+    align-items: center;
+}
+
+.form label.checkbox span {
+    margin-left: 0.5rem;
+}
+
+.form button {
     font-size: 1rem;
     padding: 0.5rem 1rem;
 }
