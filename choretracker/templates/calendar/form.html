@@ -4,7 +4,7 @@
 
 {% block content %}
 <h1>New {{ entry_type }}</h1>
-<form id="entry-form" class="form">
+<form id="entry-form" class="form" method="post" action="/calendar/new">
     <input type="hidden" name="type" value="{{ entry_type }}">
 
     <div class="field">
@@ -142,6 +142,11 @@ document.addEventListener('DOMContentLoaded', function () {
     function addUser(user) {
         const li = document.createElement('li');
         li.textContent = user;
+        const hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = 'responsible';
+        hidden.value = user;
+        li.appendChild(hidden);
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.innerHTML = '<img src="' + trashUrl + '" alt="Remove" class="icon">';
@@ -169,9 +174,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    document.getElementById('entry-form').addEventListener('submit', function (e) {
-        e.preventDefault();
-    });
+    // form submits normally to backend
 });
 </script>
 {% endblock %}

@@ -3,6 +3,12 @@
 {% block title %}Home - Chore Tracker{% endblock %}
 
 {% block content %}
-<h1>Welcome to Chore Tracker</h1>
-<p>Manage your household chores with ease.</p>
+<h1>Calendar Entries</h1>
+<ul>
+    {% for entry in entries %}
+    <li>{{ entry.title }}</li>
+    {% else %}
+    <li>No entries yet</li>
+    {% endfor %}
+</ul>
 {% endblock %}
