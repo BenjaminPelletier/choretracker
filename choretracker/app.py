@@ -36,21 +36,6 @@ engine = create_engine(
 init_db(engine)
 user_store = UserStore(engine)
 calendar_store = CalendarEntryStore(engine)
-
-app = FastAPI()
-
-BASE_PATH = Path(__file__).resolve().parent
-templates = Jinja2Templates(directory=str(BASE_PATH / "templates"))
-templates.env.globals["all_users"] = lambda: sorted(
-    [u.username for u in user_store.list_users(include_viewer=True)],
-    key=lambda name: (name != "Viewer", name),
-)
-templates.env.globals["user_has"] = user_store.has_permission
-templates.env.globals["WRITE_PERMS"] = WRITE_PERMS
-templates.env.globals["EDIT_OTHER_PERMS"] = EDIT_OTHER_PERMS
-templates.env.globals["timedelta"] = timedelta
-app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="static")
-
 ALL_PERMISSIONS = [
     "chores.read",
     "chores.write",
@@ -81,6 +66,20 @@ EDIT_OTHER_PERMS = {
     CalendarEntryType.Reminder: "reminders.edit_others",
     CalendarEntryType.Chore: "chores.edit_others",
 }
+
+app = FastAPI()
+
+BASE_PATH = Path(__file__).resolve().parent
+templates = Jinja2Templates(directory=str(BASE_PATH / "templates"))
+templates.env.globals["all_users"] = lambda: sorted(
+    [u.username for u in user_store.list_users(include_viewer=True)],
+    key=lambda name: (name != "Viewer", name),
+)
+templates.env.globals["user_has"] = user_store.has_permission
+templates.env.globals["WRITE_PERMS"] = WRITE_PERMS
+templates.env.globals["EDIT_OTHER_PERMS"] = EDIT_OTHER_PERMS
+templates.env.globals["timedelta"] = timedelta
+app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="static")
 
 
 def require_permission(request: Request, permission: str) -> None:
