@@ -67,7 +67,13 @@ class CalendarEntryStore:
 
     def list_entries(self) -> List[CalendarEntry]:
         with Session(self.engine) as session:
-            return session.exec(select(CalendarEntry)).all()
+            entries = session.exec(select(CalendarEntry)).all()
+            for entry in entries:
+                entry.recurrences = [
+                    rec if isinstance(rec, Recurrence) else Recurrence.model_validate(rec)
+                    for rec in entry.recurrences
+                ]
+            return entries
 
 
 @dataclass
@@ -171,6 +177,8 @@ def enumerate_time_periods(entry: CalendarEntry) -> Iterator[TimePeriod]:
 
     heap: List[tuple[datetime, int, Iterator[TimePeriod], TimePeriod]] = []
     for idx, rec in enumerate(entry.recurrences):
+        if not isinstance(rec, Recurrence):
+            rec = Recurrence.model_validate(rec)
         gen = _recurrence_generator(entry, rec, idx)
         first = next(gen, None)
         if first:
