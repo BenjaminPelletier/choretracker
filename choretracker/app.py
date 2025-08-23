@@ -1,29 +1,40 @@
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
+from .users import User, UserStore
+
 LOGOUT_DURATION = timedelta(minutes=1)
 
-USERS: Dict[str, Optional[str]] = {
-    "Dad": "dad",
-    "Mom": "mom",
-    "Child": None,
-    "Viewer": None,
-}
+user_store = UserStore(
+    [
+        User("Dad", "dad", {"iam"}),
+        User("Mom", "mom"),
+        User("Child"),
+        User("Viewer"),
+    ]
+)
 
 app = FastAPI()
 
 BASE_PATH = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_PATH / "templates"))
-templates.env.globals["ALL_USERS"] = list(USERS.keys())
+templates.env.globals["all_users"] = lambda: [u.username for u in user_store.list_users()]
+templates.env.globals["user_has"] = user_store.has_permission
 app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="static")
+
+
+def require_permission(request: Request, permission: str) -> None:
+    username = request.session.get("user")
+    if not username or not user_store.has_permission(username, permission):
+        raise HTTPException(status_code=403)
 
 
 class EnsureUserMiddleware(BaseHTTPMiddleware):
@@ -68,7 +79,8 @@ async def login(request: Request):
     username = form.get("username", "")
     password = form.get("password", "")
 
-    if USERS.get(username) and USERS[username] == password:
+    user = user_store.get(username)
+    if user and user.password == password:
         request.session["user"] = username
         request.session["last_active"] = datetime.utcnow().timestamp()
         return RedirectResponse(url="/", status_code=303)
@@ -80,7 +92,7 @@ async def login(request: Request):
 
 @app.get("/switch/{username}")
 async def switch_user(request: Request, username: str):
-    if username in USERS:
+    if user_store.get(username):
         request.session["user"] = username
         request.session["last_active"] = datetime.utcnow().timestamp()
     return RedirectResponse(url="/", status_code=303)
@@ -90,3 +102,55 @@ async def switch_user(request: Request, username: str):
 async def logout(request: Request):
     request.session.clear()
     return RedirectResponse(url="/login", status_code=303)
+
+
+@app.get("/users", response_class=HTMLResponse)
+async def list_users(request: Request):
+    require_permission(request, "iam")
+    return templates.TemplateResponse(
+        "users/list.html", {"request": request, "users": user_store.list_users()}
+    )
+
+
+@app.get("/users/new", response_class=HTMLResponse)
+async def new_user(request: Request):
+    require_permission(request, "iam")
+    return templates.TemplateResponse("users/form.html", {"request": request, "user": None})
+
+
+@app.post("/users/new")
+async def create_user(request: Request):
+    require_permission(request, "iam")
+    form = await request.form()
+    username = form.get("username", "").strip()
+    password = form.get("password") or None
+    permissions = {"iam"} if form.get("iam") else set()
+    user_store.create(User(username, password, permissions))
+    return RedirectResponse(url="/users", status_code=303)
+
+
+@app.get("/users/{username}/edit", response_class=HTMLResponse)
+async def edit_user(request: Request, username: str):
+    require_permission(request, "iam")
+    user = user_store.get(username)
+    if not user:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse("users/form.html", {"request": request, "user": user})
+
+
+@app.post("/users/{username}/edit")
+async def update_user(request: Request, username: str):
+    require_permission(request, "iam")
+    form = await request.form()
+    new_username = form.get("username", "").strip()
+    password = form.get("password") or None
+    permissions = {"iam"} if form.get("iam") else set()
+    user_store.update(username, User(new_username, password, permissions))
+    return RedirectResponse(url="/users", status_code=303)
+
+
+@app.post("/users/{username}/delete")
+async def delete_user(request: Request, username: str):
+    require_permission(request, "iam")
+    user_store.delete(username)
+    return RedirectResponse(url="/users", status_code=303)
