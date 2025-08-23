@@ -197,8 +197,8 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    {% if entry_json %}
-    const data = JSON.parse(`{{ entry_json | replace('`','\`') }}`);
+    {% if entry_data %}
+    const data = {{ entry_data | tojson }};
     document.getElementById('title').value = data.title;
     document.getElementById('description').value = data.description;
     document.getElementById('first_start').value = data.first_start.slice(0,16);

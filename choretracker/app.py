@@ -325,14 +325,16 @@ async def edit_calendar_entry(request: Request, entry_id: int):
     if not entry:
         raise HTTPException(status_code=404)
     require_entry_write_permission(request, entry)
-    entry_json = json.dumps(entry.model_dump(), default=pydantic_encoder)
+    entry_data = json.loads(
+        json.dumps(entry.model_dump(), default=pydantic_encoder)
+    )
     return templates.TemplateResponse(
         "calendar/form.html",
         {
             "request": request,
             "entry_type": entry.type.value,
             "entry": entry,
-            "entry_json": entry_json,
+            "entry_data": entry_data,
         },
     )
 
