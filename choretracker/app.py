@@ -11,6 +11,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from sqlmodel import create_engine
 from pydantic.json import pydantic_encoder
+from itertools import islice
 
 from .users import UserStore, init_db
 from .calendar import (
@@ -20,6 +21,7 @@ from .calendar import (
     Offset,
     Recurrence,
     RecurrenceType,
+    enumerate_time_periods,
 )
 
 
@@ -76,8 +78,13 @@ app.add_middleware(SessionMiddleware, secret_key="change-me")
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    entries = calendar_store.list_entries()
-    return templates.TemplateResponse("index.html", {"request": request, "entries": entries})
+    entries_with_periods = []
+    for entry in calendar_store.list_entries():
+        periods = list(islice(enumerate_time_periods(entry), 8))
+        entries_with_periods.append((entry, periods))
+    return templates.TemplateResponse(
+        "index.html", {"request": request, "entries": entries_with_periods}
+    )
 
 
 @app.get("/login", response_class=HTMLResponse)
