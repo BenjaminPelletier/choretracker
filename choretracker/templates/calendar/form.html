@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}New {{ entry_type }} - Chore Tracker{% endblock %}
+
+{% block content %}
+<h1>New {{ entry_type }}</h1>
+<form id="entry-form" class="form">
+    <input type="hidden" name="type" value="{{ entry_type }}">
+
+    <div class="field">
+        <div class="label-row">
+            <label for="title">Title</label>
+            <span class="help" data-help="Short name for this entry">?</span>
+        </div>
+        <input type="text" id="title" name="title">
+    </div>
+
+    <div class="field">
+        <div class="label-row">
+            <label for="description">Description</label>
+            <span class="help" data-help="More details about this entry">?</span>
+        </div>
+        <textarea id="description" name="description" rows="3"></textarea>
+    </div>
+
+    <div class="field">
+        <div class="label-row">
+            <label for="first_start">First start</label>
+            <span class="help" data-help="Start time of the first instance">?</span>
+        </div>
+        <input type="datetime-local" id="first_start" name="first_start" required>
+    </div>
+
+    <div class="field">
+        <div class="label-row">
+            <span>Duration</span>
+            <span class="help" data-help="Length of each instance">?</span>
+        </div>
+        <div class="duration-inputs">
+            <input type="number" name="duration_weeks" placeholder="Weeks" min="0">
+            <input type="number" name="duration_days" placeholder="Days" min="0">
+            <input type="number" name="duration_hours" placeholder="Hours" min="0">
+            <input type="number" name="duration_minutes" placeholder="Minutes" min="0" max="59">
+        </div>
+    </div>
+
+    <div class="field">
+        <div class="label-row">
+            <span>Recurrences</span>
+            <span class="help" data-help="Schedules on which this repeats">?</span>
+            <button type="button" id="add-recurrence" class="icon-button">
+                <img src="{{ url_for('static', path='plus.svg') }}" alt="Add recurrence" class="icon">
+            </button>
+        </div>
+        <div id="recurrences"></div>
+    </div>
+
+    <div class="field">
+        <div class="label-row">
+            <label for="none_after">None after</label>
+            <span class="help" data-help="No instances start after this time">?</span>
+        </div>
+        <input type="datetime-local" id="none_after" name="none_after">
+    </div>
+
+    <div class="field">
+        <div class="label-row">
+            <span>Responsible</span>
+            <span class="help" data-help="People responsible for this entry">?</span>
+        </div>
+        <div class="responsible-selector">
+            <button type="button" id="add-responsible">Add</button>
+            <div class="dropdown" id="responsible-dropdown">
+                {% for u in all_users() %}
+                <a href="#" data-user="{{ u }}">{{ u }}</a>
+                {% endfor %}
+            </div>
+        </div>
+        <ul id="responsible-list"></ul>
+    </div>
+
+    <button type="submit">Save</button>
+</form>
+
+<template id="recurrence-template">
+    <div class="group recurrence-item">
+        <button type="button" class="remove-recurrence">
+            <img src="{{ url_for('static', path='trash.svg') }}" alt="Remove" class="icon">
+        </button>
+        <div class="group">
+            <div class="label-row">
+                <span class="group-title">Type</span>
+                <span class="help" data-help="Type of recurrence">?</span>
+            </div>
+            <select name="recurrence_type[]">
+                <option value="Weekly">Weekly</option>
+                <option value="MonthlyDayOfMonth">MonthlyDayOfMonth</option>
+                <option value="MonthlyDayOfWeek">MonthlyDayOfWeek</option>
+                <option value="AnnualDayOfMonth">AnnualDayOfMonth</option>
+            </select>
+        </div>
+        <div class="group offset">
+            <div class="label-row">
+                <span class="group-title">Offset</span>
+                <span class="help" data-help="Offset from nominal schedule">?</span>
+            </div>
+            <div class="offset-inputs">
+                <div class="date-row">
+                    <input type="number" name="offset_days[]" placeholder="Days" min="0">
+                    <input type="number" name="offset_months[]" placeholder="Months" min="0">
+                    <input type="number" name="offset_years[]" placeholder="Years" min="0">
+                </div>
+                <div class="time-row">
+                    <input type="number" name="offset_hours[]" placeholder="Hours" min="0" max="23">
+                    <input type="number" name="offset_minutes[]" placeholder="Minutes" min="0" max="59">
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const recurrences = document.getElementById('recurrences');
+    const recurrenceTemplate = document.getElementById('recurrence-template');
+    const addRecurrence = document.getElementById('add-recurrence');
+    addRecurrence.addEventListener('click', function () {
+        const clone = recurrenceTemplate.content.cloneNode(true);
+        recurrences.appendChild(clone);
+    });
+    recurrences.addEventListener('click', function (e) {
+        if (e.target.closest('.remove-recurrence')) {
+            e.target.closest('.recurrence-item').remove();
+        }
+    });
+
+    const responsibleList = document.getElementById('responsible-list');
+    const addResponsible = document.getElementById('add-responsible');
+    const responsibleDropdown = document.getElementById('responsible-dropdown');
+    const trashUrl = "{{ url_for('static', path='trash.svg') }}";
+
+    function addUser(user) {
+        const li = document.createElement('li');
+        li.textContent = user;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.innerHTML = '<img src="' + trashUrl + '" alt="Remove" class="icon">';
+        btn.addEventListener('click', function () { li.remove(); });
+        li.appendChild(btn);
+        responsibleList.appendChild(li);
+    }
+
+    addResponsible.addEventListener('click', function (e) {
+        e.stopPropagation();
+        responsibleDropdown.classList.toggle('show');
+    });
+
+    responsibleDropdown.addEventListener('click', function (e) {
+        if (e.target.dataset.user) {
+            e.preventDefault();
+            addUser(e.target.dataset.user);
+            responsibleDropdown.classList.remove('show');
+        }
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!responsibleDropdown.contains(e.target) && e.target !== addResponsible) {
+            responsibleDropdown.classList.remove('show');
+        }
+    });
+
+    document.getElementById('entry-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+    });
+});
+</script>
+{% endblock %}
+

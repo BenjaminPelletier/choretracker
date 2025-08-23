@@ -3,7 +3,7 @@
 }
 
 html {
-    font-size: 300%;
+    font-size: 240%;
 }
 
 body {
@@ -63,7 +63,7 @@ h1 {
     font: inherit;
 }
 
-.user-menu .dropdown {
+.dropdown {
     display: none;
     position: absolute;
     right: 0;
@@ -71,19 +71,19 @@ h1 {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.dropdown.show,
 .user-menu:hover .dropdown {
     display: block;
 }
 
-
-.user-menu .dropdown a {
+.dropdown a {
     display: block;
     padding: 0.25rem 0.5rem;
     color: #111827;
     text-decoration: none;
 }
 
-.user-menu .dropdown a:hover {
+.dropdown a:hover {
     background-color: #f3f4f6;
 }
 
@@ -102,15 +102,50 @@ h1 {
     align-items: center;
     padding: 0.5rem;
 }
-.form label {
-    display: flex;
-    flex-direction: column;
+
+/* Form field layout */
+.field {
     margin-bottom: 0.5rem;
 }
 
-.form input {
+.label-row {
+    display: flex;
+    align-items: center;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.label-row label {
+    font-weight: inherit;
+}
+
+.label-row .icon-button {
+    margin-left: 0.25rem;
+}
+
+.help {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 0.25rem;
+    color: #2563eb;
+    cursor: pointer;
+    width: 1rem;
+    height: 1rem;
+    border: 1px solid #2563eb;
+    border-radius: 50%;
+    font-size: 0.75rem;
+}
+
+.form input,
+.form textarea,
+.form select {
     font-size: 1rem;
     padding: 0.5rem;
+}
+
+.form textarea {
+    resize: vertical;
 }
 
 .form input[type="checkbox"] {
@@ -119,6 +154,7 @@ h1 {
 }
 
 .form label.checkbox {
+    display: flex;
     flex-direction: row;
     align-items: center;
 }
@@ -130,4 +166,95 @@ h1 {
 .form button {
     font-size: 1rem;
     padding: 0.5rem 1rem;
+}
+
+.nav-actions {
+    display: flex;
+    align-items: center;
+}
+
+.create-menu {
+    position: relative;
+    margin-right: 0.5rem;
+}
+/* Group styling */
+.group {
+    border: 1px solid #d1d5db;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.group .group {
+    margin-left: 1rem;
+}
+
+.recurrence-item {
+    position: relative;
+}
+
+.recurrence-item .remove-recurrence {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+.duration-inputs {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.offset-inputs {
+    display: flex;
+    flex-direction: column;
+}
+
+.offset-inputs .time-row,
+.offset-inputs .date-row {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.offset-inputs .date-row {
+    margin-bottom: 0.25rem;
+}
+
+.duration-inputs input,
+.offset-inputs input {
+    margin-right: 0.25rem;
+    width: 4rem;
+}
+
+.responsible-selector {
+    position: relative;
+    display: inline-block;
+    margin-bottom: 0.25rem;
+}
+
+.responsible-selector .dropdown {
+    left: 0;
+    right: auto;
+    top: 100%;
+}
+
+#responsible-list {
+    list-style: none;
+    padding-left: 0;
+    margin-top: 0;
+    margin-left: 1rem;
+}
+
+#responsible-list li {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.125rem;
+}
+
+#responsible-list li button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    margin-left: 0.25rem;
 }
