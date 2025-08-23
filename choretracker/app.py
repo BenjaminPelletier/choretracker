@@ -25,7 +25,7 @@ from .calendar import (
 )
 
 
-LOGOUT_DURATION = timedelta(minutes=2)
+LOGOUT_DURATION = timedelta(minutes=1)
 
 db_path = os.getenv("CHORETRACKER_DB", "choretracker.db")
 engine = create_engine(
@@ -41,7 +41,7 @@ app = FastAPI()
 
 BASE_PATH = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_PATH / "templates"))
-templates.env.globals["all_users"] = lambda: [u.username for u in user_store.list_users()]
+templates.env.globals["all_users"] = lambda: [u.username for u in user_store.list_users(include_viewer=True)]
 templates.env.globals["user_has"] = user_store.has_permission
 app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="static")
 
@@ -63,8 +63,9 @@ def require_permission(request: Request, permission: str) -> None:
     username = request.session.get("user")
     if not username or not user_store.has_permission(username, permission):
         request.session["flash"] = "You are not allowed to perform that action."
-        referer = request.headers.get("referer") or str(request.url_for("index"))
-        raise HTTPException(status_code=303, headers={"Location": referer})
+        raise HTTPException(
+            status_code=303, headers={"Location": str(request.url_for("index"))}
+        )
 
 
 class EnsureUserMiddleware(BaseHTTPMiddleware):
@@ -272,6 +273,8 @@ async def update_user(request: Request, username: str):
     new_username = form.get("username", "").strip()
     password = form.get("password") or None
     pin = form.get("pin") or None
+    remove_password = bool(form.get("remove_password"))
+    remove_pin = bool(form.get("remove_pin"))
     existing = user_store.get(username)
     if not existing or existing.username == "Viewer":
         raise HTTPException(status_code=404)
@@ -286,7 +289,15 @@ async def update_user(request: Request, username: str):
         if not admins:
             request.session["flash"] = "Cannot remove the last admin user."
             raise HTTPException(status_code=303, headers={"Location": str(request.url_for("edit_user", username=username))})
-    user_store.update(username, new_username, password, pin, permissions)
+    user_store.update(
+        username,
+        new_username,
+        password,
+        pin,
+        permissions,
+        remove_password=remove_password,
+        remove_pin=remove_pin,
+    )
     return RedirectResponse(url="/users", status_code=303)
 
 

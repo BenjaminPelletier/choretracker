@@ -44,9 +44,12 @@ class UserStore:
     def __init__(self, engine):
         self.engine = engine
 
-    def list_users(self) -> List[User]:
+    def list_users(self, include_viewer: bool = False) -> List[User]:
         with Session(self.engine) as session:
-            return session.exec(select(User).where(User.username != "Viewer")).all()
+            stmt = select(User)
+            if not include_viewer:
+                stmt = stmt.where(User.username != "Viewer")
+            return session.exec(stmt).all()
 
     def get(self, username: str) -> Optional[User]:
         with Session(self.engine) as session:
@@ -60,8 +63,8 @@ class UserStore:
         with Session(self.engine) as session:
             user = User(
                 username=username,
-                password_hash=hash_secret(password or ""),
-                pin_hash=hash_secret(pin or ""),
+                password_hash=hash_secret(password) if password else "",
+                pin_hash=hash_secret(pin) if pin else "",
                 permissions=list(permissions),
             )
             session.add(user)
@@ -74,6 +77,8 @@ class UserStore:
         password: Optional[str],
         pin: Optional[str],
         permissions: Set[str],
+        remove_password: bool = False,
+        remove_pin: bool = False,
     ) -> None:
         if old_username == "Viewer":
             return
@@ -82,9 +87,13 @@ class UserStore:
             if not user:
                 return
             user.username = new_username
-            if password:
+            if remove_password:
+                user.password_hash = ""
+            elif password:
                 user.password_hash = hash_secret(password)
-            if pin:
+            if remove_pin:
+                user.pin_hash = ""
+            elif pin:
                 user.pin_hash = hash_secret(pin)
             user.permissions = list(permissions)
             session.add(user)
@@ -105,7 +114,9 @@ class UserStore:
 
     def verify(self, username: str, password: str) -> bool:
         user = self.get(username)
-        return pwd_context.verify(password, user.password_hash) if user else False
+        if not user or not user.password_hash:
+            return False
+        return pwd_context.verify(password, user.password_hash)
 
 
 def init_db(engine) -> None:
@@ -128,14 +139,14 @@ def init_db(engine) -> None:
         if not viewer:
             viewer = User(
                 username="Viewer",
-                password_hash=hash_secret(""),
-                pin_hash=hash_secret(""),
+                password_hash="",
+                pin_hash="",
                 permissions=viewer_perms,
             )
             session.add(viewer)
         else:
-            viewer.password_hash = hash_secret("")
-            viewer.pin_hash = hash_secret("")
+            viewer.password_hash = ""
+            viewer.pin_hash = ""
             viewer.permissions = viewer_perms
             session.add(viewer)
         session.commit()
