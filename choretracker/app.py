@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import json
 import os
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -171,11 +172,19 @@ async def login(request: Request):
 
 
 @app.get("/switch/{username}")
-async def switch_user(request: Request, username: str):
+async def switch_user(request: Request, username: str, next: str | None = None):
     if user_store.get(username):
         request.session["user"] = username
         request.session["last_active"] = datetime.utcnow().timestamp()
-    return RedirectResponse(url="/", status_code=303)
+
+    target = "/"
+    if next:
+        parsed = urlparse(next)
+        if not parsed.scheme and not parsed.netloc:
+            target = parsed.path
+            if parsed.query:
+                target += f"?{parsed.query}"
+    return RedirectResponse(url=target, status_code=303)
 
 
 @app.get("/logout")

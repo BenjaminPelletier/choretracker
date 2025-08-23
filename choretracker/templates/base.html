@@ -54,7 +54,7 @@
                 <button class="user-button">{{ current_user }}</button>
                 <div class="dropdown">
                     {% for u in all_users() if u != current_user %}
-                    <a href="{{ url_for('switch_user', username=u) }}">{{ u }}</a>
+                    <a href="{{ url_for('switch_user', username=u) }}?next={{ (request.url.path ~ ('?' ~ request.url.query if request.url.query else '')) | urlencode }}">{{ u }}</a>
                     {% endfor %}
                     {% if user_has(current_user, 'iam') %}
                     <a href="{{ url_for('list_users') }}">Manage users</a>
