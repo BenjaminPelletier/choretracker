@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
+import os
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -8,19 +8,17 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from sqlmodel import create_engine
 
-from .users import User, UserStore
+from .users import UserStore, init_db
+
 
 LOGOUT_DURATION = timedelta(minutes=1)
 
-user_store = UserStore(
-    [
-        User("Dad", "dad", {"iam"}),
-        User("Mom", "mom"),
-        User("Child"),
-        User("Viewer"),
-    ]
-)
+db_path = os.getenv("CHORETRACKER_DB", "choretracker.db")
+engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+init_db(engine)
+user_store = UserStore(engine)
 
 app = FastAPI()
 
@@ -79,8 +77,7 @@ async def login(request: Request):
     username = form.get("username", "")
     password = form.get("password", "")
 
-    user = user_store.get(username)
-    if user and user.password == password:
+    if user_store.verify(username, password):
         request.session["user"] = username
         request.session["last_active"] = datetime.utcnow().timestamp()
         return RedirectResponse(url="/", status_code=303)
@@ -124,8 +121,9 @@ async def create_user(request: Request):
     form = await request.form()
     username = form.get("username", "").strip()
     password = form.get("password") or None
+    pin = form.get("pin") or None
     permissions = {"iam"} if form.get("iam") else set()
-    user_store.create(User(username, password, permissions))
+    user_store.create(username, password, pin, permissions)
     return RedirectResponse(url="/users", status_code=303)
 
 
@@ -144,8 +142,9 @@ async def update_user(request: Request, username: str):
     form = await request.form()
     new_username = form.get("username", "").strip()
     password = form.get("password") or None
+    pin = form.get("pin") or None
     permissions = {"iam"} if form.get("iam") else set()
-    user_store.update(username, User(new_username, password, permissions))
+    user_store.update(username, new_username, password, pin, permissions)
     return RedirectResponse(url="/users", status_code=303)
 
 
@@ -154,3 +153,4 @@ async def delete_user(request: Request, username: str):
     require_permission(request, "iam")
     user_store.delete(username)
     return RedirectResponse(url="/users", status_code=303)
+
