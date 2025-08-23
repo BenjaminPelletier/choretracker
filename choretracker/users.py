@@ -2,9 +2,20 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import List, Optional, Set
+import types
+import bcrypt
+
+# Work around older Windows wheels lacking ``_bcrypt.__about__`` by
+# populating it with the package version so Passlib's backend check
+# doesn't emit a traceback. This is harmless if the attributes already
+# exist.
+if not hasattr(bcrypt, "__about__"):
+    bcrypt.__about__ = types.SimpleNamespace(__version__=bcrypt.__version__)
+if hasattr(bcrypt, "_bcrypt") and not hasattr(bcrypt._bcrypt, "__about__"):
+    bcrypt._bcrypt.__about__ = bcrypt.__about__
 
 from passlib.context import CryptContext
-from sqlmodel import Field, Session, SQLModel, create_engine, select
+from sqlmodel import Field, Session, SQLModel, select
 from sqlalchemy import Column, JSON
 
 
