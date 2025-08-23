@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from pathlib import Path
+import json
 import os
 
 from fastapi import FastAPI, HTTPException, Request
@@ -9,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from sqlmodel import create_engine
+from pydantic.json import pydantic_encoder
 
 from .users import UserStore, init_db
 from .calendar import (
@@ -24,7 +26,11 @@ from .calendar import (
 LOGOUT_DURATION = timedelta(minutes=1)
 
 db_path = os.getenv("CHORETRACKER_DB", "choretracker.db")
-engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+engine = create_engine(
+    f"sqlite:///{db_path}",
+    connect_args={"check_same_thread": False},
+    json_serializer=lambda obj: json.dumps(obj, default=pydantic_encoder),
+)
 init_db(engine)
 user_store = UserStore(engine)
 calendar_store = CalendarEntryStore(engine)
