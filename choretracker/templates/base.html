@@ -10,6 +10,18 @@
         <a href="{{ url_for('index') }}" class="nav-item">
             <img src="{{ url_for('static', path='home.svg') }}" alt="Home" class="icon">
         </a>
+        {% set current_user = request.session.get('user') %}
+        {% if current_user %}
+        <div class="user-menu">
+            <button class="user-button">{{ current_user }}</button>
+            <div class="dropdown">
+                {% for u in ALL_USERS if u != current_user %}
+                <a href="{{ url_for('switch_user', username=u) }}">{{ u }}</a>
+                {% endfor %}
+                <a href="{{ url_for('logout') }}">Sign out</a>
+            </div>
+        </div>
+        {% endif %}
     </nav>
     <main class="content">
         {% block content %}{% endblock %}
