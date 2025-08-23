@@ -13,16 +13,28 @@
         </a>
         {% set current_user = request.session.get('user') %}
         {% if current_user %}
-        <div class="user-menu">
-            <button class="user-button">{{ current_user }}</button>
-            <div class="dropdown">
-                {% for u in all_users() if u != current_user %}
-                <a href="{{ url_for('switch_user', username=u) }}">{{ u }}</a>
-                {% endfor %}
-                {% if user_has(current_user, 'iam') %}
-                <a href="{{ url_for('list_users') }}">Manage users</a>
-                {% endif %}
-                <a href="{{ url_for('logout') }}">Sign out</a>
+        <div class="nav-actions">
+            <div class="create-menu">
+                <button class="icon-button" id="create-button">
+                    <img src="{{ url_for('static', path='plus.svg') }}" alt="Add" class="icon">
+                </button>
+                <div class="dropdown" id="create-dropdown">
+                    <a href="{{ url_for('new_calendar_entry', entry_type='Event') }}">Event</a>
+                    <a href="{{ url_for('new_calendar_entry', entry_type='Reminder') }}">Reminder</a>
+                    <a href="{{ url_for('new_calendar_entry', entry_type='Chore') }}">Chore</a>
+                </div>
+            </div>
+            <div class="user-menu">
+                <button class="user-button">{{ current_user }}</button>
+                <div class="dropdown">
+                    {% for u in all_users() if u != current_user %}
+                    <a href="{{ url_for('switch_user', username=u) }}">{{ u }}</a>
+                    {% endfor %}
+                    {% if user_has(current_user, 'iam') %}
+                    <a href="{{ url_for('list_users') }}">Manage users</a>
+                    {% endif %}
+                    <a href="{{ url_for('logout') }}">Sign out</a>
+                </div>
             </div>
         </div>
         {% endif %}
@@ -30,5 +42,27 @@
     <main class="content">
         {% block content %}{% endblock %}
     </main>
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var createButton = document.getElementById('create-button');
+        var createDropdown = document.getElementById('create-dropdown');
+        if (createButton && createDropdown) {
+            createButton.addEventListener('click', function (e) {
+                e.stopPropagation();
+                createDropdown.classList.toggle('show');
+            });
+            document.addEventListener('click', function (e) {
+                if (!createDropdown.contains(e.target) && e.target !== createButton) {
+                    createDropdown.classList.remove('show');
+                }
+            });
+        }
+        document.body.addEventListener('click', function (e) {
+            if (e.target.classList.contains('help')) {
+                alert(e.target.dataset.help);
+            }
+        });
+    });
+    </script>
 </body>
 </html>

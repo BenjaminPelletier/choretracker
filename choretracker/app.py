@@ -101,6 +101,15 @@ async def logout(request: Request):
     return RedirectResponse(url="/login", status_code=303)
 
 
+@app.get("/calendar/new/{entry_type}", response_class=HTMLResponse)
+async def new_calendar_entry(request: Request, entry_type: str):
+    if entry_type not in {"Event", "Reminder", "Chore"}:
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse(
+        "calendar/form.html", {"request": request, "entry_type": entry_type}
+    )
+
+
 @app.get("/users", response_class=HTMLResponse)
 async def list_users(request: Request):
     require_permission(request, "iam")

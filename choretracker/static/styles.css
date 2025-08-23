@@ -63,7 +63,7 @@ h1 {
     font: inherit;
 }
 
-.user-menu .dropdown {
+.dropdown {
     display: none;
     position: absolute;
     right: 0;
@@ -75,15 +75,14 @@ h1 {
     display: block;
 }
 
-
-.user-menu .dropdown a {
+.dropdown a {
     display: block;
     padding: 0.25rem 0.5rem;
     color: #111827;
     text-decoration: none;
 }
 
-.user-menu .dropdown a:hover {
+.dropdown a:hover {
     background-color: #f3f4f6;
 }
 
@@ -130,4 +129,73 @@ h1 {
 .form button {
     font-size: 1rem;
     padding: 0.5rem 1rem;
+}
+
+.nav-actions {
+    display: flex;
+    align-items: center;
+}
+
+.create-menu {
+    position: relative;
+    margin-right: 0.5rem;
+}
+
+.create-menu .dropdown.show {
+    display: block;
+}
+
+.help {
+    display: inline-block;
+    margin-left: 0.25rem;
+    color: #2563eb;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.recurrence-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.recurrence-item select,
+.recurrence-item input {
+    margin-right: 0.25rem;
+}
+
+.recurrence-item .remove-recurrence {
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+.duration-inputs input {
+    margin-right: 0.25rem;
+    width: 4rem;
+}
+
+.responsible-selector {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+#responsible-list {
+    list-style: none;
+    padding-left: 0;
+}
+
+#responsible-list li {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.25rem;
+}
+
+#responsible-list li button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    margin-left: 0.25rem;
 }

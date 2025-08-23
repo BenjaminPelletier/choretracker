@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}New {{ entry_type }} - Chore Tracker{% endblock %}
+
+{% block content %}
+<h1>New {{ entry_type }}</h1>
+<form id="entry-form" class="form">
+    <input type="hidden" name="type" value="{{ entry_type }}">
+    <label>
+        First start
+        <input type="datetime-local" name="first_start" required>
+        <span class="help" data-help="Start time of the first instance">?</span>
+    </label>
+    <label>
+        Duration
+        <div class="duration-inputs">
+            <input type="number" name="duration_hours" placeholder="Hours" min="0">
+            <input type="number" name="duration_minutes" placeholder="Minutes" min="0" max="59">
+        </div>
+        <span class="help" data-help="Length of each instance">?</span>
+    </label>
+    <label>
+        Recurrences
+        <span class="help" data-help="Schedules on which this repeats">?</span>
+    </label>
+    <div id="recurrences"></div>
+    <button type="button" id="add-recurrence">Add recurrence</button>
+
+    <label>
+        None after
+        <input type="datetime-local" name="none_after">
+        <span class="help" data-help="No instances start after this time">?</span>
+    </label>
+
+    <label>
+        Responsible
+        <span class="help" data-help="People responsible for this entry">?</span>
+    </label>
+    <div class="responsible-selector">
+        <select id="responsible-select">
+            {% for u in all_users() %}
+            <option value="{{ u }}">{{ u }}</option>
+            {% endfor %}
+        </select>
+        <button type="button" id="add-responsible">Add</button>
+    </div>
+    <ul id="responsible-list"></ul>
+
+    <button type="submit">Save</button>
+</form>
+
+<template id="recurrence-template">
+    <div class="recurrence-item">
+        <select name="recurrence_type[]">
+            <option value="Weekly">Weekly</option>
+            <option value="MonthlyDayOfMonth">MonthlyDayOfMonth</option>
+            <option value="MonthlyDayOfWeek">MonthlyDayOfWeek</option>
+            <option value="AnnualDayOfMonth">AnnualDayOfMonth</option>
+        </select>
+        <span class="help" data-help="Type of recurrence">?</span>
+        <div class="offset">
+            <input type="number" name="offset_days[]" placeholder="Days" min="0">
+            <input type="number" name="offset_hours[]" placeholder="Hours" min="0" max="23">
+            <input type="number" name="offset_minutes[]" placeholder="Minutes" min="0" max="59">
+            <input type="number" name="offset_months[]" placeholder="Months" min="0">
+            <input type="number" name="offset_years[]" placeholder="Years" min="0">
+            <span class="help" data-help="Offset from nominal schedule">?</span>
+        </div>
+        <button type="button" class="remove-recurrence">
+            <img src="{{ url_for('static', path='trash.svg') }}" alt="Remove" class="icon">
+        </button>
+    </div>
+</template>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const recurrences = document.getElementById('recurrences');
+    const recurrenceTemplate = document.getElementById('recurrence-template');
+    const addRecurrence = document.getElementById('add-recurrence');
+    addRecurrence.addEventListener('click', function () {
+        const clone = recurrenceTemplate.content.cloneNode(true);
+        recurrences.appendChild(clone);
+    });
+    recurrences.addEventListener('click', function (e) {
+        if (e.target.closest('.remove-recurrence')) {
+            e.target.closest('.recurrence-item').remove();
+        }
+    });
+
+    const responsibleSelect = document.getElementById('responsible-select');
+    const responsibleList = document.getElementById('responsible-list');
+    const addResponsible = document.getElementById('add-responsible');
+    const trashUrl = "{{ url_for('static', path='trash.svg') }}";
+    addResponsible.addEventListener('click', function () {
+        const user = responsibleSelect.value;
+        const li = document.createElement('li');
+        li.textContent = user;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.innerHTML = '<img src="' + trashUrl + '" alt="Remove" class="icon">';
+        btn.addEventListener('click', function () { li.remove(); });
+        li.appendChild(btn);
+        responsibleList.appendChild(li);
+    });
+
+    document.getElementById('entry-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+    });
+});
+</script>
+{% endblock %}
