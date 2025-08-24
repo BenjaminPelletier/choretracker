@@ -225,6 +225,13 @@
                 }
             });
         }
+
+        var loggedInUser = "{{ request.session.get('user') }}";
+        if (loggedInUser && loggedInUser !== 'Viewer') {
+            setTimeout(function () {
+                window.location.reload();
+            }, ({{ LOGOUT_DURATION.total_seconds()|int }} + 1) * 1000);
+        }
     });
     </script>
 </body>

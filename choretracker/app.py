@@ -91,6 +91,7 @@ templates.env.globals["user_has"] = user_store.has_permission
 templates.env.globals["WRITE_PERMS"] = WRITE_PERMS
 templates.env.globals["EDIT_OTHER_PERMS"] = EDIT_OTHER_PERMS
 templates.env.globals["timedelta"] = timedelta
+templates.env.globals["LOGOUT_DURATION"] = LOGOUT_DURATION
 app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="static")
 
 
@@ -284,6 +285,8 @@ async def profile_picture(username: str):
     user = user_store.get(username)
     if user and user.profile_picture:
         return Response(user.profile_picture, media_type="image/png")
+    if username == "Viewer":
+        return FileResponse(BASE_PATH / "static" / "viewer_profile.png")
     return FileResponse(BASE_PATH / "static" / "default_profile.png")
 
 
