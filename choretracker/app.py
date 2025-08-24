@@ -5,7 +5,7 @@ import os
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -14,7 +14,7 @@ from sqlmodel import create_engine
 from pydantic.json import pydantic_encoder
 from itertools import islice
 
-from .users import UserStore, init_db
+from .users import UserStore, init_db, process_profile_picture
 from .calendar import (
     CalendarEntry,
     CalendarEntryStore,
@@ -191,6 +191,14 @@ async def switch_user(request: Request, username: str, next: str | None = None):
 async def logout(request: Request):
     request.session.clear()
     return RedirectResponse(url="/login", status_code=303)
+
+
+@app.get("/users/{username}/profile_picture")
+async def profile_picture(username: str):
+    user = user_store.get(username)
+    if user and user.profile_picture:
+        return Response(user.profile_picture, media_type="image/png")
+    return FileResponse(BASE_PATH / "static" / "default_profile.png")
 
 
 @app.get("/calendar/new/{entry_type}", response_class=HTMLResponse)
@@ -432,13 +440,21 @@ async def create_user(request: Request):
     permissions = {p for p in ALL_PERMISSIONS if form.get(p)}
     if form.get("admin") and user_store.has_permission(request.session.get("user"), "admin"):
         permissions.add("admin")
-    user_store.create(username, password, pin, permissions)
+    upload = form.get("profile_picture")
+    profile_picture = None
+    if getattr(upload, "filename", ""):
+        data = await upload.read()
+        if data:
+            profile_picture = process_profile_picture(data)
+    user_store.create(username, password, pin, permissions, profile_picture=profile_picture)
     return RedirectResponse(url="/users", status_code=303)
 
 
 @app.get("/users/{username}/edit", response_class=HTMLResponse)
 async def edit_user(request: Request, username: str):
-    require_permission(request, "iam")
+    current_user = request.session.get("user")
+    if current_user != username:
+        require_permission(request, "iam")
     user = user_store.get(username)
     if not user or user.username == "Viewer":
         raise HTTPException(status_code=404)
@@ -447,27 +463,37 @@ async def edit_user(request: Request, username: str):
 
 @app.post("/users/{username}/edit")
 async def update_user(request: Request, username: str):
-    require_permission(request, "iam")
+    current_user = request.session.get("user")
+    if current_user != username:
+        require_permission(request, "iam")
     form = await request.form()
     new_username = form.get("username", "").strip()
     password = form.get("password") or None
     pin = form.get("pin") or None
     remove_password = bool(form.get("remove_password"))
     remove_pin = bool(form.get("remove_pin"))
+    upload = form.get("profile_picture")
+    profile_picture = None
+    if getattr(upload, "filename", ""):
+        data = await upload.read()
+        if data:
+            profile_picture = process_profile_picture(data)
     existing = user_store.get(username)
     if not existing or existing.username == "Viewer":
         raise HTTPException(status_code=404)
-    permissions = {p for p in ALL_PERMISSIONS if form.get(p)}
-    current_user = request.session.get("user")
-    if form.get("admin") and user_store.has_permission(current_user, "admin"):
-        permissions.add("admin")
-    elif "admin" in existing.permissions:
-        permissions.add("admin")
-    if "admin" in existing.permissions and "admin" not in permissions:
-        admins = [u for u in user_store.list_users() if "admin" in u.permissions and u.username != username]
-        if not admins:
-            request.session["flash"] = "Cannot remove the last admin user."
-            raise HTTPException(status_code=303, headers={"Location": str(request.url_for("edit_user", username=username))})
+    if user_store.has_permission(current_user, "iam"):
+        permissions = {p for p in ALL_PERMISSIONS if form.get(p)}
+        if form.get("admin") and user_store.has_permission(current_user, "admin"):
+            permissions.add("admin")
+        elif "admin" in existing.permissions:
+            permissions.add("admin")
+        if "admin" in existing.permissions and "admin" not in permissions:
+            admins = [u for u in user_store.list_users() if "admin" in u.permissions and u.username != username]
+            if not admins:
+                request.session["flash"] = "Cannot remove the last admin user."
+                raise HTTPException(status_code=303, headers={"Location": str(request.url_for("edit_user", username=username))})
+    else:
+        permissions = set(existing.permissions)
     user_store.update(
         username,
         new_username,
@@ -476,8 +502,10 @@ async def update_user(request: Request, username: str):
         permissions,
         remove_password=remove_password,
         remove_pin=remove_pin,
+        profile_picture=profile_picture,
     )
-    return RedirectResponse(url="/users", status_code=303)
+    target = "/users" if current_user != username else "/"
+    return RedirectResponse(url=target, status_code=303)
 
 
 @app.post("/users/{username}/delete")

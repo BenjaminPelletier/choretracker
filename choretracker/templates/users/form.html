@@ -10,7 +10,7 @@
 
 {% block content %}
 <h1>{{ page_title }}</h1>
-<form method="post" class="form">
+<form method="post" class="form" enctype="multipart/form-data">
     <div class="field">
         <label>
             <span>Username</span>
@@ -46,6 +46,18 @@
     </div>
     {% endif %}
     <p>Leave password or PIN blank to keep the existing value.</p>
+    <h2>Profile picture</h2>
+    <div class="field">
+        <label for="profile_picture" class="profile-picture">
+            {% if user %}
+            <img src="{{ url_for('profile_picture', username=user.username) }}" alt="Profile picture">
+            {% else %}
+            <img src="{{ url_for('static', path='default_profile.png') }}" alt="Profile picture">
+            {% endif %}
+        </label>
+        <input type="file" id="profile_picture" name="profile_picture" accept="image/*" style="display:none">
+    </div>
+    {% if user_has(request.session.get('user'), 'iam') %}
     <h2>Permissions</h2>
     <div class="group">
         <div class="group">
@@ -107,6 +119,7 @@
             </label>
         </div>
     </div>
+    {% endif %}
     <button type="submit">Save</button>
 </form>
 {% endblock %}

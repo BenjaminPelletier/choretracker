@@ -55,6 +55,9 @@
                     <img src="{{ url_for('static', path='gear.svg') }}" alt="Settings" class="icon">
                 </button>
                 <div class="dropdown" id="settings-dropdown">
+                    {% if current_user != 'Viewer' %}
+                    <a href="{{ url_for('edit_user', username=current_user) }}"><img src="{{ url_for('static', path='user.svg') }}" alt="Edit profile" class="icon"></a>
+                    {% endif %}
                     {% if user_has(current_user, 'iam') %}
                     <a href="{{ url_for('list_users') }}"><img src="{{ url_for('static', path='users.svg') }}" alt="Manage users" class="icon"></a>
                     {% endif %}
@@ -62,10 +65,10 @@
                 </div>
             </div>
             <div class="user-menu">
-                <button class="user-button">{{ current_user }}</button>
+                <button class="user-button"><img src="{{ url_for('profile_picture', username=current_user) }}" alt="{{ current_user }}" class="icon"></button>
                 <div class="dropdown">
                     {% for u in all_users() if u != current_user %}
-                    <a href="{{ url_for('switch_user', username=u) }}?next={{ (request.url.path ~ ('?' ~ request.url.query if request.url.query else '')) | urlencode }}">{{ u }}</a>
+                    <a title="{{ u }}" href="{{ url_for('switch_user', username=u) }}?next={{ (request.url.path ~ ('?' ~ request.url.query if request.url.query else '')) | urlencode }}"><img src="{{ url_for('profile_picture', username=u) }}" alt="{{ u }}" class="icon"></a>
                     {% endfor %}
                 </div>
             </div>

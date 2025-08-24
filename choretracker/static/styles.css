@@ -201,6 +201,17 @@ h1 {
     margin-bottom: 0.5rem;
 }
 
+.profile-picture {
+    cursor: pointer;
+    display: inline-block;
+}
+
+.profile-picture img {
+    width: 4rem;
+    height: 4rem;
+    border-radius: 50%;
+}
+
 .group .group {
     margin-left: 1rem;
 }
