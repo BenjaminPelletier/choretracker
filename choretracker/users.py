@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import List, Optional, Set
+import io
 import types
 import bcrypt
 
@@ -16,7 +17,8 @@ if hasattr(bcrypt, "_bcrypt") and not hasattr(bcrypt._bcrypt, "__about__"):
 
 from passlib.context import CryptContext
 from sqlmodel import Field, Session, SQLModel, select
-from sqlalchemy import Column, JSON
+from sqlalchemy import Column, JSON, LargeBinary
+from PIL import Image, ImageDraw
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -30,12 +32,35 @@ class User(SQLModel, table=True):
     password_hash: str
     pin_hash: str
     permissions: List[str] = Field(default_factory=list, sa_column=Column(JSON))
+    profile_picture: Optional[bytes] = Field(
+        default=None, sa_column=Column(LargeBinary)
+    )
 
 
 def hash_secret(secret: str) -> str:
     """Hash a password or PIN using bcrypt."""
 
     return pwd_context.hash(secret)
+
+
+def process_profile_picture(data: bytes) -> bytes:
+    """Process uploaded profile picture according to requirements."""
+
+    with Image.open(io.BytesIO(data)) as img:
+        img = img.convert("RGBA")
+        width, height = img.size
+        size = min(width, height)
+        left = (width - size) // 2
+        top = (height - size) // 2
+        img = img.crop((left, top, left + size, top + size))
+        img = img.resize((128, 128))
+        mask = Image.new("L", (128, 128), 0)
+        draw = ImageDraw.Draw(mask)
+        draw.ellipse((0, 0, 128, 128), fill=255)
+        img.putalpha(mask)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
 
 
 class UserStore:
@@ -56,7 +81,12 @@ class UserStore:
             return session.exec(select(User).where(User.username == username)).first()
 
     def create(
-        self, username: str, password: Optional[str], pin: Optional[str], permissions: Set[str]
+        self,
+        username: str,
+        password: Optional[str],
+        pin: Optional[str],
+        permissions: Set[str],
+        profile_picture: Optional[bytes] = None,
     ) -> None:
         if username == "Viewer":
             return
@@ -66,6 +96,7 @@ class UserStore:
                 password_hash=hash_secret(password) if password else "",
                 pin_hash=hash_secret(pin) if pin else "",
                 permissions=list(permissions),
+                profile_picture=profile_picture,
             )
             session.add(user)
             session.commit()
@@ -79,6 +110,7 @@ class UserStore:
         permissions: Set[str],
         remove_password: bool = False,
         remove_pin: bool = False,
+        profile_picture: Optional[bytes] = None,
     ) -> None:
         if old_username == "Viewer":
             return
@@ -96,6 +128,8 @@ class UserStore:
             elif pin:
                 user.pin_hash = hash_secret(pin)
             user.permissions = list(permissions)
+            if profile_picture is not None:
+                user.profile_picture = profile_picture
             session.add(user)
             session.commit()
 
