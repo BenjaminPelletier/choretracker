@@ -71,7 +71,7 @@
             <button type="button" id="add-responsible">Add</button>
             <div class="dropdown" id="responsible-dropdown">
                 {% for u in all_users() %}
-                <a href="#" data-user="{{ u }}">{{ u }}</a>
+                <a href="#" data-user="{{ u.username }}">{{ u.username }}</a>
                 {% endfor %}
             </div>
         </div>
