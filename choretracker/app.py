@@ -3,6 +3,9 @@ from pathlib import Path
 import json
 import os
 from urllib.parse import urlparse
+from heapq import heappush, heappop
+from typing import Iterator
+from itertools import count
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse
@@ -12,7 +15,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from sqlmodel import create_engine
 from pydantic.json import pydantic_encoder
-from itertools import islice
 
 from .users import UserStore, init_db, process_profile_picture
 from .calendar import (
@@ -22,11 +24,13 @@ from .calendar import (
     Offset,
     Recurrence,
     RecurrenceType,
+    TimePeriod,
     enumerate_time_periods,
 )
 
 
 LOGOUT_DURATION = timedelta(minutes=1)
+MAX_UPCOMING = 5
 
 db_path = os.getenv("CHORETRACKER_DB", "choretracker.db")
 engine = create_engine(
@@ -119,7 +123,7 @@ class EnsureUserMiddleware(BaseHTTPMiddleware):
         path = request.url.path
 
         user = session.get("user")
-        now = datetime.utcnow().timestamp()
+        now = datetime.now().timestamp()
         if user:
             last = session.get("last_active", now)
             if user != "Viewer" and now - last > LOGOUT_DURATION.total_seconds():
@@ -139,12 +143,48 @@ app.add_middleware(SessionMiddleware, secret_key="change-me")
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    entries_with_periods = []
+    now = datetime.now()
+    overdue: list[tuple[CalendarEntry, TimePeriod]] = []
+    current: list[tuple[CalendarEntry, TimePeriod]] = []
+    upcoming_heap: list[tuple[datetime, int, CalendarEntry, TimePeriod, Iterator[TimePeriod]]] = []
+    counter = count()
+
     for entry in calendar_store.list_entries():
-        periods = list(islice(enumerate_time_periods(entry), 8))
-        entries_with_periods.append((entry, periods))
+        gen = enumerate_time_periods(entry)
+        for period in gen:
+            if period.end <= now:
+                if entry.type == CalendarEntryType.Chore:
+                    overdue.append((entry, period))
+            elif period.start <= now:
+                current.append((entry, period))
+                nxt = next(gen, None)
+                if nxt:
+                    heappush(upcoming_heap, (nxt.start, next(counter), entry, nxt, gen))
+                break
+            else:
+                heappush(upcoming_heap, (period.start, next(counter), entry, period, gen))
+                break
+
+    upcoming: list[tuple[CalendarEntry, TimePeriod]] = []
+    while upcoming_heap and len(upcoming) < MAX_UPCOMING:
+        _, _, entry, period, gen = heappop(upcoming_heap)
+        upcoming.append((entry, period))
+        nxt = next(gen, None)
+        if nxt:
+            heappush(upcoming_heap, (nxt.start, next(counter), entry, nxt, gen))
+
+    overdue.sort(key=lambda x: x[1].end)
+    current.sort(key=lambda x: x[1].end)
+
     return templates.TemplateResponse(
-        "index.html", {"request": request, "entries": entries_with_periods}
+        "index.html",
+        {
+            "request": request,
+            "overdue": overdue,
+            "now_periods": current,
+            "upcoming": upcoming,
+            "CalendarEntryType": CalendarEntryType,
+        },
     )
 
 
@@ -163,7 +203,7 @@ async def login(request: Request):
 
     if user_store.verify(username, password):
         request.session["user"] = username
-        request.session["last_active"] = datetime.utcnow().timestamp()
+        request.session["last_active"] = datetime.now().timestamp()
         return RedirectResponse(url="/", status_code=303)
 
     return templates.TemplateResponse(
@@ -175,7 +215,7 @@ async def login(request: Request):
 async def switch_user(request: Request, username: str, next: str | None = None):
     if user_store.get(username):
         request.session["user"] = username
-        request.session["last_active"] = datetime.utcnow().timestamp()
+        request.session["last_active"] = datetime.now().timestamp()
 
     target = "/"
     if next:
