@@ -50,16 +50,23 @@
                 </div>
             </div>
             {% endif %}
+            <div class="settings-menu">
+                <button class="icon-button" id="settings-button">
+                    <img src="{{ url_for('static', path='gear.svg') }}" alt="Settings" class="icon">
+                </button>
+                <div class="dropdown" id="settings-dropdown">
+                    {% if user_has(current_user, 'iam') %}
+                    <a href="{{ url_for('list_users') }}"><img src="{{ url_for('static', path='users.svg') }}" alt="Manage users" class="icon"></a>
+                    {% endif %}
+                    <a href="{{ url_for('logout') }}"><img src="{{ url_for('static', path='signout.svg') }}" alt="Sign out" class="icon"></a>
+                </div>
+            </div>
             <div class="user-menu">
                 <button class="user-button">{{ current_user }}</button>
                 <div class="dropdown">
                     {% for u in all_users() if u != current_user %}
                     <a href="{{ url_for('switch_user', username=u) }}?next={{ (request.url.path ~ ('?' ~ request.url.query if request.url.query else '')) | urlencode }}">{{ u }}</a>
                     {% endfor %}
-                    {% if user_has(current_user, 'iam') %}
-                    <a href="{{ url_for('list_users') }}">Manage users</a>
-                    {% endif %}
-                    <a href="{{ url_for('logout') }}">Sign out</a>
                 </div>
             </div>
         </div>
@@ -76,9 +83,23 @@
     document.addEventListener('DOMContentLoaded', function () {
         var createButton = document.getElementById('create-button');
         var createDropdown = document.getElementById('create-dropdown');
+        var listButton = document.getElementById('list-button');
+        var listDropdown = document.getElementById('list-dropdown');
+        var settingsButton = document.getElementById('settings-button');
+        var settingsDropdown = document.getElementById('settings-dropdown');
+
+        function hideOtherDropdowns(except) {
+            [createDropdown, listDropdown, settingsDropdown].forEach(function (dd) {
+                if (dd && dd !== except) {
+                    dd.classList.remove('show');
+                }
+            });
+        }
+
         if (createButton && createDropdown) {
             createButton.addEventListener('click', function (e) {
                 e.stopPropagation();
+                hideOtherDropdowns(createDropdown);
                 createDropdown.classList.toggle('show');
             });
             document.addEventListener('click', function (e) {
@@ -87,16 +108,27 @@
                 }
             });
         }
-        var listButton = document.getElementById('list-button');
-        var listDropdown = document.getElementById('list-dropdown');
         if (listButton && listDropdown) {
             listButton.addEventListener('click', function (e) {
                 e.stopPropagation();
+                hideOtherDropdowns(listDropdown);
                 listDropdown.classList.toggle('show');
             });
             document.addEventListener('click', function (e) {
                 if (!listDropdown.contains(e.target) && e.target !== listButton) {
                     listDropdown.classList.remove('show');
+                }
+            });
+        }
+        if (settingsButton && settingsDropdown) {
+            settingsButton.addEventListener('click', function (e) {
+                e.stopPropagation();
+                hideOtherDropdowns(settingsDropdown);
+                settingsDropdown.classList.toggle('show');
+            });
+            document.addEventListener('click', function (e) {
+                if (!settingsDropdown.contains(e.target) && e.target !== settingsButton) {
+                    settingsDropdown.classList.remove('show');
                 }
             });
         }

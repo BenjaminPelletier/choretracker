@@ -124,6 +124,11 @@ h1 {
     margin-left: 0.25rem;
 }
 
+.required {
+    color: red;
+    margin-left: 0.25rem;
+}
+
 .help {
     display: inline-flex;
     align-items: center;
@@ -183,6 +188,12 @@ h1 {
     position: relative;
     margin-right: 0.5rem;
 }
+
+.settings-menu {
+    position: relative;
+    margin-right: 0.5rem;
+}
+
 /* Group styling */
 .group {
     border: 1px solid #d1d5db;

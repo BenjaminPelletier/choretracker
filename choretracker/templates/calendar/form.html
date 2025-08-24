@@ -9,10 +9,10 @@
 
     <div class="field">
         <div class="label-row">
-            <label for="title">Title</label>
+            <label for="title">Title<span class="required">*</span></label>
             <span class="help" data-help="Short name for this entry">?</span>
         </div>
-        <input type="text" id="title" name="title">
+        <input type="text" id="title" name="title" required>
     </div>
 
     <div class="field">
@@ -25,7 +25,7 @@
 
     <div class="field">
         <div class="label-row">
-            <label for="first_start">First start</label>
+            <label for="first_start">First start<span class="required">*</span></label>
             <span class="help" data-help="Start time of the first instance">?</span>
         </div>
         <input type="datetime-local" id="first_start" name="first_start" required>
@@ -37,7 +37,6 @@
             <span class="help" data-help="Length of each instance">?</span>
         </div>
         <div class="duration-inputs">
-            <input type="number" name="duration_weeks" placeholder="Weeks" min="0">
             <input type="number" name="duration_days" placeholder="Days" min="0">
             <input type="number" name="duration_hours" placeholder="Hours" min="0">
             <input type="number" name="duration_minutes" placeholder="Minutes" min="0" max="59">
@@ -203,11 +202,9 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('description').value = data.description;
     document.getElementById('first_start').value = data.first_start.slice(0,16);
     const dur = data.duration_seconds;
-    const weeks = Math.floor(dur / (7*24*3600));
-    const days = Math.floor((dur % (7*24*3600)) / 86400);
+    const days = Math.floor(dur / 86400);
     const hours = Math.floor((dur % 86400) / 3600);
     const minutes = Math.floor((dur % 3600) / 60);
-    document.querySelector('input[name="duration_weeks"]').value = weeks || '';
     document.querySelector('input[name="duration_days"]').value = days || '';
     document.querySelector('input[name="duration_hours"]').value = hours || '';
     document.querySelector('input[name="duration_minutes"]').value = minutes || '';

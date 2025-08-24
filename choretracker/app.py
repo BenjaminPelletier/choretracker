@@ -231,7 +231,6 @@ async def create_calendar_entry(request: Request):
     first_start = datetime.fromisoformat(first_start_str)
 
     duration = timedelta(
-        weeks=int(form.get("duration_weeks") or 0),
         days=int(form.get("duration_days") or 0),
         hours=int(form.get("duration_hours") or 0),
         minutes=int(form.get("duration_minutes") or 0),
@@ -357,7 +356,6 @@ async def update_calendar_entry(request: Request, entry_id: int):
     first_start = datetime.fromisoformat(first_start_str)
 
     duration = timedelta(
-        weeks=int(form.get("duration_weeks") or 0),
         days=int(form.get("duration_days") or 0),
         hours=int(form.get("duration_hours") or 0),
         minutes=int(form.get("duration_minutes") or 0),
