@@ -230,6 +230,29 @@ document.addEventListener('DOMContentLoaded', function () {
     data.recurrences.forEach(r => addRecurrenceItem(r));
     data.responsible.forEach(u => addUser(u));
     {% endif %}
+    const form = document.getElementById('entry-form');
+    const durationInputs = document.querySelectorAll('.duration-inputs input');
+    function validateDuration() {
+        const days = Number(document.querySelector('input[name="duration_days"]').value) || 0;
+        const hours = Number(document.querySelector('input[name="duration_hours"]').value) || 0;
+        const minutes = Number(document.querySelector('input[name="duration_minutes"]').value) || 0;
+        const total = days * 86400 + hours * 3600 + minutes * 60;
+        durationInputs.forEach(inp => {
+            if (total <= 0) {
+                inp.setCustomValidity('Duration must be greater than 0');
+            } else {
+                inp.setCustomValidity('');
+            }
+        });
+        return total > 0;
+    }
+    durationInputs.forEach(inp => inp.addEventListener('input', validateDuration));
+    form.addEventListener('submit', function (e) {
+        if (!validateDuration()) {
+            e.preventDefault();
+            durationInputs[0].reportValidity();
+        }
+    });
 
     // form submits normally to backend
 });
