@@ -42,7 +42,7 @@ class CalendarEntry(SQLModel, table=True):
     description: str = ""
     type: CalendarEntryType
     first_start: datetime
-    duration_seconds: int
+    duration_seconds: int = Field(gt=0)
     recurrences: List[Recurrence] = Field(default_factory=list, sa_column=Column(JSON))
     none_after: Optional[datetime] = None
     responsible: List[str] = Field(default_factory=list, sa_column=Column(JSON))

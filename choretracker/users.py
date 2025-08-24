@@ -87,10 +87,12 @@ class UserStore:
         pin: Optional[str],
         permissions: Set[str],
         profile_picture: Optional[bytes] = None,
-    ) -> None:
+    ) -> bool:
         if username == "Viewer":
-            return
+            return False
         with Session(self.engine) as session:
+            if session.exec(select(User).where(User.username == username)).first():
+                return False
             user = User(
                 username=username,
                 password_hash=hash_secret(password) if password else "",
@@ -100,6 +102,7 @@ class UserStore:
             )
             session.add(user)
             session.commit()
+            return True
 
     def update(
         self,
@@ -111,13 +114,17 @@ class UserStore:
         remove_password: bool = False,
         remove_pin: bool = False,
         profile_picture: Optional[bytes] = None,
-    ) -> None:
+    ) -> bool:
         if old_username == "Viewer":
-            return
+            return False
         with Session(self.engine) as session:
+            if new_username != old_username and session.exec(
+                select(User).where(User.username == new_username)
+            ).first():
+                return False
             user = session.exec(select(User).where(User.username == old_username)).first()
             if not user:
-                return
+                return False
             user.username = new_username
             if remove_password:
                 user.password_hash = ""
@@ -132,6 +139,7 @@ class UserStore:
                 user.profile_picture = profile_picture
             session.add(user)
             session.commit()
+            return True
 
     def delete(self, username: str) -> None:
         if username == "Viewer":
