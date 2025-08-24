@@ -67,8 +67,8 @@
             <div class="user-menu">
                 <button class="user-button"><img src="{{ url_for('profile_picture', username=current_user) }}" alt="{{ current_user }}" class="icon"></button>
                 <div class="dropdown">
-                    {% for u in all_users() if u != current_user %}
-                    <a title="{{ u }}" href="{{ url_for('switch_user', username=u) }}?next={{ (request.url.path ~ ('?' ~ request.url.query if request.url.query else '')) | urlencode }}"><img src="{{ url_for('profile_picture', username=u) }}" alt="{{ u }}" class="icon"></a>
+                    {% for u in all_users() if u.username != current_user %}
+                    <a class="switch-user" data-username="{{ u.username }}" data-has-pin="{{ '1' if u.pin_hash else '0' }}" title="{{ u.username }}" href="{{ url_for('switch_user', username=u.username) }}?next={{ (request.url.path ~ ('?' ~ request.url.query if request.url.query else '')) | urlencode }}"><img src="{{ url_for('profile_picture', username=u.username) }}" alt="{{ u.username }}" class="icon"></a>
                     {% endfor %}
                 </div>
             </div>
@@ -82,6 +82,26 @@
         {% endif %}
         {% block content %}{% endblock %}
     </main>
+    <div id="pin-modal" class="pin-modal">
+        <div class="pin-modal-content">
+            <div id="pin-display"></div>
+            <div class="keypad">
+                <button class="key pin-key" data-value="1"><span class="num">1</span><span class="letters"></span></button>
+                <button class="key pin-key" data-value="2"><span class="num">2</span><span class="letters">ABC</span></button>
+                <button class="key pin-key" data-value="3"><span class="num">3</span><span class="letters">DEF</span></button>
+                <button class="key pin-key" data-value="4"><span class="num">4</span><span class="letters">GHI</span></button>
+                <button class="key pin-key" data-value="5"><span class="num">5</span><span class="letters">JKL</span></button>
+                <button class="key pin-key" data-value="6"><span class="num">6</span><span class="letters">MNO</span></button>
+                <button class="key pin-key" data-value="7"><span class="num">7</span><span class="letters">PQRS</span></button>
+                <button class="key pin-key" data-value="8"><span class="num">8</span><span class="letters">TUV</span></button>
+                <button class="key pin-key" data-value="9"><span class="num">9</span><span class="letters">WXYZ</span></button>
+                <div></div>
+                <button class="key pin-key" data-value="0"><span class="num">0</span><span class="letters"></span></button>
+                <button class="key enter" id="pin-enter">&#x2192;</button>
+            </div>
+            <div id="pin-error" class="pin-error"></div>
+        </div>
+    </div>
     <script>
     document.addEventListener('DOMContentLoaded', function () {
         var createButton = document.getElementById('create-button');
@@ -140,6 +160,71 @@
                 alert(e.target.dataset.help);
             }
         });
+
+        var switchLinks = document.querySelectorAll('.switch-user');
+        var pinModal = document.getElementById('pin-modal');
+        var pinDisplay = document.getElementById('pin-display');
+        var pinError = document.getElementById('pin-error');
+        var currentUser = null;
+        var currentNext = '';
+        var pinValue = '';
+
+        function openPinModal(user, next) {
+            currentUser = user;
+            currentNext = next;
+            pinValue = '';
+            pinDisplay.textContent = '';
+            pinError.textContent = '';
+            pinModal.style.display = 'flex';
+        }
+        function closePinModal() {
+            pinModal.style.display = 'none';
+        }
+        pinModal.addEventListener('click', function (e) {
+            if (e.target === pinModal) {
+                closePinModal();
+            }
+        });
+        document.querySelectorAll('.pin-key').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                pinValue += this.dataset.value;
+                pinDisplay.textContent = pinValue.replace(/./g, '•');
+            });
+        });
+        document.getElementById('pin-enter').addEventListener('click', function () {
+            performSwitch(currentUser, currentNext, pinValue);
+        });
+        switchLinks.forEach(function (link) {
+            link.addEventListener('click', function (e) {
+                e.preventDefault();
+                var username = this.dataset.username;
+                var hasPin = this.dataset.hasPin === '1';
+                var next = new URL(this.href).searchParams.get('next') || '';
+                if (hasPin) {
+                    openPinModal(username, next);
+                } else {
+                    performSwitch(username, next, '');
+                }
+            });
+        });
+        function performSwitch(username, next, pin) {
+            fetch('/switch/' + encodeURIComponent(username) + '?next=' + encodeURIComponent(next), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+                body: new URLSearchParams({ pin: pin })
+            }).then(function (resp) {
+                if (resp.ok) {
+                    resp.json().then(function (data) {
+                        closePinModal();
+                        window.location.href = data.redirect;
+                    });
+                } else {
+                    resp.json().then(function (data) {
+                        pinError.textContent = data.error || 'Invalid PIN';
+                    });
+                }
+            });
+        }
     });
     </script>
 </body>

@@ -8,7 +8,7 @@ from typing import Iterator
 from itertools import count
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -16,7 +16,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from sqlmodel import create_engine
 from pydantic.json import pydantic_encoder
 
-from .users import UserStore, init_db, process_profile_picture
+from .users import UserStore, init_db, process_profile_picture, pwd_context
 from .calendar import (
     CalendarEntry,
     CalendarEntryStore,
@@ -84,8 +84,8 @@ app = FastAPI()
 BASE_PATH = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_PATH / "templates"))
 templates.env.globals["all_users"] = lambda: sorted(
-    [u.username for u in user_store.list_users(include_viewer=True)],
-    key=lambda name: (name != "Viewer", name),
+    user_store.list_users(include_viewer=True),
+    key=lambda u: (u.username == "Viewer", u.username),
 )
 templates.env.globals["user_has"] = user_store.has_permission
 templates.env.globals["WRITE_PERMS"] = WRITE_PERMS
@@ -237,12 +237,7 @@ async def login(request: Request):
     )
 
 
-@app.get("/switch/{username}")
-async def switch_user(request: Request, username: str, next: str | None = None):
-    if user_store.get(username):
-        request.session["user"] = username
-        request.session["last_active"] = datetime.now().timestamp()
-
+def _switch_target(next: str | None) -> str:
     target = "/"
     if next:
         parsed = urlparse(next)
@@ -250,7 +245,32 @@ async def switch_user(request: Request, username: str, next: str | None = None):
             target = parsed.path
             if parsed.query:
                 target += f"?{parsed.query}"
-    return RedirectResponse(url=target, status_code=303)
+    return target
+
+
+@app.get("/switch/{username}")
+async def switch_user(request: Request, username: str, next: str | None = None, pin: str | None = None):
+    user = user_store.get(username)
+    if user and (not user.pin_hash or (pin and pwd_context.verify(pin, user.pin_hash))):
+        request.session["user"] = username
+        request.session["last_active"] = datetime.now().timestamp()
+        return RedirectResponse(url=_switch_target(next), status_code=303)
+    request.session["flash"] = "Invalid PIN"
+    return RedirectResponse(url=str(request.headers.get("referer", "/")), status_code=303)
+
+
+@app.post("/switch/{username}")
+async def switch_user_post(request: Request, username: str, next: str | None = None):
+    form = await request.form()
+    pin = form.get("pin", "")
+    user = user_store.get(username)
+    if not user:
+        raise HTTPException(status_code=404)
+    if user.pin_hash and not (pin and pwd_context.verify(pin, user.pin_hash)):
+        return JSONResponse({"error": "Invalid PIN"}, status_code=400)
+    request.session["user"] = username
+    request.session["last_active"] = datetime.now().timestamp()
+    return JSONResponse({"redirect": _switch_target(next)})
 
 
 @app.get("/logout")
