@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 from heapq import heappush, heappop
 from typing import Iterator
 from itertools import count
+from collections import Counter
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse, JSONResponse
@@ -388,6 +389,10 @@ async def list_calendar_entries(request: Request, entry_type: str):
         raise HTTPException(status_code=404)
     require_entry_read_permission(request, etype)
     entries = [e for e in calendar_store.list_entries() if e.type == etype]
+    counts = Counter(e.title for e in entries)
+    for entry in entries:
+        if counts[entry.title] > 1:
+            entry.title = f"{entry.title} ({entry.first_start.strftime('%Y-%m-%d %H:%M:%S')})"
     current_user = request.session.get("user")
     return templates.TemplateResponse(
         "calendar/list.html",
