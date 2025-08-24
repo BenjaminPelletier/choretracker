@@ -109,6 +109,61 @@ class CalendarEntryStore:
                 session.commit()
 
 
+class ChoreCompletion(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    entry_id: int = Field(index=True)
+    recurrence_index: int
+    instance_index: int
+    completed_by: str
+    completed_at: datetime = Field(default_factory=datetime.now)
+
+
+class ChoreCompletionStore:
+    def __init__(self, engine):
+        self.engine = engine
+
+    def get(
+        self, entry_id: int, recurrence_index: int, instance_index: int
+    ) -> Optional[ChoreCompletion]:
+        with Session(self.engine) as session:
+            stmt = select(ChoreCompletion).where(
+                (ChoreCompletion.entry_id == entry_id)
+                & (ChoreCompletion.recurrence_index == recurrence_index)
+                & (ChoreCompletion.instance_index == instance_index)
+            )
+            return session.exec(stmt).first()
+
+    def create(
+        self, entry_id: int, recurrence_index: int, instance_index: int, user: str
+    ) -> None:
+        completion = ChoreCompletion(
+            entry_id=entry_id,
+            recurrence_index=recurrence_index,
+            instance_index=instance_index,
+            completed_by=user,
+        )
+        with Session(self.engine) as session:
+            session.add(completion)
+            session.commit()
+
+    def delete(self, entry_id: int, recurrence_index: int, instance_index: int) -> None:
+        with Session(self.engine) as session:
+            stmt = select(ChoreCompletion).where(
+                (ChoreCompletion.entry_id == entry_id)
+                & (ChoreCompletion.recurrence_index == recurrence_index)
+                & (ChoreCompletion.instance_index == instance_index)
+            )
+            comp = session.exec(stmt).first()
+            if comp:
+                session.delete(comp)
+                session.commit()
+
+    def list_for_entry(self, entry_id: int) -> List[ChoreCompletion]:
+        with Session(self.engine) as session:
+            stmt = select(ChoreCompletion).where(ChoreCompletion.entry_id == entry_id)
+            return session.exec(stmt).all()
+
+
 @dataclass
 class TimePeriod:
     start: datetime
@@ -223,4 +278,16 @@ def enumerate_time_periods(entry: CalendarEntry) -> Iterator[TimePeriod]:
         nxt = next(gen, None)
         if nxt:
             heappush(heap, (nxt.start, idx, gen, nxt))
+
+
+def find_time_period(
+    entry: CalendarEntry, recurrence_index: int, instance_index: int
+) -> Optional[TimePeriod]:
+    for period in enumerate_time_periods(entry):
+        if (
+            period.recurrence_index == recurrence_index
+            and period.instance_index == instance_index
+        ):
+            return period
+    return None
 

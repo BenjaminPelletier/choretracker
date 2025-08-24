@@ -87,6 +87,18 @@
                 <input type="checkbox" name="chores.edit_others" {% if user and 'chores.edit_others' in user.permissions %}checked{% endif %}>
                 <span>Edit others'</span>
             </label>
+            <label class="checkbox">
+                <input type="checkbox" name="chores.complete_on_time" {% if user and 'chores.complete_on_time' in user.permissions %}checked{% endif %}>
+                <span>Complete on time</span>
+            </label>
+            <label class="checkbox">
+                <input type="checkbox" name="chores.complete_overdue" {% if user and 'chores.complete_overdue' in user.permissions %}checked{% endif %}>
+                <span>Complete overdue</span>
+            </label>
+            <label class="checkbox">
+                <input type="checkbox" name="chores.override_complete" {% if user and 'chores.override_complete' in user.permissions %}checked{% endif %}>
+                <span>Remove any completion</span>
+            </label>
         </div>
         <div class="group">
             <h3>Events</h3>

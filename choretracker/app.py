@@ -21,11 +21,14 @@ from .calendar import (
     CalendarEntry,
     CalendarEntryStore,
     CalendarEntryType,
+    ChoreCompletion,
+    ChoreCompletionStore,
     Offset,
     Recurrence,
     RecurrenceType,
     TimePeriod,
     enumerate_time_periods,
+    find_time_period,
 )
 
 
@@ -41,10 +44,14 @@ engine = create_engine(
 init_db(engine)
 user_store = UserStore(engine)
 calendar_store = CalendarEntryStore(engine)
+completion_store = ChoreCompletionStore(engine)
 ALL_PERMISSIONS = [
     "chores.read",
     "chores.write",
     "chores.edit_others",
+    "chores.complete_on_time",
+    "chores.complete_overdue",
+    "chores.override_complete",
     "events.read",
     "events.write",
     "events.edit_others",
@@ -145,18 +152,37 @@ app.add_middleware(SessionMiddleware, secret_key="change-me")
 async def index(request: Request):
     now = datetime.now()
     overdue: list[tuple[CalendarEntry, TimePeriod]] = []
-    current: list[tuple[CalendarEntry, TimePeriod]] = []
+    current: list[tuple[CalendarEntry, TimePeriod, ChoreCompletion | None]] = []
     upcoming_heap: list[tuple[datetime, int, CalendarEntry, TimePeriod, Iterator[TimePeriod]]] = []
     counter = count()
 
     for entry in calendar_store.list_entries():
         gen = enumerate_time_periods(entry)
         for period in gen:
+            completion = None
+            if entry.type == CalendarEntryType.Chore:
+                completion = completion_store.get(
+                    entry.id, period.recurrence_index, period.instance_index
+                )
+                if completion:
+                    if period.end <= now:
+                        continue
+                    if period.start <= now:
+                        current.append((entry, period, completion))
+                        nxt = next(gen, None)
+                        if nxt:
+                            heappush(
+                                upcoming_heap,
+                                (nxt.start, next(counter), entry, nxt, gen),
+                            )
+                        break
+                    else:
+                        continue
             if period.end <= now:
                 if entry.type == CalendarEntryType.Chore:
                     overdue.append((entry, period))
             elif period.start <= now:
-                current.append((entry, period))
+                current.append((entry, period, completion))
                 nxt = next(gen, None)
                 if nxt:
                     heappush(upcoming_heap, (nxt.start, next(counter), entry, nxt, gen))
@@ -358,12 +384,22 @@ async def view_calendar_entry(request: Request, entry_id: int):
         raise HTTPException(status_code=404)
     require_entry_read_permission(request, entry.type)
     current_user = request.session.get("user")
+    comps: list[tuple[ChoreCompletion, TimePeriod, bool]] = []
+    for comp in completion_store.list_for_entry(entry_id):
+        period = find_time_period(entry, comp.recurrence_index, comp.instance_index)
+        if not period:
+            continue
+        can_remove = comp.completed_by == current_user or user_store.has_permission(
+            current_user, "chores.override_complete"
+        )
+        comps.append((comp, period, can_remove))
     return templates.TemplateResponse(
         "calendar/view.html",
         {
             "request": request,
             "entry": entry,
             "can_edit": can_edit_entry(current_user, entry),
+            "completions": comps,
         },
     )
 
@@ -454,6 +490,28 @@ async def update_calendar_entry(request: Request, entry_id: int):
         responsible=responsible,
         owner=existing.owner,
     )
+    for comp in completion_store.list_for_entry(entry_id):
+        old_period = find_time_period(
+            existing, comp.recurrence_index, comp.instance_index
+        )
+        new_period = find_time_period(
+            new_entry, comp.recurrence_index, comp.instance_index
+        )
+        if (
+            not old_period
+            or not new_period
+            or old_period.start != new_period.start
+            or old_period.end != new_period.end
+        ):
+            request.session["flash"] = "Cannot modify entry with existing completions."
+            raise HTTPException(
+                status_code=303,
+                headers={
+                    "Location": str(
+                        request.url_for("edit_calendar_entry", entry_id=entry_id)
+                    )
+                },
+            )
     calendar_store.update(entry_id, new_entry)
     return RedirectResponse(
         url=request.url_for("view_calendar_entry", entry_id=entry_id), status_code=303
@@ -471,6 +529,54 @@ async def delete_calendar_entry(request: Request, entry_id: int):
         url=request.url_for("list_calendar_entries", entry_type=entry.type.value),
         status_code=303,
     )
+
+
+@app.post("/calendar/{entry_id}/completion")
+async def complete_chore(request: Request, entry_id: int):
+    entry = calendar_store.get(entry_id)
+    if not entry or entry.type != CalendarEntryType.Chore:
+        raise HTTPException(status_code=404)
+    data = await request.json()
+    rindex = int(data.get("recurrence_index"))
+    iindex = int(data.get("instance_index"))
+    period = find_time_period(entry, rindex, iindex)
+    if not period:
+        raise HTTPException(status_code=400)
+    now = datetime.now()
+    if period.start <= now <= period.end:
+        perm = "chores.complete_on_time"
+    elif period.end <= now:
+        perm = "chores.complete_overdue"
+    else:
+        raise HTTPException(status_code=403)
+    user = request.session.get("user")
+    if not user_store.has_permission(user, perm):
+        raise HTTPException(status_code=403)
+    if completion_store.get(entry_id, rindex, iindex):
+        return {"status": "exists"}
+    completion_store.create(entry_id, rindex, iindex, user)
+    return {"status": "ok"}
+
+
+@app.post("/calendar/{entry_id}/completion/remove")
+async def remove_completion(request: Request, entry_id: int):
+    entry = calendar_store.get(entry_id)
+    if not entry or entry.type != CalendarEntryType.Chore:
+        raise HTTPException(status_code=404)
+    data = await request.json()
+    rindex = int(data.get("recurrence_index"))
+    iindex = int(data.get("instance_index"))
+    completion = completion_store.get(entry_id, rindex, iindex)
+    if not completion:
+        raise HTTPException(status_code=404)
+    user = request.session.get("user")
+    if not (
+        completion.completed_by == user
+        or user_store.has_permission(user, "chores.override_complete")
+    ):
+        raise HTTPException(status_code=403)
+    completion_store.delete(entry_id, rindex, iindex)
+    return {"status": "ok"}
 
 
 @app.get("/users", response_class=HTMLResponse)

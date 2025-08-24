@@ -13,7 +13,9 @@
         {% endfor %}
         {{ entry.title }}
         <span class="time-suffix" data-kind="due-ago" data-end="{{ period.end.isoformat() }}"></span>
-        <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" />
+        {% if user_has(request.session.get('user'), 'chores.complete_overdue') %}
+        <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ period.recurrence_index }}" data-iindex="{{ period.instance_index }}" data-action="add" />
+        {% endif %}
     </li>
     {% endfor %}
 </ul>
@@ -22,7 +24,7 @@
 {% if now_periods %}
 <h2>Now</h2>
 <ul class="time-list">
-    {% for entry, period in now_periods %}
+    {% for entry, period, completion in now_periods %}
     <li>
         {% for user in entry.responsible %}
         <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
@@ -30,7 +32,11 @@
         {{ entry.title }}
         {% if entry.type == CalendarEntryType.Chore %}
         <span class="time-suffix" data-kind="due-in" data-end="{{ period.end.isoformat() }}"></span>
-        <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" />
+        {% if completion %}
+        <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ period.recurrence_index }}" data-iindex="{{ period.instance_index }}" {% if completion.completed_by == request.session.get('user') or user_has(request.session.get('user'), 'chores.override_complete') %}data-action="remove"{% endif %} />
+        {% elif user_has(request.session.get('user'), 'chores.complete_on_time') %}
+        <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ period.recurrence_index }}" data-iindex="{{ period.instance_index }}" data-action="add" />
+        {% endif %}
         {% endif %}
     </li>
     {% endfor %}
@@ -92,6 +98,23 @@ function updateTimes() {
 }
 updateTimes();
 setInterval(updateTimes, 1000);
+
+document.querySelectorAll('.checkbox-icon[data-action]').forEach(el => {
+    el.addEventListener('click', async () => {
+        const entry = el.dataset.entry;
+        const r = parseInt(el.dataset.rindex);
+        const i = parseInt(el.dataset.iindex);
+        const url = el.dataset.action === 'add'
+            ? `/calendar/${entry}/completion`
+            : `/calendar/${entry}/completion/remove`;
+        await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({recurrence_index: r, instance_index: i})
+        });
+        location.reload();
+    });
+});
 </script>
 {% endblock %}
 

@@ -39,4 +39,32 @@
     <dt>Responsible</dt><dd>{{ entry.responsible|join(', ') }}</dd>
     <dt>Owner</dt><dd>{{ entry.owner }}</dd>
 </dl>
+{% if completions %}
+<h2>Completions</h2>
+<ul class="time-list">
+    {% for comp, period, can_remove in completions %}
+    <li>
+        {{ comp.completed_by }} {{ comp.completed_at }} due {{ period.end }}
+        {% if can_remove %}
+        <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ comp.recurrence_index }}" data-iindex="{{ comp.instance_index }}" data-action="remove" />
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+<script>
+document.querySelectorAll('.checkbox-icon[data-action="remove"]').forEach(el => {
+    el.addEventListener('click', async () => {
+        const entry = el.dataset.entry;
+        const r = parseInt(el.dataset.rindex);
+        const i = parseInt(el.dataset.iindex);
+        await fetch(`/calendar/${entry}/completion/remove`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({recurrence_index: r, instance_index: i})
+        });
+        location.reload();
+    });
+});
+</script>
 {% endblock %}
