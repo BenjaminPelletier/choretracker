@@ -55,7 +55,9 @@
                     <img src="{{ url_for('static', path='gear.svg') }}" alt="Settings" class="icon">
                 </button>
                 <div class="dropdown" id="settings-dropdown">
+                    {% if current_user != 'Viewer' %}
                     <a href="{{ url_for('edit_user', username=current_user) }}"><img src="{{ url_for('static', path='user.svg') }}" alt="Edit profile" class="icon"></a>
+                    {% endif %}
                     {% if user_has(current_user, 'iam') %}
                     <a href="{{ url_for('list_users') }}"><img src="{{ url_for('static', path='users.svg') }}" alt="Manage users" class="icon"></a>
                     {% endif %}
