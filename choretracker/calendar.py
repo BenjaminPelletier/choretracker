@@ -101,6 +101,13 @@ class CalendarEntryStore:
                 ]
             return entries
 
+    def delete(self, entry_id: int) -> None:
+        with Session(self.engine) as session:
+            entry = session.get(CalendarEntry, entry_id)
+            if entry:
+                session.delete(entry)
+                session.commit()
+
 
 @dataclass
 class TimePeriod:

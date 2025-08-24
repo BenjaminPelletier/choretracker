@@ -456,6 +456,19 @@ async def update_calendar_entry(request: Request, entry_id: int):
     )
 
 
+@app.post("/calendar/{entry_id}/delete")
+async def delete_calendar_entry(request: Request, entry_id: int):
+    entry = calendar_store.get(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404)
+    require_entry_write_permission(request, entry)
+    calendar_store.delete(entry_id)
+    return RedirectResponse(
+        url=request.url_for("list_calendar_entries", entry_type=entry.type.value),
+        status_code=303,
+    )
+
+
 @app.get("/users", response_class=HTMLResponse)
 async def list_users(request: Request):
     require_permission(request, "iam")
