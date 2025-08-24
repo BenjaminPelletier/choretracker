@@ -83,9 +83,23 @@
     document.addEventListener('DOMContentLoaded', function () {
         var createButton = document.getElementById('create-button');
         var createDropdown = document.getElementById('create-dropdown');
+        var listButton = document.getElementById('list-button');
+        var listDropdown = document.getElementById('list-dropdown');
+        var settingsButton = document.getElementById('settings-button');
+        var settingsDropdown = document.getElementById('settings-dropdown');
+
+        function hideOtherDropdowns(except) {
+            [createDropdown, listDropdown, settingsDropdown].forEach(function (dd) {
+                if (dd && dd !== except) {
+                    dd.classList.remove('show');
+                }
+            });
+        }
+
         if (createButton && createDropdown) {
             createButton.addEventListener('click', function (e) {
                 e.stopPropagation();
+                hideOtherDropdowns(createDropdown);
                 createDropdown.classList.toggle('show');
             });
             document.addEventListener('click', function (e) {
@@ -94,11 +108,10 @@
                 }
             });
         }
-        var listButton = document.getElementById('list-button');
-        var listDropdown = document.getElementById('list-dropdown');
         if (listButton && listDropdown) {
             listButton.addEventListener('click', function (e) {
                 e.stopPropagation();
+                hideOtherDropdowns(listDropdown);
                 listDropdown.classList.toggle('show');
             });
             document.addEventListener('click', function (e) {
@@ -107,11 +120,10 @@
                 }
             });
         }
-        var settingsButton = document.getElementById('settings-button');
-        var settingsDropdown = document.getElementById('settings-dropdown');
         if (settingsButton && settingsDropdown) {
             settingsButton.addEventListener('click', function (e) {
                 e.stopPropagation();
+                hideOtherDropdowns(settingsDropdown);
                 settingsDropdown.classList.toggle('show');
             });
             document.addEventListener('click', function (e) {

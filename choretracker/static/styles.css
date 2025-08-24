@@ -194,9 +194,9 @@ h1 {
     margin-right: 0.5rem;
 }
 .settings-menu .dropdown {
-    right: auto;
-    left: 50%;
-    transform: translateX(-50%);
+    right: 0;
+    left: auto;
+    transform: none;
 }
 /* Group styling */
 .group {
