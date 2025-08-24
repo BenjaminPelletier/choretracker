@@ -3,7 +3,7 @@
 {% block title %}{{ entry_type.value }}s - Chore Tracker{% endblock %}
 
 {% block content %}
-<h1>{{ entry_type.value }}s</h1>
+<h1>{{ entry_type.value }}s{% if user_has(current_user, WRITE_PERMS[entry_type]) %}<a href="{{ url_for('new_calendar_entry', entry_type=entry_type.value) }}" class="icon-button"><img src="{{ url_for('static', path='plus.svg') }}" alt="Add" class="icon"></a>{% endif %}</h1>
 <ul>
     {% for entry in entries %}
     <li>
