@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 from heapq import heappush, heappop
 from typing import Iterator
 from itertools import count
+from collections import Counter
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse, JSONResponse
@@ -92,6 +93,14 @@ templates.env.globals["WRITE_PERMS"] = WRITE_PERMS
 templates.env.globals["EDIT_OTHER_PERMS"] = EDIT_OTHER_PERMS
 templates.env.globals["timedelta"] = timedelta
 templates.env.globals["LOGOUT_DURATION"] = LOGOUT_DURATION
+def format_datetime(dt: datetime | None, include_day: bool = False) -> str:
+    if not dt:
+        return ""
+    fmt = "%Y-%m-%d %H:%M"
+    if include_day:
+        fmt = "%A " + fmt
+    return dt.strftime(fmt)
+templates.env.filters["format_datetime"] = format_datetime
 app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="static")
 
 
@@ -388,6 +397,10 @@ async def list_calendar_entries(request: Request, entry_type: str):
         raise HTTPException(status_code=404)
     require_entry_read_permission(request, etype)
     entries = [e for e in calendar_store.list_entries() if e.type == etype]
+    counts = Counter(e.title for e in entries)
+    for entry in entries:
+        if counts[entry.title] > 1:
+            entry.title = f"{entry.title} ({format_datetime(entry.first_start, include_day=True)})"
     current_user = request.session.get("user")
     return templates.TemplateResponse(
         "calendar/list.html",

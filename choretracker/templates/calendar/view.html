@@ -14,7 +14,7 @@
 <p>{{ entry.description }}</p>
 <dl>
     <dt>Type</dt><dd>{{ entry.type.value }}</dd>
-    <dt>First start</dt><dd>{{ entry.first_start }}</dd>
+    <dt>First start</dt><dd>{{ entry.first_start|format_datetime }}</dd>
     <dt>Duration</dt><dd>{{ entry.duration }}</dd>
     <dt>Recurrences</dt>
     <dd>
@@ -35,7 +35,7 @@
         None
         {% endif %}
     </dd>
-    <dt>None after</dt><dd>{{ entry.none_after }}</dd>
+    <dt>None after</dt><dd>{{ entry.none_after|format_datetime }}</dd>
     <dt>Responsible</dt><dd>{{ entry.responsible|join(', ') }}</dd>
     <dt>Owner</dt><dd>{{ entry.owner }}</dd>
 </dl>
@@ -44,7 +44,7 @@
 <ul class="time-list">
     {% for comp, period, can_remove in completions %}
     <li>
-        {{ comp.completed_by }} {{ comp.completed_at }} due {{ period.end }}
+        {{ comp.completed_by }} {{ comp.completed_at|format_datetime }} due {{ period.end|format_datetime }}
         {% if can_remove %}
         <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ comp.recurrence_index }}" data-iindex="{{ comp.instance_index }}" data-action="remove" />
         {% endif %}
