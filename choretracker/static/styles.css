@@ -193,6 +193,11 @@ h1 {
     position: relative;
     margin-right: 0.5rem;
 }
+.settings-menu .dropdown {
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+}
 /* Group styling */
 .group {
     border: 1px solid #d1d5db;
