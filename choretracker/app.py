@@ -283,6 +283,8 @@ async def create_calendar_entry(request: Request):
         hours=int(form.get("duration_hours") or 0),
         minutes=int(form.get("duration_minutes") or 0),
     )
+    if duration <= timedelta(0):
+        raise HTTPException(status_code=400, detail="Duration must be greater than 0")
 
     recurrence_types = form.getlist("recurrence_type[]")
     offset_days = form.getlist("offset_days[]")
@@ -408,6 +410,8 @@ async def update_calendar_entry(request: Request, entry_id: int):
         hours=int(form.get("duration_hours") or 0),
         minutes=int(form.get("duration_minutes") or 0),
     )
+    if duration <= timedelta(0):
+        raise HTTPException(status_code=400, detail="Duration must be greater than 0")
 
     recurrence_types = form.getlist("recurrence_type[]")
     offset_days = form.getlist("offset_days[]")
@@ -499,7 +503,13 @@ async def create_user(request: Request):
         data = await upload.read()
         if data:
             profile_picture = process_profile_picture(data)
-    user_store.create(username, password, pin, permissions, profile_picture=profile_picture)
+    if not user_store.create(
+        username, password, pin, permissions, profile_picture=profile_picture
+    ):
+        request.session["flash"] = "User with that name already exists."
+        raise HTTPException(
+            status_code=303, headers={"Location": str(request.url_for("new_user"))}
+        )
     return RedirectResponse(url="/users", status_code=303)
 
 
@@ -547,7 +557,7 @@ async def update_user(request: Request, username: str):
                 raise HTTPException(status_code=303, headers={"Location": str(request.url_for("edit_user", username=username))})
     else:
         permissions = set(existing.permissions)
-    user_store.update(
+    if not user_store.update(
         username,
         new_username,
         password,
@@ -556,7 +566,12 @@ async def update_user(request: Request, username: str):
         remove_password=remove_password,
         remove_pin=remove_pin,
         profile_picture=profile_picture,
-    )
+    ):
+        request.session["flash"] = "User with that name already exists."
+        raise HTTPException(
+            status_code=303,
+            headers={"Location": str(request.url_for("edit_user", username=username))},
+        )
     target = "/users" if current_user != username else "/"
     return RedirectResponse(url=target, status_code=303)
 

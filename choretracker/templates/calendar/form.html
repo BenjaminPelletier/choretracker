@@ -33,7 +33,7 @@
 
     <div class="field">
         <div class="label-row">
-            <span>Duration</span>
+            <span>Duration<span class="required">*</span></span>
             <span class="help" data-help="Length of each instance">?</span>
         </div>
         <div class="duration-inputs">
@@ -123,6 +123,22 @@ document.addEventListener('DOMContentLoaded', function () {
     const recurrences = document.getElementById('recurrences');
     const recurrenceTemplate = document.getElementById('recurrence-template');
     const addRecurrence = document.getElementById('add-recurrence');
+    const firstStart = document.getElementById('first_start');
+    if (firstStart && !firstStart.value) {
+        const now = new Date();
+        if (
+            now.getMinutes() > 0 ||
+            now.getSeconds() > 0 ||
+            now.getMilliseconds() > 0
+        ) {
+            now.setHours(now.getHours() + 1);
+        }
+        now.setMinutes(0, 0, 0);
+        const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+            .toISOString()
+            .slice(0, 16);
+        firstStart.value = local;
+    }
     function addRecurrenceItem(rec) {
         const clone = recurrenceTemplate.content.cloneNode(true);
         if (rec) {
@@ -130,12 +146,12 @@ document.addEventListener('DOMContentLoaded', function () {
             if (rec.offset) {
                 if (rec.offset.exact_duration_seconds) {
                     const dur = rec.offset.exact_duration_seconds;
-                    const hours = Math.floor(dur / 3600);
-                    const minutes = Math.floor((dur % 3600) / 60);
-                    clone.querySelector('input[name="offset_hours[]"]').value = hours || '';
-                    clone.querySelector('input[name="offset_minutes[]"]').value = minutes || '';
                     const days = Math.floor(dur / 86400);
+                    const hours = Math.floor((dur % 86400) / 3600);
+                    const minutes = Math.floor((dur % 3600) / 60);
                     if (days) clone.querySelector('input[name="offset_days[]"]').value = days;
+                    if (hours) clone.querySelector('input[name="offset_hours[]"]').value = hours;
+                    if (minutes) clone.querySelector('input[name="offset_minutes[]"]').value = minutes;
                 }
                 if (rec.offset.months) {
                     clone.querySelector('input[name="offset_months[]"]').value = rec.offset.months;
@@ -214,6 +230,29 @@ document.addEventListener('DOMContentLoaded', function () {
     data.recurrences.forEach(r => addRecurrenceItem(r));
     data.responsible.forEach(u => addUser(u));
     {% endif %}
+    const form = document.getElementById('entry-form');
+    const durationInputs = document.querySelectorAll('.duration-inputs input');
+    function validateDuration() {
+        const days = Number(document.querySelector('input[name="duration_days"]').value) || 0;
+        const hours = Number(document.querySelector('input[name="duration_hours"]').value) || 0;
+        const minutes = Number(document.querySelector('input[name="duration_minutes"]').value) || 0;
+        const total = days * 86400 + hours * 3600 + minutes * 60;
+        durationInputs.forEach(inp => {
+            if (total <= 0) {
+                inp.setCustomValidity('Duration must be greater than 0');
+            } else {
+                inp.setCustomValidity('');
+            }
+        });
+        return total > 0;
+    }
+    durationInputs.forEach(inp => inp.addEventListener('input', validateDuration));
+    form.addEventListener('submit', function (e) {
+        if (!validateDuration()) {
+            e.preventDefault();
+            durationInputs[0].reportValidity();
+        }
+    });
 
     // form submits normally to backend
 });
