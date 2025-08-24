@@ -298,3 +298,27 @@ h1 {
     border: 1px solid #fca5a5;
     margin-bottom: 0.5rem;
 }
+
+.time-list {
+    list-style: none;
+    padding-left: 0;
+}
+
+.time-list li {
+    margin-bottom: 0.25rem;
+}
+
+.profile-icon {
+    height: 1em;
+    width: 1em;
+    border-radius: 50%;
+    vertical-align: middle;
+    margin-right: 0.25rem;
+}
+
+.checkbox-icon {
+    height: 1em;
+    width: 1em;
+    vertical-align: middle;
+    margin-left: 0.25rem;
+}

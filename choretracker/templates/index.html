@@ -3,21 +3,95 @@
 {% block title %}Home - Chore Tracker{% endblock %}
 
 {% block content %}
-<h1>Calendar Entries</h1>
-<ul>
-    {% for entry, periods in entries %}
+{% if overdue %}
+<h2>Overdue</h2>
+<ul class="time-list">
+    {% for entry, period in overdue %}
     <li>
+        {% for user in entry.responsible %}
+        <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+        {% endfor %}
         {{ entry.title }}
-        {% if periods %}
-        <ul>
-            {% for period in periods %}
-            <li>{{ period.start }}</li>
-            {% endfor %}
-        </ul>
-        {% endif %}
+        <span class="time-suffix" data-kind="due-ago" data-end="{{ period.end.isoformat() }}"></span>
+        <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" />
     </li>
-    {% else %}
-    <li>No entries yet</li>
     {% endfor %}
 </ul>
+{% endif %}
+
+{% if now_periods %}
+<h2>Now</h2>
+<ul class="time-list">
+    {% for entry, period in now_periods %}
+    <li>
+        {% for user in entry.responsible %}
+        <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+        {% endfor %}
+        {{ entry.title }}
+        {% if entry.type == CalendarEntryType.Chore %}
+        <span class="time-suffix" data-kind="due-in" data-end="{{ period.end.isoformat() }}"></span>
+        <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" />
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+{% if upcoming %}
+<h2>Upcoming</h2>
+<ul class="time-list">
+    {% for entry, period in upcoming %}
+    <li>
+        {% for user in entry.responsible %}
+        <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+        {% endfor %}
+        {{ entry.title }}
+        <span class="time-suffix" data-kind="starts-in" data-start="{{ period.start.isoformat() }}"></span>
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+
+{% if not overdue and not now_periods and not upcoming %}
+<p>Nothing to show.</p>
+{% endif %}
+
+<script>
+const formatDuration = (seconds) => {
+    const abs = Math.floor(Math.abs(seconds));
+    const minute = 60, hour = 3600, day = 86400, week = 604800;
+    if (abs < hour) return Math.floor(abs / minute) + 'm';
+    if (abs < day) return Math.floor(abs / hour) + 'h';
+    if (abs < week) return Math.floor(abs / day) + 'd';
+    return Math.floor(abs / week) + 'w';
+};
+
+function updateTimes() {
+    const now = new Date();
+    let refresh = false;
+    document.querySelectorAll('[data-kind="due-in"]').forEach(el => {
+        const end = new Date(el.dataset.end);
+        const diff = (end - now) / 1000;
+        if (diff <= 0) refresh = true;
+        el.textContent = `(Due in ${formatDuration(diff)})`;
+    });
+    document.querySelectorAll('[data-kind="due-ago"]').forEach(el => {
+        const end = new Date(el.dataset.end);
+        const diff = (now - end) / 1000;
+        el.textContent = `(Due ${formatDuration(diff)} ago)`;
+    });
+    document.querySelectorAll('[data-kind="starts-in"]').forEach(el => {
+        const start = new Date(el.dataset.start);
+        const diff = (start - now) / 1000;
+        if (diff <= 0) refresh = true;
+        el.textContent = `(Starts in ${formatDuration(diff)})`;
+    });
+    if (refresh) {
+        location.reload();
+    }
+}
+updateTimes();
+setInterval(updateTimes, 1000);
+</script>
 {% endblock %}
+

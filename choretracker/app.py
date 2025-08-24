@@ -3,6 +3,8 @@ from pathlib import Path
 import json
 import os
 from urllib.parse import urlparse
+from heapq import heappush, heappop
+from typing import Iterator
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse
@@ -12,7 +14,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from sqlmodel import create_engine
 from pydantic.json import pydantic_encoder
-from itertools import islice
 
 from .users import UserStore, init_db, process_profile_picture
 from .calendar import (
@@ -22,11 +23,13 @@ from .calendar import (
     Offset,
     Recurrence,
     RecurrenceType,
+    TimePeriod,
     enumerate_time_periods,
 )
 
 
 LOGOUT_DURATION = timedelta(minutes=1)
+MAX_UPCOMING = 5
 
 db_path = os.getenv("CHORETRACKER_DB", "choretracker.db")
 engine = create_engine(
@@ -139,12 +142,47 @@ app.add_middleware(SessionMiddleware, secret_key="change-me")
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    entries_with_periods = []
+    now = datetime.utcnow()
+    overdue: list[tuple[CalendarEntry, TimePeriod]] = []
+    current: list[tuple[CalendarEntry, TimePeriod]] = []
+    upcoming_heap: list[tuple[datetime, CalendarEntry, TimePeriod, Iterator[TimePeriod]]] = []
+
     for entry in calendar_store.list_entries():
-        periods = list(islice(enumerate_time_periods(entry), 8))
-        entries_with_periods.append((entry, periods))
+        gen = enumerate_time_periods(entry)
+        for period in gen:
+            if period.end <= now:
+                if entry.type == CalendarEntryType.Chore:
+                    overdue.append((entry, period))
+            elif period.start <= now:
+                current.append((entry, period))
+                nxt = next(gen, None)
+                if nxt:
+                    heappush(upcoming_heap, (nxt.start, entry, nxt, gen))
+                break
+            else:
+                heappush(upcoming_heap, (period.start, entry, period, gen))
+                break
+
+    upcoming: list[tuple[CalendarEntry, TimePeriod]] = []
+    while upcoming_heap and len(upcoming) < MAX_UPCOMING:
+        _, entry, period, gen = heappop(upcoming_heap)
+        upcoming.append((entry, period))
+        nxt = next(gen, None)
+        if nxt:
+            heappush(upcoming_heap, (nxt.start, entry, nxt, gen))
+
+    overdue.sort(key=lambda x: x[1].end)
+    current.sort(key=lambda x: x[1].end)
+
     return templates.TemplateResponse(
-        "index.html", {"request": request, "entries": entries_with_periods}
+        "index.html",
+        {
+            "request": request,
+            "overdue": overdue,
+            "now_periods": current,
+            "upcoming": upcoming,
+            "CalendarEntryType": CalendarEntryType,
+        },
     )
 
 
