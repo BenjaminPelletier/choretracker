@@ -5,6 +5,7 @@ import os
 from urllib.parse import urlparse
 from heapq import heappush, heappop
 from typing import Iterator
+from itertools import count
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse
@@ -122,7 +123,7 @@ class EnsureUserMiddleware(BaseHTTPMiddleware):
         path = request.url.path
 
         user = session.get("user")
-        now = datetime.utcnow().timestamp()
+        now = datetime.now().timestamp()
         if user:
             last = session.get("last_active", now)
             if user != "Viewer" and now - last > LOGOUT_DURATION.total_seconds():
@@ -142,10 +143,11 @@ app.add_middleware(SessionMiddleware, secret_key="change-me")
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    now = datetime.utcnow()
+    now = datetime.now()
     overdue: list[tuple[CalendarEntry, TimePeriod]] = []
     current: list[tuple[CalendarEntry, TimePeriod]] = []
-    upcoming_heap: list[tuple[datetime, CalendarEntry, TimePeriod, Iterator[TimePeriod]]] = []
+    upcoming_heap: list[tuple[datetime, int, CalendarEntry, TimePeriod, Iterator[TimePeriod]]] = []
+    counter = count()
 
     for entry in calendar_store.list_entries():
         gen = enumerate_time_periods(entry)
@@ -157,19 +159,19 @@ async def index(request: Request):
                 current.append((entry, period))
                 nxt = next(gen, None)
                 if nxt:
-                    heappush(upcoming_heap, (nxt.start, entry, nxt, gen))
+                    heappush(upcoming_heap, (nxt.start, next(counter), entry, nxt, gen))
                 break
             else:
-                heappush(upcoming_heap, (period.start, entry, period, gen))
+                heappush(upcoming_heap, (period.start, next(counter), entry, period, gen))
                 break
 
     upcoming: list[tuple[CalendarEntry, TimePeriod]] = []
     while upcoming_heap and len(upcoming) < MAX_UPCOMING:
-        _, entry, period, gen = heappop(upcoming_heap)
+        _, _, entry, period, gen = heappop(upcoming_heap)
         upcoming.append((entry, period))
         nxt = next(gen, None)
         if nxt:
-            heappush(upcoming_heap, (nxt.start, entry, nxt, gen))
+            heappush(upcoming_heap, (nxt.start, next(counter), entry, nxt, gen))
 
     overdue.sort(key=lambda x: x[1].end)
     current.sort(key=lambda x: x[1].end)
@@ -201,7 +203,7 @@ async def login(request: Request):
 
     if user_store.verify(username, password):
         request.session["user"] = username
-        request.session["last_active"] = datetime.utcnow().timestamp()
+        request.session["last_active"] = datetime.now().timestamp()
         return RedirectResponse(url="/", status_code=303)
 
     return templates.TemplateResponse(
@@ -213,7 +215,7 @@ async def login(request: Request):
 async def switch_user(request: Request, username: str, next: str | None = None):
     if user_store.get(username):
         request.session["user"] = username
-        request.session["last_active"] = datetime.utcnow().timestamp()
+        request.session["last_active"] = datetime.now().timestamp()
 
     target = "/"
     if next:
