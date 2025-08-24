@@ -37,5 +37,5 @@ def test_duplicate_titles_disambiguated(tmp_path, monkeypatch):
     app_module.calendar_store.create(second)
 
     response = client.get("/calendar/list/Event")
-    assert "Guinea salad (2025-08-22 08:00:00)" in response.text
-    assert "Guinea salad (2025-08-23 08:00:00)" in response.text
+    assert "Guinea salad (Friday 2025-08-22 08:00)" in response.text
+    assert "Guinea salad (Saturday 2025-08-23 08:00)" in response.text

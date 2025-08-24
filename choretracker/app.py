@@ -93,6 +93,14 @@ templates.env.globals["WRITE_PERMS"] = WRITE_PERMS
 templates.env.globals["EDIT_OTHER_PERMS"] = EDIT_OTHER_PERMS
 templates.env.globals["timedelta"] = timedelta
 templates.env.globals["LOGOUT_DURATION"] = LOGOUT_DURATION
+def format_datetime(dt: datetime | None, include_day: bool = False) -> str:
+    if not dt:
+        return ""
+    fmt = "%Y-%m-%d %H:%M"
+    if include_day:
+        fmt = "%A " + fmt
+    return dt.strftime(fmt)
+templates.env.filters["format_datetime"] = format_datetime
 app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="static")
 
 
@@ -392,7 +400,7 @@ async def list_calendar_entries(request: Request, entry_type: str):
     counts = Counter(e.title for e in entries)
     for entry in entries:
         if counts[entry.title] > 1:
-            entry.title = f"{entry.title} ({entry.first_start.strftime('%Y-%m-%d %H:%M:%S')})"
+            entry.title = f"{entry.title} ({format_datetime(entry.first_start, include_day=True)})"
     current_user = request.session.get("user")
     return templates.TemplateResponse(
         "calendar/list.html",
