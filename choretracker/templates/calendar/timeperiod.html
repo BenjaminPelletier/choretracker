@@ -20,6 +20,9 @@
             <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ period.recurrence_index }}" data-iindex="{{ period.instance_index }}" data-action="add" />
             {% endif %}
         {% endif %}
+        {% if completion %}
+        <span class="completed-by">by {{ completion.completed_by }}</span>
+        {% endif %}
     {% endif %}
 </div>
 <p>{{ entry.description }}</p>
