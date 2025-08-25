@@ -25,6 +25,11 @@
         {% endif %}
     {% endif %}
 </div>
+<p>
+    {% for user in responsible %}
+    <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+    {% endfor %}
+</p>
 <p>{{ entry.description }}</p>
 {% if can_edit and period.recurrence_index >= 0 %}
 <form method="post" action="{{ request.url_for(is_skipped and 'unskip_instance' or 'skip_instance', entry_id=entry.id) }}">
