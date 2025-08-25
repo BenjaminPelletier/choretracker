@@ -182,21 +182,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const durationSpan = document.createElement('span');
             const durLabel = document.createElement('span');
-            durLabel.textContent = 'Duration: ';
+            durLabel.textContent = 'Offset: ';
             durationSpan.appendChild(durLabel);
             const dayInput = document.createElement('input');
             dayInput.type = 'number';
             dayInput.placeholder = 'Days';
             dayInput.min = '0';
             dayInput.className = 'inline-input';
-            dayInput.value = days;
+            if (days) dayInput.value = days;
             dayInput.style.width = '4ch';
             const hourInput = document.createElement('input');
             hourInput.type = 'number';
             hourInput.placeholder = 'Hours';
             hourInput.min = '0';
             hourInput.className = 'inline-input';
-            hourInput.value = hours;
+            if (hours) hourInput.value = hours;
             hourInput.style.width = '4ch';
             const minuteInput = document.createElement('input');
             minuteInput.type = 'number';
@@ -204,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
             minuteInput.min = '0';
             minuteInput.max = '59';
             minuteInput.className = 'inline-input';
-            minuteInput.value = minutes;
+            if (minutes) minuteInput.value = minutes;
             minuteInput.style.width = '4ch';
             durationSpan.appendChild(dayInput);
             durationSpan.appendChild(hourInput);
