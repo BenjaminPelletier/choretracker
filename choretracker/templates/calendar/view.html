@@ -3,17 +3,29 @@
 {% block title %}{{ entry.title }} {{ entry.type.value }} - Chore Tracker{% endblock %}
 
 {% block content %}
-<h1>{{ entry.title }} {{ entry.type.value }}
+<h1 id="title-type">
+    <span id="title-text">{{ entry.title }}</span>
+    <span id="type-text">{{ entry.type.value }}</span>
     {% if can_edit %}
-    <a href="{{ url_for('edit_calendar_entry', entry_id=entry.id) }}" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></a>
+    <button type="button" id="edit-title-type" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
     <form method="post" action="{{ url_for('delete_calendar_entry', entry_id=entry.id) }}" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this entry?');">
         <button type="submit" class="icon-button"><img src="{{ url_for('static', path='trash.svg') }}" alt="Delete" class="icon"></button>
     </form>
     {% endif %}
 </h1>
-<div class="description">{{ entry.description|markdown }}</div>
+<div class="description" id="description-container">
+    <div id="description-text">{{ entry.description|markdown }}</div>
+    {% if can_edit %}
+    <button type="button" id="edit-description" class="icon-button" data-desc="{{ entry.description|b64encode }}"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
+    {% endif %}
+</div>
 <dl>
-    <dt>First start: {{ entry.first_start|format_datetime(include_day=True) }}</dt>
+    <dt>First start: <span id="first-start-container">
+        <span id="first-start-text">{{ entry.first_start|format_datetime(include_day=True) }}</span>
+        {% if can_edit %}
+        <button type="button" id="edit-first-start" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
+        {% endif %}
+    </span></dt>
     <dt>Duration: {{ entry.duration|format_duration }}</dt>
     <dt>Recurrences</dt>
     <dd>
@@ -86,6 +98,113 @@ document.querySelectorAll('.checkbox-icon[data-action="remove"]').forEach(el => 
         });
         location.reload();
     });
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const entryId = {{ entry.id }};
+    const diskUrl = "{{ url_for('static', path='disk.svg') }}";
+    const xUrl = "{{ url_for('static', path='x.svg') }}";
+
+    function makeBtn(url, alt) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'icon-button';
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = alt;
+        img.className = 'icon';
+        b.appendChild(img);
+        return b;
+    }
+
+    const fsEdit = document.getElementById('edit-first-start');
+    if (fsEdit) {
+        fsEdit.addEventListener('click', () => {
+            const container = document.getElementById('first-start-container');
+            const input = document.createElement('input');
+            input.type = 'datetime-local';
+            input.value = "{{ entry.first_start.strftime('%Y-%m-%dT%H:%M') }}";
+            input.className = 'inline-input';
+            const save = makeBtn(diskUrl, 'Save');
+            const cancel = makeBtn(xUrl, 'Cancel');
+            container.innerHTML = '';
+            container.appendChild(input);
+            container.appendChild(save);
+            container.appendChild(cancel);
+            save.addEventListener('click', async () => {
+                await fetch(`/calendar/${entryId}/update`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({first_start: input.value})
+                });
+                location.reload();
+            });
+            cancel.addEventListener('click', () => location.reload());
+        });
+    }
+
+    const descEdit = document.getElementById('edit-description');
+    if (descEdit) {
+        descEdit.addEventListener('click', () => {
+            const container = document.getElementById('description-container');
+            const textarea = document.createElement('textarea');
+            const raw = atob(descEdit.dataset.desc || '');
+            textarea.value = raw;
+            textarea.className = 'inline-input';
+            const save = makeBtn(diskUrl, 'Save');
+            const cancel = makeBtn(xUrl, 'Cancel');
+            container.innerHTML = '';
+            container.appendChild(textarea);
+            container.appendChild(save);
+            container.appendChild(cancel);
+            save.addEventListener('click', async () => {
+                await fetch(`/calendar/${entryId}/update`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({description: textarea.value})
+                });
+                location.reload();
+            });
+            cancel.addEventListener('click', () => location.reload());
+        });
+    }
+
+    const ttEdit = document.getElementById('edit-title-type');
+    if (ttEdit) {
+        ttEdit.addEventListener('click', () => {
+            const container = document.getElementById('title-type');
+            const titleInput = document.createElement('input');
+            titleInput.type = 'text';
+            titleInput.value = {{ entry.title|tojson }};
+            titleInput.className = 'inline-input';
+            const typeSelect = document.createElement('select');
+            typeSelect.className = 'inline-input';
+            {% for t in CalendarEntryType %}
+            const opt{{ loop.index0 }} = document.createElement('option');
+            opt{{ loop.index0 }}.value = "{{ t.value }}";
+            opt{{ loop.index0 }}.textContent = "{{ t.value }}";
+            if ("{{ t.value }}" === "{{ entry.type.value }}") opt{{ loop.index0 }}.selected = true;
+            typeSelect.appendChild(opt{{ loop.index0 }});
+            {% endfor %}
+            const save = makeBtn(diskUrl, 'Save');
+            const cancel = makeBtn(xUrl, 'Cancel');
+            container.innerHTML = '';
+            container.appendChild(titleInput);
+            container.appendChild(typeSelect);
+            container.appendChild(save);
+            container.appendChild(cancel);
+            save.addEventListener('click', async () => {
+                await fetch(`/calendar/${entryId}/update`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({title: titleInput.value, type: typeSelect.value})
+                });
+                location.reload();
+            });
+            cancel.addEventListener('click', () => location.reload());
+        });
+    }
 });
 </script>
 {% endblock %}
