@@ -319,6 +319,9 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('managers-list'),
         'managers'
     );
+    {% if not entry_data %}
+    entryManagersManager.addUser('{{ current_user }}');
+    {% endif %}
 
     {% if entry_data %}
     const data = {{ entry_data | tojson }};
@@ -361,6 +364,11 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!validateDuration()) {
             e.preventDefault();
             durationInputs[0].reportValidity();
+            return;
+        }
+        if (entryManagersManager.list.querySelectorAll('li').length === 0) {
+            e.preventDefault();
+            alert('At least one manager required');
             return;
         }
         document.querySelectorAll('input[name="recurrence_responsible[]"]').forEach(el => el.remove());

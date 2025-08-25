@@ -446,8 +446,15 @@ async def new_calendar_entry(request: Request, entry_type: str):
         "Chore": "chores.write",
     }
     require_permission(request, perm_map[entry_type])
+    current_user = request.session.get("user")
     return templates.TemplateResponse(
-        "calendar/form.html", {"request": request, "entry_type": entry_type, "entry": None}
+        "calendar/form.html",
+        {
+            "request": request,
+            "entry_type": entry_type,
+            "entry": None,
+            "current_user": current_user,
+        },
     )
 
 
@@ -528,7 +535,7 @@ async def create_calendar_entry(request: Request):
     responsible = form.getlist("responsible")
     managers = form.getlist("managers")
     if not managers:
-        managers = [request.session.get("user", "")]
+        raise HTTPException(status_code=400, detail="At least one manager required")
     if entry_type == CalendarEntryType.Chore and not responsible:
         raise HTTPException(status_code=400, detail="At least one responsible user required")
     if entry_type == CalendarEntryType.Chore:
@@ -703,6 +710,7 @@ async def edit_calendar_entry(request: Request, entry_id: int):
     entry_data = json.loads(
         json.dumps(entry.model_dump(), default=pydantic_encoder)
     )
+    current_user = request.session.get("user")
     return templates.TemplateResponse(
         "calendar/form.html",
         {
@@ -710,6 +718,7 @@ async def edit_calendar_entry(request: Request, entry_id: int):
             "entry_type": entry.type.value,
             "entry": entry,
             "entry_data": entry_data,
+            "current_user": current_user,
         },
     )
 
@@ -862,7 +871,10 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
     if "responsible" in data:
         entry.responsible = data["responsible"]
     if "managers" in data:
-        entry.managers = list(data["managers"])
+        managers = list(data["managers"])
+        if not managers:
+            raise HTTPException(status_code=400, detail="At least one manager required")
+        entry.managers = managers
     calendar_store.update(entry_id, entry)
     return JSONResponse({"status": "ok"})
 

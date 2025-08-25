@@ -25,6 +25,7 @@ def test_description_rendered_as_markdown(tmp_path, monkeypatch):
         type=CalendarEntryType.Event,
         first_start=datetime(2025, 1, 1, 0, 0, 0),
         duration_seconds=60,
+        managers=["Admin"],
     )
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[-1].id

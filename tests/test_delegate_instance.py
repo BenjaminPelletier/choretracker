@@ -30,6 +30,7 @@ def test_delegate_instance(tmp_path, monkeypatch):
         duration_seconds=60,
         recurrences=[Recurrence(type=RecurrenceType.Weekly)],
         responsible=["Admin"],
+        managers=["Admin"],
     )
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id

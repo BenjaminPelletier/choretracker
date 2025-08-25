@@ -30,6 +30,7 @@ def test_due_not_shown_when_completed(tmp_path, monkeypatch):
         type=CalendarEntryType.Chore,
         first_start=now - timedelta(minutes=5),
         duration_seconds=3600,
+        managers=["Admin"],
     )
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id
