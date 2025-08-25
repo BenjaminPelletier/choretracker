@@ -18,6 +18,7 @@ from sqlmodel import create_engine
 from pydantic.json import pydantic_encoder
 from markdown import markdown as md
 from markupsafe import Markup
+import base64
 
 from .users import UserStore, init_db, process_profile_picture, pwd_context
 from .calendar import (
@@ -169,6 +170,13 @@ def render_markdown(text: str) -> Markup:
 
 
 templates.env.filters["markdown"] = render_markdown
+
+
+def b64encode_filter(s: str) -> str:
+    return base64.b64encode(s.encode()).decode()
+
+
+templates.env.filters["b64encode"] = b64encode_filter
 
 
 def format_time_range(period: TimePeriod) -> str:
@@ -634,6 +642,7 @@ async def view_calendar_entry(request: Request, entry_id: int):
             "can_edit": can_edit_entry(current_user, entry),
             "past_instances": past_instances,
             "upcoming_instances": upcoming,
+            "CalendarEntryType": CalendarEntryType,
         },
     )
 
@@ -815,6 +824,25 @@ async def update_calendar_entry(request: Request, entry_id: int):
     return RedirectResponse(
         url=request.url_for("view_calendar_entry", entry_id=entry_id), status_code=303
     )
+
+
+@app.post("/calendar/{entry_id}/update")
+async def inline_update_calendar_entry(request: Request, entry_id: int):
+    entry = calendar_store.get(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404)
+    require_entry_write_permission(request, entry)
+    data = await request.json()
+    if "first_start" in data:
+        entry.first_start = datetime.fromisoformat(data["first_start"])
+    if "description" in data:
+        entry.description = data["description"].strip()
+    if "title" in data:
+        entry.title = data["title"].strip()
+    if "type" in data:
+        entry.type = CalendarEntryType(data["type"])
+    calendar_store.update(entry_id, entry)
+    return JSONResponse({"status": "ok"})
 
 
 @app.post("/calendar/{entry_id}/delete")
