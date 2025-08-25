@@ -41,6 +41,7 @@ def test_instances_past_and_upcoming(tmp_path, monkeypatch):
             Recurrence(type=RecurrenceType.Weekly, skipped_instances=[1])
         ],
         responsible=["Bob"],
+        managers=["Admin"],
     )
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id

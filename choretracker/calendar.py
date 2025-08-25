@@ -53,7 +53,7 @@ class CalendarEntry(SQLModel, table=True):
     recurrences: List[Recurrence] = Field(default_factory=list, sa_column=Column(JSON))
     none_after: Optional[datetime] = None
     responsible: List[str] = Field(default_factory=list, sa_column=Column(JSON))
-    owner: str = ""
+    managers: List[str] = Field(default_factory=list, sa_column=Column(JSON))
 
     @property
     def duration(self) -> timedelta:
@@ -69,6 +69,8 @@ class CalendarEntryStore:
         self.engine = engine
 
     def create(self, entry: CalendarEntry) -> None:
+        if not entry.managers:
+            raise ValueError("CalendarEntry must have at least one manager")
         with Session(self.engine) as session:
             session.add(entry)
             session.commit()
@@ -84,6 +86,8 @@ class CalendarEntryStore:
             return entry
 
     def update(self, entry_id: int, new_data: CalendarEntry) -> None:
+        if not new_data.managers:
+            raise ValueError("CalendarEntry must have at least one manager")
         with Session(self.engine) as session:
             entry = session.get(CalendarEntry, entry_id)
             if not entry:
@@ -95,6 +99,7 @@ class CalendarEntryStore:
             entry.recurrences = new_data.recurrences
             entry.none_after = new_data.none_after
             entry.responsible = new_data.responsible
+            entry.managers = new_data.managers
             session.add(entry)
             session.commit()
 

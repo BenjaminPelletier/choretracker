@@ -34,6 +34,7 @@ def test_completed_by_username_shown(tmp_path, monkeypatch):
         first_start=datetime(2000, 1, 1, 8, 0, 0),
         duration_seconds=60,
         recurrences=[Recurrence(type=RecurrenceType.Weekly)],
+        managers=["Admin"],
     )
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id

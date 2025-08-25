@@ -45,6 +45,7 @@ def test_update_recurrence_responsible_and_offset(tmp_path, monkeypatch):
                 responsible=["Alice"],
             )
         ],
+        managers=["Admin"],
     )
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id

@@ -213,11 +213,9 @@ def require_permission(request: Request, permission: str) -> None:
 def can_edit_entry(username: str, entry: CalendarEntry) -> bool:
     if not username:
         return False
-    if not user_store.has_permission(username, WRITE_PERMS[entry.type]):
-        return False
-    if entry.owner == username:
+    if username in entry.managers:
         return True
-    return user_store.has_permission(username, EDIT_OTHER_PERMS[entry.type])
+    return user_store.has_permission(username, "admin")
 
 
 def require_entry_read_permission(request: Request, entry_type: CalendarEntryType) -> None:
@@ -448,8 +446,15 @@ async def new_calendar_entry(request: Request, entry_type: str):
         "Chore": "chores.write",
     }
     require_permission(request, perm_map[entry_type])
+    current_user = request.session.get("user")
     return templates.TemplateResponse(
-        "calendar/form.html", {"request": request, "entry_type": entry_type, "entry": None}
+        "calendar/form.html",
+        {
+            "request": request,
+            "entry_type": entry_type,
+            "entry": None,
+            "current_user": current_user,
+        },
     )
 
 
@@ -528,6 +533,9 @@ async def create_calendar_entry(request: Request):
     none_after = datetime.fromisoformat(none_after_str) if none_after_str else None
 
     responsible = form.getlist("responsible")
+    managers = form.getlist("managers")
+    if not managers:
+        raise HTTPException(status_code=400, detail="At least one manager required")
     if entry_type == CalendarEntryType.Chore and not responsible:
         raise HTTPException(status_code=400, detail="At least one responsible user required")
     if entry_type == CalendarEntryType.Chore:
@@ -545,7 +553,7 @@ async def create_calendar_entry(request: Request):
         recurrences=recurrences,
         none_after=none_after,
         responsible=responsible,
-        owner=request.session.get("user", ""),
+        managers=managers,
     )
     calendar_store.create(entry)
     return RedirectResponse(url="/", status_code=303)
@@ -702,6 +710,7 @@ async def edit_calendar_entry(request: Request, entry_id: int):
     entry_data = json.loads(
         json.dumps(entry.model_dump(), default=pydantic_encoder)
     )
+    current_user = request.session.get("user")
     return templates.TemplateResponse(
         "calendar/form.html",
         {
@@ -709,6 +718,7 @@ async def edit_calendar_entry(request: Request, entry_id: int):
             "entry_type": entry.type.value,
             "entry": entry,
             "entry_data": entry_data,
+            "current_user": current_user,
         },
     )
 
@@ -783,6 +793,7 @@ async def update_calendar_entry(request: Request, entry_id: int):
     none_after = datetime.fromisoformat(none_after_str) if none_after_str else None
 
     responsible = form.getlist("responsible")
+    managers = form.getlist("managers")
     if entry_type == CalendarEntryType.Chore and not responsible:
         raise HTTPException(status_code=400, detail="At least one responsible user required")
     if entry_type == CalendarEntryType.Chore:
@@ -800,7 +811,7 @@ async def update_calendar_entry(request: Request, entry_id: int):
         recurrences=recurrences,
         none_after=none_after,
         responsible=responsible,
-        owner=existing.owner,
+        managers=managers,
     )
     for comp in completion_store.list_for_entry(entry_id):
         old_period = find_time_period(
@@ -859,6 +870,11 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
         entry.none_after = datetime.fromisoformat(na) if na else None
     if "responsible" in data:
         entry.responsible = data["responsible"]
+    if "managers" in data:
+        managers = list(data["managers"])
+        if not managers:
+            raise HTTPException(status_code=400, detail="At least one manager required")
+        entry.managers = managers
     calendar_store.update(entry_id, entry)
     return JSONResponse({"status": "ok"})
 

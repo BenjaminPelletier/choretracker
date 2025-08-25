@@ -25,6 +25,7 @@ def test_duplicate_titles_disambiguated(tmp_path, monkeypatch):
         type=CalendarEntryType.Event,
         first_start=datetime(2025, 8, 22, 8, 0, 0),
         duration_seconds=60,
+        managers=["Admin"],
     )
     second = CalendarEntry(
         title="Guinea salad",
@@ -32,6 +33,7 @@ def test_duplicate_titles_disambiguated(tmp_path, monkeypatch):
         type=CalendarEntryType.Event,
         first_start=datetime(2025, 8, 23, 8, 0, 0),
         duration_seconds=60,
+        managers=["Admin"],
     )
     app_module.calendar_store.create(first)
     app_module.calendar_store.create(second)
