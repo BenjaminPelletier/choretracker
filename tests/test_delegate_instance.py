@@ -46,7 +46,7 @@ def test_delegate_instance(tmp_path, monkeypatch):
     assert responsible_for(entry, 0, 0) == ["Bob"]
 
     page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
-    assert "Remove Delegation" in page.text
+    assert "Remove delegation" in page.text
 
     resp = client.post(
         f"/calendar/{entry_id}/delegation/remove",
@@ -58,4 +58,31 @@ def test_delegate_instance(tmp_path, monkeypatch):
     entry = app_module.calendar_store.get(entry_id)
     assert entry.recurrences[0].delegations == []
     page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
-    assert "Delegate" in page.text
+    assert "Delegate this instance" in page.text
+
+    resp = client.post(
+        f"/calendar/{entry_id}/delegation",
+        data={"recurrence_index": 0, "instance_index": 0, "responsible[]": "Bob"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+
+    resp = client.post(
+        f"/calendar/{entry_id}/skip",
+        data={"recurrence_index": 0, "instance_index": 0},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+
+    entry = app_module.calendar_store.get(entry_id)
+    assert entry.recurrences[0].delegations == []
+    page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
+    assert "<h2>Delegation</h2>" not in page.text
+
+    client.post(
+        f"/calendar/{entry_id}/skip/remove",
+        data={"recurrence_index": 0, "instance_index": 0},
+        follow_redirects=False,
+    )
+    page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
+    assert "Delegate this instance" in page.text

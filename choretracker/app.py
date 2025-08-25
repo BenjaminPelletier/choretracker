@@ -851,6 +851,13 @@ async def skip_instance(request: Request, entry_id: int):
     rec = entry.recurrences[rindex]
     if iindex not in rec.skipped_instances:
         rec.skipped_instances.append(iindex)
+    for idx, d in enumerate(rec.delegations):
+        if not isinstance(d, Delegation):
+            d = Delegation.model_validate(d)
+            rec.delegations[idx] = d
+        if d.instance_index == iindex:
+            del rec.delegations[idx]
+            break
     calendar_store.update(entry_id, entry)
     referer = request.headers.get(
         "referer",
