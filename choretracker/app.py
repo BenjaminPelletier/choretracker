@@ -16,6 +16,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from sqlmodel import create_engine
 from pydantic.json import pydantic_encoder
+from markdown import markdown as md
+from markupsafe import Markup
 
 from .users import UserStore, init_db, process_profile_picture, pwd_context
 from .calendar import (
@@ -140,6 +142,15 @@ def format_offset(offset: Offset | None) -> str:
 
 templates.env.filters["format_duration"] = format_duration
 templates.env.filters["format_offset"] = format_offset
+
+
+def render_markdown(text: str) -> Markup:
+    if not text:
+        return Markup("")
+    return Markup(md(text))
+
+
+templates.env.filters["markdown"] = render_markdown
 
 
 def format_time_range(period: TimePeriod) -> str:

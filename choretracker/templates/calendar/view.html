@@ -11,7 +11,7 @@
     </form>
     {% endif %}
 </h1>
-<p>{{ entry.description }}</p>
+<div class="description">{{ entry.description|markdown }}</div>
 <dl>
     <dt>First start: {{ entry.first_start|format_datetime(include_day=True) }}</dt>
     <dt>Duration: {{ entry.duration|format_duration }}</dt>
