@@ -878,6 +878,57 @@ async def update_recurrence(request: Request, entry_id: int):
     return JSONResponse({"status": "ok"})
 
 
+@app.post("/calendar/{entry_id}/recurrence/add")
+async def add_recurrence(request: Request, entry_id: int):
+    entry = calendar_store.get(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404)
+    require_entry_write_permission(request, entry)
+    data = await request.json()
+    if "type" not in data:
+        raise HTTPException(status_code=400)
+    rtype = RecurrenceType(data["type"])
+    days = int(data.get("offset_days") or 0)
+    hours = int(data.get("offset_hours") or 0)
+    minutes = int(data.get("offset_minutes") or 0)
+    offset = None
+    if days or hours or minutes:
+        offset = Offset(exact_duration_seconds=days * 86400 + hours * 3600 + minutes * 60)
+    rec = Recurrence(type=rtype, offset=offset, responsible=list(data.get("responsible") or []))
+    entry.recurrences.append(rec)
+    calendar_store.update(entry_id, entry)
+    return JSONResponse({"status": "ok", "recurrence_index": len(entry.recurrences) - 1})
+
+
+@app.post("/calendar/{entry_id}/recurrence/delete")
+async def delete_recurrence(request: Request, entry_id: int):
+    entry = calendar_store.get(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404)
+    require_entry_write_permission(request, entry)
+    data = await request.json()
+    rindex = int(data.get("recurrence_index", -1))
+    if rindex < 0 or rindex >= len(entry.recurrences):
+        raise HTTPException(status_code=400)
+    del entry.recurrences[rindex]
+    calendar_store.update(entry_id, entry)
+    # Remove completions for this recurrence and shift higher indices
+    comps = completion_store.list_for_entry(entry_id)
+    for comp in comps:
+        if comp.recurrence_index == rindex:
+            completion_store.delete(entry_id, comp.recurrence_index, comp.instance_index)
+        elif comp.recurrence_index > rindex:
+            completion_store.delete(entry_id, comp.recurrence_index, comp.instance_index)
+            completion_store.create(
+                entry_id,
+                comp.recurrence_index - 1,
+                comp.instance_index,
+                comp.completed_by,
+                comp.completed_at,
+            )
+    return JSONResponse({"status": "ok"})
+
+
 @app.post("/calendar/{entry_id}/delete")
 async def delete_calendar_entry(request: Request, entry_id: int):
     entry = calendar_store.get(entry_id)
