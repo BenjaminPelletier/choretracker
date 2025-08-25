@@ -117,6 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const plusUrl = "{{ url_for('static', path='plus.svg') }}";
     const profileUrlTemplate = "{{ request.url_for('profile_picture', username='__user__') }}";
     const allUsers = {{ all_users()|selectattr('username','ne','Viewer')|map(attribute='username')|list|tojson }};
+    const recurrenceTypes = {{ RecurrenceType|map(attribute='value')|list|tojson }};
 
     function makeBtn(url, alt) {
         const b = document.createElement('button');
@@ -171,13 +172,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const typeSelect = document.createElement('select');
             typeSelect.className = 'inline-input';
-            {% for t in RecurrenceType %}
-            const opt{{ loop.index0 }} = document.createElement('option');
-            opt{{ loop.index0 }}.value = "{{ t.value }}";
-            opt{{ loop.index0 }}.textContent = "{{ t.value }}";
-            if ("{{ t.value }}" === originalType) opt{{ loop.index0 }}.selected = true;
-            typeSelect.appendChild(opt{{ loop.index0 }});
-            {% endfor %}
+            recurrenceTypes.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t;
+                opt.textContent = t;
+                if (t === originalType) opt.selected = true;
+                typeSelect.appendChild(opt);
+            });
 
             const durationSpan = document.createElement('span');
             const durLabel = document.createElement('span');
@@ -189,12 +190,14 @@ document.addEventListener('DOMContentLoaded', () => {
             dayInput.min = '0';
             dayInput.className = 'inline-input';
             dayInput.value = days;
+            dayInput.style.width = '4ch';
             const hourInput = document.createElement('input');
             hourInput.type = 'number';
             hourInput.placeholder = 'Hours';
             hourInput.min = '0';
             hourInput.className = 'inline-input';
             hourInput.value = hours;
+            hourInput.style.width = '4ch';
             const minuteInput = document.createElement('input');
             minuteInput.type = 'number';
             minuteInput.placeholder = 'Minutes';
@@ -202,6 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
             minuteInput.max = '59';
             minuteInput.className = 'inline-input';
             minuteInput.value = minutes;
+            minuteInput.style.width = '4ch';
             durationSpan.appendChild(dayInput);
             durationSpan.appendChild(hourInput);
             durationSpan.appendChild(minuteInput);
@@ -272,9 +276,10 @@ document.addEventListener('DOMContentLoaded', () => {
             li.appendChild(cancel);
 
             save.addEventListener('click', async () => {
-                await fetch(`/calendar/${entryId}/recurrence/update`, {
+                const resp = await fetch(`/calendar/${entryId}/recurrence/update`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
+                    credentials: 'same-origin',
                     body: JSON.stringify({
                         recurrence_index: rindex,
                         type: typeSelect.value,
@@ -284,7 +289,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         responsible: responsible
                     })
                 });
-                location.reload();
+                if (resp.ok) {
+                    location.reload();
+                } else {
+                    alert('Failed to update recurrence');
+                }
             });
             cancel.addEventListener('click', () => location.reload());
         });
