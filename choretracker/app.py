@@ -101,6 +101,27 @@ def format_datetime(dt: datetime | None, include_day: bool = False) -> str:
         fmt = "%A " + fmt
     return dt.strftime(fmt)
 templates.env.filters["format_datetime"] = format_datetime
+
+
+def format_time_range(period: TimePeriod) -> str:
+    start = period.start.replace(second=0, microsecond=0)
+    end = period.end.replace(second=0, microsecond=0)
+    start_str = start.strftime("%Y-%m-%d %H:%M")
+    if start.year != end.year:
+        end_fmt = "%Y-%m-%d %H:%M"
+    elif start.month != end.month:
+        end_fmt = "%m-%d %H:%M"
+    elif start.day != end.day:
+        end_fmt = "%d %H:%M"
+    elif start.hour != end.hour:
+        end_fmt = "%H:%M"
+    else:
+        end_fmt = "%M"
+    end_str = end.strftime(end_fmt)
+    return f"{start_str} - {end_str}"
+
+
+templates.env.filters["format_time_range"] = format_time_range
 app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="static")
 
 
@@ -440,6 +461,45 @@ async def view_calendar_entry(request: Request, entry_id: int):
     )
 
 
+@app.get(
+    "/calendar/entry/{entry_id}/period/{rindex}/{iindex}",
+    response_class=HTMLResponse,
+)
+async def view_time_period(
+    request: Request, entry_id: int, rindex: int, iindex: int
+):
+    entry = calendar_store.get(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404)
+    require_entry_read_permission(request, entry.type)
+    period = find_time_period(
+        entry, rindex, iindex, include_skipped=True
+    )
+    if not period:
+        raise HTTPException(status_code=404)
+    completion = None
+    if entry.type == CalendarEntryType.Chore:
+        completion = completion_store.get(entry_id, rindex, iindex)
+    is_skipped = False
+    if rindex >= 0 and rindex < len(entry.recurrences):
+        rec = entry.recurrences[rindex]
+        is_skipped = iindex in rec.skipped_instances
+    current_user = request.session.get("user")
+    return templates.TemplateResponse(
+        "calendar/timeperiod.html",
+        {
+            "request": request,
+            "entry": entry,
+            "period": period,
+            "completion": completion,
+            "is_skipped": is_skipped,
+            "can_edit": can_edit_entry(current_user, entry),
+            "now": datetime.now(),
+            "CalendarEntryType": CalendarEntryType,
+        },
+    )
+
+
 @app.get("/calendar/{entry_id}/edit", response_class=HTMLResponse)
 async def edit_calendar_entry(request: Request, entry_id: int):
     entry = calendar_store.get(entry_id)
@@ -613,6 +673,58 @@ async def remove_completion(request: Request, entry_id: int):
         raise HTTPException(status_code=403)
     completion_store.delete(entry_id, rindex, iindex)
     return {"status": "ok"}
+
+
+@app.post("/calendar/{entry_id}/skip")
+async def skip_instance(request: Request, entry_id: int):
+    entry = calendar_store.get(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404)
+    require_entry_write_permission(request, entry)
+    form = await request.form()
+    rindex = int(form.get("recurrence_index", -1))
+    iindex = int(form.get("instance_index", -1))
+    if rindex < 0 or rindex >= len(entry.recurrences):
+        raise HTTPException(status_code=400)
+    rec = entry.recurrences[rindex]
+    if iindex not in rec.skipped_instances:
+        rec.skipped_instances.append(iindex)
+    calendar_store.update(entry_id, entry)
+    referer = request.headers.get(
+        "referer",
+        str(
+            request.url_for(
+                "view_time_period", entry_id=entry_id, rindex=rindex, iindex=iindex
+            )
+        ),
+    )
+    return RedirectResponse(url=referer, status_code=303)
+
+
+@app.post("/calendar/{entry_id}/skip/remove")
+async def unskip_instance(request: Request, entry_id: int):
+    entry = calendar_store.get(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404)
+    require_entry_write_permission(request, entry)
+    form = await request.form()
+    rindex = int(form.get("recurrence_index", -1))
+    iindex = int(form.get("instance_index", -1))
+    if rindex < 0 or rindex >= len(entry.recurrences):
+        raise HTTPException(status_code=400)
+    rec = entry.recurrences[rindex]
+    if iindex in rec.skipped_instances:
+        rec.skipped_instances.remove(iindex)
+    calendar_store.update(entry_id, entry)
+    referer = request.headers.get(
+        "referer",
+        str(
+            request.url_for(
+                "view_time_period", entry_id=entry_id, rindex=rindex, iindex=iindex
+            )
+        ),
+    )
+    return RedirectResponse(url=referer, status_code=303)
 
 
 @app.get("/users", response_class=HTMLResponse)

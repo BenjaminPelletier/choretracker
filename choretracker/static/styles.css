@@ -331,6 +331,12 @@ h1 {
     margin-left: 0.25rem;
 }
 
+/* Make skip/unskip buttons match surrounding text size */
+.skip-button {
+    font-size: 1rem;
+    padding: 0.25rem 0.5rem;
+}
+
 .pin-modal {
     position: fixed;
     top: 0;

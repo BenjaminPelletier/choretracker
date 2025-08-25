@@ -11,7 +11,7 @@
         {% for user in entry.responsible %}
         <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
-        {{ entry.title }}
+        <a href="{{ request.url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ entry.title }}</a>
         <span class="time-suffix" data-kind="due-ago" data-end="{{ period.end.isoformat() }}"></span>
         {% if user_has(request.session.get('user'), 'chores.complete_overdue') %}
         <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ period.recurrence_index }}" data-iindex="{{ period.instance_index }}" data-action="add" />
@@ -29,7 +29,7 @@
         {% for user in entry.responsible %}
         <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
-        {{ entry.title }}
+        <a href="{{ request.url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ entry.title }}</a>
         {% if entry.type == CalendarEntryType.Chore %}
         <span class="time-suffix" data-kind="due-in" data-end="{{ period.end.isoformat() }}"></span>
         {% if completion %}
@@ -51,7 +51,7 @@
         {% for user in entry.responsible %}
         <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
-        {{ entry.title }}
+        <a href="{{ request.url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ entry.title }}</a>
         <span class="time-suffix" data-kind="starts-in" data-start="{{ period.start.isoformat() }}"></span>
     </li>
     {% endfor %}

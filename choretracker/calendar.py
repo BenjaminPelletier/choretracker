@@ -239,7 +239,9 @@ def _advance(start: datetime, rtype: RecurrenceType) -> datetime:
     raise ValueError(f"Unsupported recurrence type: {rtype}")
 
 
-def _recurrence_generator(entry: CalendarEntry, rec: Recurrence, rindex: int) -> Iterator[TimePeriod]:
+def _recurrence_generator(
+    entry: CalendarEntry, rec: Recurrence, rindex: int, include_skipped: bool
+) -> Iterator[TimePeriod]:
     none_after = entry.none_after
     if rec.offset:
         start = _apply_offset(entry.first_start, rec.offset)
@@ -247,13 +249,20 @@ def _recurrence_generator(entry: CalendarEntry, rec: Recurrence, rindex: int) ->
         start = _advance(entry.first_start, rec.type)
     instance = 0
     while start and (not none_after or start <= none_after):
-        if instance not in rec.skipped_instances:
-            yield TimePeriod(start=start, end=start + entry.duration, recurrence_index=rindex, instance_index=instance)
+        if include_skipped or instance not in rec.skipped_instances:
+            yield TimePeriod(
+                start=start,
+                end=start + entry.duration,
+                recurrence_index=rindex,
+                instance_index=instance,
+            )
         instance += 1
         start = _advance(start, rec.type)
 
 
-def enumerate_time_periods(entry: CalendarEntry) -> Iterator[TimePeriod]:
+def enumerate_time_periods(
+    entry: CalendarEntry, include_skipped: bool = False
+) -> Iterator[TimePeriod]:
     none_after = entry.none_after
     if not none_after or entry.first_start <= none_after:
         yield TimePeriod(
@@ -267,7 +276,7 @@ def enumerate_time_periods(entry: CalendarEntry) -> Iterator[TimePeriod]:
     for idx, rec in enumerate(entry.recurrences):
         if not isinstance(rec, Recurrence):
             rec = Recurrence.model_validate(rec)
-        gen = _recurrence_generator(entry, rec, idx)
+        gen = _recurrence_generator(entry, rec, idx, include_skipped)
         first = next(gen, None)
         if first:
             heappush(heap, (first.start, idx, gen, first))
@@ -281,9 +290,12 @@ def enumerate_time_periods(entry: CalendarEntry) -> Iterator[TimePeriod]:
 
 
 def find_time_period(
-    entry: CalendarEntry, recurrence_index: int, instance_index: int
+    entry: CalendarEntry,
+    recurrence_index: int,
+    instance_index: int,
+    include_skipped: bool = False,
 ) -> Optional[TimePeriod]:
-    for period in enumerate_time_periods(entry):
+    for period in enumerate_time_periods(entry, include_skipped=include_skipped):
         if (
             period.recurrence_index == recurrence_index
             and period.instance_index == instance_index
