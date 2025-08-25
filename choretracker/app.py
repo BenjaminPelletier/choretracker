@@ -845,6 +845,20 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
         entry.title = data["title"].strip()
     if "type" in data:
         entry.type = CalendarEntryType(data["type"])
+    if (
+        "duration_days" in data
+        or "duration_hours" in data
+        or "duration_minutes" in data
+    ):
+        days = int(data.get("duration_days", 0))
+        hours = int(data.get("duration_hours", 0))
+        minutes = int(data.get("duration_minutes", 0))
+        entry.duration = timedelta(days=days, hours=hours, minutes=minutes)
+    if "none_after" in data:
+        na = data["none_after"]
+        entry.none_after = datetime.fromisoformat(na) if na else None
+    if "responsible" in data:
+        entry.responsible = data["responsible"]
     calendar_store.update(entry_id, entry)
     return JSONResponse({"status": "ok"})
 
