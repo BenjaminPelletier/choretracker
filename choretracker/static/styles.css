@@ -104,6 +104,7 @@ h1 .icon {
     border: none;
     padding: 0;
     cursor: pointer;
+    font-size: inherit;
 }
 
 /* Ensure inline editors match surrounding text */
