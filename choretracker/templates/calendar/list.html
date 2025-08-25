@@ -8,9 +8,7 @@
     {% for entry in entries %}
     <li>
         <a href="{{ url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a>
-        {% set write_perm = WRITE_PERMS[entry_type] %}
-        {% set edit_perm = EDIT_OTHER_PERMS[entry_type] %}
-        {% if user_has(current_user, write_perm) and (entry.owner == current_user or user_has(current_user, edit_perm)) %}
+        {% if current_user in entry.managers or user_has(current_user, 'admin') %}
         <a href="{{ url_for('edit_calendar_entry', entry_id=entry.id) }}" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></a>
         <form method="post" action="{{ url_for('delete_calendar_entry', entry_id=entry.id) }}" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this entry?');">
             <button type="submit" class="icon-button"><img src="{{ url_for('static', path='trash.svg') }}" alt="Delete" class="icon"></button>

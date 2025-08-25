@@ -64,6 +64,22 @@
 
     <div class="field">
         <div class="label-row">
+            <span>Managers</span>
+            <span class="help" data-help="People who can edit this entry">?</span>
+        </div>
+        <div class="responsible-selector">
+            <button type="button" id="add-managers">Add</button>
+            <div class="dropdown" id="managers-dropdown">
+                {% for u in all_users() %}
+                <a href="#" data-user="{{ u.username }}">{{ u.username }}</a>
+                {% endfor %}
+            </div>
+        </div>
+        <ul id="managers-list"></ul>
+    </div>
+
+    <div class="field">
+        <div class="label-row">
             <span>Responsible</span>
             <span class="help" data-help="People responsible for this entry">?</span>
         </div>
@@ -291,11 +307,17 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    const entryManager = createResponsibleManager(
+    const entryRespManager = createResponsibleManager(
         document.getElementById('add-responsible'),
         document.getElementById('responsible-dropdown'),
         document.getElementById('responsible-list'),
         'responsible'
+    );
+    const entryManagersManager = createResponsibleManager(
+        document.getElementById('add-managers'),
+        document.getElementById('managers-dropdown'),
+        document.getElementById('managers-list'),
+        'managers'
     );
 
     {% if entry_data %}
@@ -314,7 +336,8 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('none_after').value = data.none_after.slice(0,16);
     }
     data.recurrences.forEach(r => addRecurrenceItem(r));
-    data.responsible.forEach(u => entryManager.addUser(u));
+    data.responsible.forEach(u => entryRespManager.addUser(u));
+    data.managers.forEach(u => entryManagersManager.addUser(u));
     {% endif %}
 
     const form = document.getElementById('entry-form');

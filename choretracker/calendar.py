@@ -53,7 +53,7 @@ class CalendarEntry(SQLModel, table=True):
     recurrences: List[Recurrence] = Field(default_factory=list, sa_column=Column(JSON))
     none_after: Optional[datetime] = None
     responsible: List[str] = Field(default_factory=list, sa_column=Column(JSON))
-    owner: str = ""
+    managers: List[str] = Field(default_factory=list, sa_column=Column(JSON))
 
     @property
     def duration(self) -> timedelta:
@@ -95,6 +95,7 @@ class CalendarEntryStore:
             entry.recurrences = new_data.recurrences
             entry.none_after = new_data.none_after
             entry.responsible = new_data.responsible
+            entry.managers = new_data.managers
             session.add(entry)
             session.commit()
 

@@ -73,7 +73,12 @@
         <button type="button" id="edit-responsible" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
         {% endif %}
     </span></dt>
-    <dt>Owner</dt><dd>{{ entry.owner }}</dd>
+    <dt>Managers</dt>
+    <dd>
+        {% for user in entry.managers %}
+        <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+        {% endfor %}
+    </dd>
 </dl>
 {% if past_instances or upcoming_instances %}
 <h2>Instances</h2>
