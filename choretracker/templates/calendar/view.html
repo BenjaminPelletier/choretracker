@@ -30,9 +30,17 @@
     <dt>Recurrences</dt>
     <dd>
         {% if entry.recurrences %}
-        <ul>
+        <ul id="recurrence-list">
             {% for rec in entry.recurrences %}
-            <li>{{ rec.type.value }}{% if rec.offset %} (offset: {{ rec.offset|format_offset }}){% endif %}</li>
+            <li class="recurrence-item" data-rindex="{{ loop.index0 }}" data-type="{{ rec.type.value }}" data-offset-seconds="{{ rec.offset.exact_duration_seconds if rec.offset and rec.offset.exact_duration_seconds else 0 }}" data-responsible='{{ rec.responsible|tojson }}'>
+                <span class="recurrence-text">{{ rec.type.value }}{% if rec.offset %} (offset: {{ rec.offset|format_offset }}){% endif %}</span>
+                {% for user in rec.responsible %}
+                <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+                {% endfor %}
+                {% if can_edit %}
+                <button type="button" class="icon-button edit-recurrence"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
+                {% endif %}
+            </li>
             {% endfor %}
         </ul>
         {% else %}
@@ -105,6 +113,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const entryId = {{ entry.id }};
     const diskUrl = "{{ url_for('static', path='disk.svg') }}";
     const xUrl = "{{ url_for('static', path='x.svg') }}";
+    const trashUrl = "{{ url_for('static', path='trash.svg') }}";
+    const plusUrl = "{{ url_for('static', path='plus.svg') }}";
+    const profileUrlTemplate = "{{ request.url_for('profile_picture', username='__user__') }}";
+    const allUsers = {{ all_users()|selectattr('username','ne','Viewer')|map(attribute='username')|list|tojson }};
 
     function makeBtn(url, alt) {
         const b = document.createElement('button');
@@ -143,6 +155,140 @@ document.addEventListener('DOMContentLoaded', () => {
             cancel.addEventListener('click', () => location.reload());
         });
     }
+
+    document.querySelectorAll('.recurrence-item .edit-recurrence').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const li = btn.closest('.recurrence-item');
+            const rindex = parseInt(li.dataset.rindex);
+            const originalType = li.dataset.type;
+            const originalResp = JSON.parse(li.dataset.responsible || '[]');
+            const offsetSeconds = parseInt(li.dataset.offsetSeconds || '0');
+            const days = Math.floor(offsetSeconds / 86400);
+            const hours = Math.floor((offsetSeconds % 86400) / 3600);
+            const minutes = Math.floor((offsetSeconds % 3600) / 60);
+
+            li.innerHTML = '';
+
+            const typeSelect = document.createElement('select');
+            typeSelect.className = 'inline-input';
+            {% for t in RecurrenceType %}
+            const opt{{ loop.index0 }} = document.createElement('option');
+            opt{{ loop.index0 }}.value = "{{ t.value }}";
+            opt{{ loop.index0 }}.textContent = "{{ t.value }}";
+            if ("{{ t.value }}" === originalType) opt{{ loop.index0 }}.selected = true;
+            typeSelect.appendChild(opt{{ loop.index0 }});
+            {% endfor %}
+
+            const durationSpan = document.createElement('span');
+            const durLabel = document.createElement('span');
+            durLabel.textContent = 'Duration: ';
+            durationSpan.appendChild(durLabel);
+            const dayInput = document.createElement('input');
+            dayInput.type = 'number';
+            dayInput.placeholder = 'Days';
+            dayInput.min = '0';
+            dayInput.className = 'inline-input';
+            dayInput.value = days;
+            const hourInput = document.createElement('input');
+            hourInput.type = 'number';
+            hourInput.placeholder = 'Hours';
+            hourInput.min = '0';
+            hourInput.className = 'inline-input';
+            hourInput.value = hours;
+            const minuteInput = document.createElement('input');
+            minuteInput.type = 'number';
+            minuteInput.placeholder = 'Minutes';
+            minuteInput.min = '0';
+            minuteInput.max = '59';
+            minuteInput.className = 'inline-input';
+            minuteInput.value = minutes;
+            durationSpan.appendChild(dayInput);
+            durationSpan.appendChild(hourInput);
+            durationSpan.appendChild(minuteInput);
+
+            const respContainer = document.createElement('span');
+            const responsible = [...originalResp];
+
+            function addResp(user) {
+                const wrapper = document.createElement('span');
+                const img = document.createElement('img');
+                img.src = profileUrlTemplate.replace('__user__', encodeURIComponent(user));
+                img.alt = user;
+                img.className = 'profile-icon';
+                const rm = makeBtn(trashUrl, 'Remove');
+                rm.addEventListener('click', () => {
+                    wrapper.remove();
+                    const idx = responsible.indexOf(user);
+                    if (idx >= 0) responsible.splice(idx, 1);
+                    refreshDropdown();
+                });
+                wrapper.appendChild(img);
+                wrapper.appendChild(rm);
+                respContainer.appendChild(wrapper);
+            }
+
+            const addWrap = document.createElement('span');
+            addWrap.className = 'responsible-selector';
+            const addBtn = makeBtn(plusUrl, 'Add user');
+            const dropdown = document.createElement('div');
+            dropdown.className = 'dropdown';
+            dropdown.style.display = 'none';
+
+            function refreshDropdown() {
+                dropdown.innerHTML = '';
+                allUsers.filter(u => !responsible.includes(u)).forEach(u => {
+                    const a = document.createElement('a');
+                    a.href = '#';
+                    a.textContent = u;
+                    a.addEventListener('click', e => {
+                        e.preventDefault();
+                        responsible.push(u);
+                        addResp(u);
+                        dropdown.style.display = 'none';
+                        refreshDropdown();
+                    });
+                    dropdown.appendChild(a);
+                });
+            }
+
+            addBtn.addEventListener('click', () => {
+                dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+            });
+
+            addWrap.appendChild(addBtn);
+            addWrap.appendChild(dropdown);
+
+            originalResp.forEach(u => addResp(u));
+            refreshDropdown();
+
+            const save = makeBtn(diskUrl, 'Save');
+            const cancel = makeBtn(trashUrl, 'Cancel');
+
+            li.appendChild(typeSelect);
+            li.appendChild(durationSpan);
+            li.appendChild(respContainer);
+            li.appendChild(addWrap);
+            li.appendChild(save);
+            li.appendChild(cancel);
+
+            save.addEventListener('click', async () => {
+                await fetch(`/calendar/${entryId}/recurrence/update`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        recurrence_index: rindex,
+                        type: typeSelect.value,
+                        offset_days: parseInt(dayInput.value || '0'),
+                        offset_hours: parseInt(hourInput.value || '0'),
+                        offset_minutes: parseInt(minuteInput.value || '0'),
+                        responsible: responsible
+                    })
+                });
+                location.reload();
+            });
+            cancel.addEventListener('click', () => location.reload());
+        });
+    });
 
     const descEdit = document.getElementById('edit-description');
     if (descEdit) {
