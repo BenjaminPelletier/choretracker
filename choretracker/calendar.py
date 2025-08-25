@@ -30,10 +30,17 @@ class Offset(SQLModel):
     years: Optional[int] = None
 
 
+class Delegation(SQLModel):
+    instance_index: int
+    responsible: List[str] = Field(default_factory=list)
+
+
 class Recurrence(SQLModel):
     type: RecurrenceType
     offset: Optional[Offset] = None
     skipped_instances: List[int] = Field(default_factory=list)
+    responsible: List[str] = Field(default_factory=list)
+    delegations: List[Delegation] = Field(default_factory=list)
 
 
 class CalendarEntry(SQLModel, table=True):
@@ -301,5 +308,37 @@ def find_time_period(
             and period.instance_index == instance_index
         ):
             return period
+    return None
+
+
+def responsible_for(
+    entry: CalendarEntry, recurrence_index: int, instance_index: int
+) -> List[str]:
+    if 0 <= recurrence_index < len(entry.recurrences):
+        rec = entry.recurrences[recurrence_index]
+        if not isinstance(rec, Recurrence):
+            rec = Recurrence.model_validate(rec)
+        for d in rec.delegations:
+            if not isinstance(d, Delegation):
+                d = Delegation.model_validate(d)
+            if d.instance_index == instance_index:
+                return d.responsible
+        if rec.responsible:
+            return rec.responsible
+    return entry.responsible
+
+
+def find_delegation(
+    entry: CalendarEntry, recurrence_index: int, instance_index: int
+) -> Optional[Delegation]:
+    if 0 <= recurrence_index < len(entry.recurrences):
+        rec = entry.recurrences[recurrence_index]
+        if not isinstance(rec, Recurrence):
+            rec = Recurrence.model_validate(rec)
+        for d in rec.delegations:
+            if not isinstance(d, Delegation):
+                d = Delegation.model_validate(d)
+            if d.instance_index == instance_index:
+                return d
     return None
 

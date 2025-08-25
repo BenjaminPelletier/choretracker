@@ -24,12 +24,15 @@ from .calendar import (
     CalendarEntryType,
     ChoreCompletion,
     ChoreCompletionStore,
+    Delegation,
     Offset,
     Recurrence,
     RecurrenceType,
     TimePeriod,
     enumerate_time_periods,
     find_time_period,
+    find_delegation,
+    responsible_for,
 )
 
 
@@ -199,7 +202,18 @@ async def index(request: Request):
                     if period.end <= now:
                         continue
                     if period.start <= now:
-                        current.append((entry, period, completion))
+                        current.append(
+                            (
+                                entry,
+                                period,
+                                completion,
+                                responsible_for(
+                                    entry,
+                                    period.recurrence_index,
+                                    period.instance_index,
+                                ),
+                            )
+                        )
                         nxt = next(gen, None)
                         if nxt:
                             heappush(
@@ -211,21 +225,51 @@ async def index(request: Request):
                         continue
             if period.end <= now:
                 if entry.type == CalendarEntryType.Chore:
-                    overdue.append((entry, period))
+                    overdue.append(
+                        (
+                            entry,
+                            period,
+                            responsible_for(
+                                entry,
+                                period.recurrence_index,
+                                period.instance_index,
+                            ),
+                        )
+                    )
             elif period.start <= now:
-                current.append((entry, period, completion))
+                current.append(
+                    (
+                        entry,
+                        period,
+                        completion,
+                        responsible_for(
+                            entry,
+                            period.recurrence_index,
+                            period.instance_index,
+                        ),
+                    )
+                )
                 nxt = next(gen, None)
                 if nxt:
                     heappush(upcoming_heap, (nxt.start, next(counter), entry, nxt, gen))
                 break
             else:
-                heappush(upcoming_heap, (period.start, next(counter), entry, period, gen))
+                heappush(
+                    upcoming_heap,
+                    (period.start, next(counter), entry, period, gen),
+                )
                 break
 
-    upcoming: list[tuple[CalendarEntry, TimePeriod]] = []
+    upcoming: list[tuple[CalendarEntry, TimePeriod, list[str]]] = []
     while upcoming_heap and len(upcoming) < MAX_UPCOMING:
         _, _, entry, period, gen = heappop(upcoming_heap)
-        upcoming.append((entry, period))
+        upcoming.append(
+            (
+                entry,
+                period,
+                responsible_for(entry, period.recurrence_index, period.instance_index),
+            )
+        )
         nxt = next(gen, None)
         if nxt:
             heappush(upcoming_heap, (nxt.start, next(counter), entry, nxt, gen))
@@ -371,6 +415,8 @@ async def create_calendar_entry(request: Request):
     offset_years = form.getlist("offset_years[]")
     offset_hours = form.getlist("offset_hours[]")
     offset_minutes = form.getlist("offset_minutes[]")
+    rec_resp_json = form.getlist("recurrence_responsible[]")
+    rec_del_json = form.getlist("recurrence_delegations[]")
 
     recurrences = []
     for i, rtype in enumerate(recurrence_types):
@@ -388,12 +434,33 @@ async def create_calendar_entry(request: Request):
                 months=months or None,
                 years=years or None,
             )
-        recurrences.append(Recurrence(type=RecurrenceType(rtype), offset=off, skipped_instances=[]))
+        responsible_users: list[str] = []
+        if i < len(rec_resp_json) and rec_resp_json[i]:
+            responsible_users = json.loads(rec_resp_json[i])
+        delegations: list[Delegation] = []
+        if i < len(rec_del_json) and rec_del_json[i]:
+            delegations = [Delegation.model_validate(d) for d in json.loads(rec_del_json[i])]
+        recurrences.append(
+            Recurrence(
+                type=RecurrenceType(rtype),
+                offset=off,
+                skipped_instances=[],
+                responsible=responsible_users,
+                delegations=delegations,
+            )
+        )
 
     none_after_str = form.get("none_after")
     none_after = datetime.fromisoformat(none_after_str) if none_after_str else None
 
     responsible = form.getlist("responsible")
+    if entry_type == CalendarEntryType.Chore and not responsible:
+        raise HTTPException(status_code=400, detail="At least one responsible user required")
+    if entry_type == CalendarEntryType.Chore:
+        for rec in recurrences:
+            for d in rec.delegations:
+                if not d.responsible:
+                    raise HTTPException(status_code=400, detail="Delegations must have responsible users")
 
     entry = CalendarEntry(
         title=title,
@@ -484,6 +551,7 @@ async def view_time_period(
     if rindex >= 0 and rindex < len(entry.recurrences):
         rec = entry.recurrences[rindex]
         is_skipped = iindex in rec.skipped_instances
+    delegation = find_delegation(entry, rindex, iindex)
     current_user = request.session.get("user")
     return templates.TemplateResponse(
         "calendar/timeperiod.html",
@@ -496,6 +564,8 @@ async def view_time_period(
             "can_edit": can_edit_entry(current_user, entry),
             "now": datetime.now(),
             "CalendarEntryType": CalendarEntryType,
+            "responsible": responsible_for(entry, rindex, iindex),
+            "delegation": delegation,
         },
     )
 
@@ -551,6 +621,8 @@ async def update_calendar_entry(request: Request, entry_id: int):
     offset_years = form.getlist("offset_years[]")
     offset_hours = form.getlist("offset_hours[]")
     offset_minutes = form.getlist("offset_minutes[]")
+    rec_resp_json = form.getlist("recurrence_responsible[]")
+    rec_del_json = form.getlist("recurrence_delegations[]")
 
     recurrences = []
     for i, rtype in enumerate(recurrence_types):
@@ -568,12 +640,33 @@ async def update_calendar_entry(request: Request, entry_id: int):
                 months=months or None,
                 years=years or None,
             )
-        recurrences.append(Recurrence(type=RecurrenceType(rtype), offset=off, skipped_instances=[]))
+        responsible_users: list[str] = []
+        if i < len(rec_resp_json) and rec_resp_json[i]:
+            responsible_users = json.loads(rec_resp_json[i])
+        delegations: list[Delegation] = []
+        if i < len(rec_del_json) and rec_del_json[i]:
+            delegations = [Delegation.model_validate(d) for d in json.loads(rec_del_json[i])]
+        recurrences.append(
+            Recurrence(
+                type=RecurrenceType(rtype),
+                offset=off,
+                skipped_instances=[],
+                responsible=responsible_users,
+                delegations=delegations,
+            )
+        )
 
     none_after_str = form.get("none_after")
     none_after = datetime.fromisoformat(none_after_str) if none_after_str else None
 
     responsible = form.getlist("responsible")
+    if entry_type == CalendarEntryType.Chore and not responsible:
+        raise HTTPException(status_code=400, detail="At least one responsible user required")
+    if entry_type == CalendarEntryType.Chore:
+        for rec in recurrences:
+            for d in rec.delegations:
+                if not d.responsible:
+                    raise HTTPException(status_code=400, detail="Delegations must have responsible users")
 
     new_entry = CalendarEntry(
         title=title,
@@ -675,6 +768,75 @@ async def remove_completion(request: Request, entry_id: int):
     return {"status": "ok"}
 
 
+@app.post("/calendar/{entry_id}/delegation")
+async def delegate_instance(request: Request, entry_id: int):
+    entry = calendar_store.get(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404)
+    require_entry_write_permission(request, entry)
+    form = await request.form()
+    rindex = int(form.get("recurrence_index", -1))
+    iindex = int(form.get("instance_index", -1))
+    responsible = form.getlist("responsible[]")
+    if entry.type == CalendarEntryType.Chore and not responsible:
+        raise HTTPException(status_code=400)
+    if rindex < 0 or rindex >= len(entry.recurrences):
+        raise HTTPException(status_code=400)
+    rec = entry.recurrences[rindex]
+    if not isinstance(rec, Recurrence):
+        rec = Recurrence.model_validate(rec)
+        entry.recurrences[rindex] = rec
+    existing = find_delegation(entry, rindex, iindex)
+    if existing:
+        existing.responsible = responsible
+    else:
+        rec.delegations.append(Delegation(instance_index=iindex, responsible=responsible))
+    calendar_store.update(entry_id, entry)
+    referer = request.headers.get(
+        "referer",
+        str(
+            request.url_for(
+                "view_time_period", entry_id=entry_id, rindex=rindex, iindex=iindex
+            )
+        ),
+    )
+    return RedirectResponse(url=referer, status_code=303)
+
+
+@app.post("/calendar/{entry_id}/delegation/remove")
+async def remove_delegation(request: Request, entry_id: int):
+    entry = calendar_store.get(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404)
+    require_entry_write_permission(request, entry)
+    form = await request.form()
+    rindex = int(form.get("recurrence_index", -1))
+    iindex = int(form.get("instance_index", -1))
+    if rindex < 0 or rindex >= len(entry.recurrences):
+        raise HTTPException(status_code=400)
+    rec = entry.recurrences[rindex]
+    if not isinstance(rec, Recurrence):
+        rec = Recurrence.model_validate(rec)
+        entry.recurrences[rindex] = rec
+    for idx, d in enumerate(rec.delegations):
+        if not isinstance(d, Delegation):
+            d = Delegation.model_validate(d)
+            rec.delegations[idx] = d
+        if d.instance_index == iindex:
+            del rec.delegations[idx]
+            break
+    calendar_store.update(entry_id, entry)
+    referer = request.headers.get(
+        "referer",
+        str(
+            request.url_for(
+                "view_time_period", entry_id=entry_id, rindex=rindex, iindex=iindex
+            )
+        ),
+    )
+    return RedirectResponse(url=referer, status_code=303)
+
+
 @app.post("/calendar/{entry_id}/skip")
 async def skip_instance(request: Request, entry_id: int):
     entry = calendar_store.get(entry_id)
@@ -689,6 +851,13 @@ async def skip_instance(request: Request, entry_id: int):
     rec = entry.recurrences[rindex]
     if iindex not in rec.skipped_instances:
         rec.skipped_instances.append(iindex)
+    for idx, d in enumerate(rec.delegations):
+        if not isinstance(d, Delegation):
+            d = Delegation.model_validate(d)
+            rec.delegations[idx] = d
+        if d.instance_index == iindex:
+            del rec.delegations[idx]
+            break
     calendar_store.update(entry_id, entry)
     referer = request.headers.get(
         "referer",

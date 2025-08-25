@@ -6,6 +6,9 @@
 <h1><a href="{{ request.url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a></h1>
 <div class="time-range">
     <span>{{ period|format_time_range }}</span>
+    {% for user in responsible %}
+    <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+    {% endfor %}
     {% if entry.type == CalendarEntryType.Chore %}
         {% if period.end <= now %}
             {% if not completion and user_has(request.session.get('user'), 'chores.complete_overdue') %}
@@ -32,6 +35,53 @@
     <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
     <button type="submit" class="skip-button">{{ 'Do not skip this instance' if is_skipped else 'Skip this instance' }}</button>
 </form>
+{% if not is_skipped %}
+<h2>Delegation</h2>
+{% if delegation %}
+    <form id="delegation-update-form" method="post" action="{{ request.url_for('delegate_instance', entry_id=entry.id) }}">
+        <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
+        <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
+    </form>
+    <ul class="responsible-list delegation-responsible-list" id="delegation-responsible-list">
+        {% for u in delegation.responsible %}
+        <li data-user="{{ u }}">
+            {{ u }}
+            <button type="button" class="remove-user"><img src="{{ url_for('static', path='trash.svg') }}" alt="Remove" class="icon"></button>
+        </li>
+        {% endfor %}
+    </ul>
+    {% set ns = namespace(options=[]) %}
+    {% for u in all_users() %}
+        {% if u.username != 'Viewer' and u.username not in delegation.responsible %}
+            {% set ns.options = ns.options + [u.username] %}
+        {% endif %}
+    {% endfor %}
+    {% if ns.options %}
+    <div class="responsible-selector">
+        <button type="button" id="add-delegation-responsible" class="skip-button">Add</button>
+        <div class="dropdown" id="delegation-dropdown">
+            {% for name in ns.options %}
+            <a href="#" data-user="{{ name }}">{{ name }}</a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    <form method="post" action="{{ request.url_for('remove_delegation', entry_id=entry.id) }}">
+        <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
+        <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
+        <button type="submit" class="skip-button">Remove delegation</button>
+    </form>
+{% else %}
+    <form method="post" action="{{ request.url_for('delegate_instance', entry_id=entry.id) }}">
+        <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
+        <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
+        {% for u in responsible %}
+        <input type="hidden" name="responsible[]" value="{{ u }}" />
+        {% endfor %}
+        <button type="submit" class="skip-button">Delegate this instance</button>
+    </form>
+{% endif %}
+{% endif %}
 {% endif %}
 <script>
 document.querySelectorAll('.checkbox-icon[data-action]').forEach(el => {
@@ -47,6 +97,60 @@ document.querySelectorAll('.checkbox-icon[data-action]').forEach(el => {
         });
         location.reload();
     });
+});
+document.addEventListener('DOMContentLoaded', function () {
+    const list = document.getElementById('delegation-responsible-list');
+    if (!list) return;
+    const form = document.getElementById('delegation-update-form');
+    const trashUrl = "{{ url_for('static', path='trash.svg') }}";
+    function submitDelegation() {
+        form.querySelectorAll('input[name="responsible[]"]').forEach(e => e.remove());
+        list.querySelectorAll('li').forEach(li => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'responsible[]';
+            input.value = li.dataset.user;
+            form.appendChild(input);
+        });
+        fetch(form.action, { method: 'POST', body: new FormData(form) }).then(() => location.reload());
+    }
+    list.addEventListener('click', e => {
+        if (e.target.closest('.remove-user')) {
+            e.preventDefault();
+            e.target.closest('li').remove();
+            submitDelegation();
+        }
+    });
+    const addBtn = document.getElementById('add-delegation-responsible');
+    const dropdown = document.getElementById('delegation-dropdown');
+    if (addBtn) {
+        addBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            dropdown.classList.toggle('show');
+        });
+        dropdown.addEventListener('click', e => {
+            const user = e.target.dataset.user;
+            if (user) {
+                e.preventDefault();
+                const li = document.createElement('li');
+                li.dataset.user = user;
+                li.textContent = user;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'remove-user';
+                btn.innerHTML = '<img src="' + trashUrl + '" alt="Remove" class="icon">';
+                li.appendChild(btn);
+                list.appendChild(li);
+                dropdown.classList.remove('show');
+                submitDelegation();
+            }
+        });
+        document.addEventListener('click', e => {
+            if (!dropdown.contains(e.target) && e.target !== addBtn) {
+                dropdown.classList.remove('show');
+            }
+        });
+    }
 });
 </script>
 {% endblock %}

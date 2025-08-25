@@ -115,6 +115,46 @@
                 </div>
             </div>
         </div>
+        <div class="group">
+            <div class="label-row">
+                <span class="group-title">Responsible</span>
+                <span class="help" data-help="People responsible for this recurrence">?</span>
+            </div>
+            <div class="responsible-selector recurrence-responsible-selector">
+                <button type="button" class="add-responsible">Add</button>
+                <div class="dropdown">
+                    {% for u in all_users() %}
+                    <a href="#" data-user="{{ u.username }}">{{ u.username }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            <ul class="responsible-list recurrence-responsible-list"></ul>
+        </div>
+        <div class="group delegations">
+            <div class="label-row">
+                <span class="group-title">Delegations</span>
+                <span class="help" data-help="Override responsibility for a single instance">?</span>
+                <button type="button" class="add-delegation icon-button">
+                    <img src="{{ url_for('static', path='plus.svg') }}" alt="Add delegation" class="icon">
+                </button>
+            </div>
+            <div class="delegations-list"></div>
+            <template class="delegation-template">
+                <div class="delegation-item">
+                    <button type="button" class="remove-delegation"><img src="{{ url_for('static', path='trash.svg') }}" alt="Remove" class="icon"></button>
+                    <input type="number" class="delegation-instance" placeholder="Instance index" min="0">
+                    <div class="responsible-selector delegation-responsible-selector">
+                        <button type="button" class="add-responsible">Add</button>
+                        <div class="dropdown">
+                            {% for u in all_users() %}
+                            <a href="#" data-user="{{ u.username }}">{{ u.username }}</a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <ul class="responsible-list delegation-responsible-list"></ul>
+                </div>
+            </template>
+        </div>
     </div>
 </template>
 
@@ -139,30 +179,109 @@ document.addEventListener('DOMContentLoaded', function () {
             .slice(0, 16);
         firstStart.value = local;
     }
+
+    const trashUrl = "{{ url_for('static', path='trash.svg') }}";
+
+    function createResponsibleManager(addBtn, dropdown, list, inputName) {
+        function addUser(user) {
+            const li = document.createElement('li');
+            li.textContent = user;
+            li.dataset.user = user;
+            if (inputName) {
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = inputName;
+                hidden.value = user;
+                li.appendChild(hidden);
+            }
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.innerHTML = '<img src="' + trashUrl + '" alt="Remove" class="icon">';
+            btn.addEventListener('click', function () { li.remove(); });
+            li.appendChild(btn);
+            list.appendChild(li);
+        }
+        addBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            dropdown.classList.toggle('show');
+        });
+        dropdown.addEventListener('click', function (e) {
+            if (e.target.dataset.user) {
+                e.preventDefault();
+                addUser(e.target.dataset.user);
+                dropdown.classList.remove('show');
+            }
+        });
+        document.addEventListener('click', function (e) {
+            if (!dropdown.contains(e.target) && e.target !== addBtn) {
+                dropdown.classList.remove('show');
+            }
+        });
+        return { addUser, list };
+    }
+
     function addRecurrenceItem(rec) {
-        const clone = recurrenceTemplate.content.cloneNode(true);
+        const fragment = recurrenceTemplate.content.cloneNode(true);
+        const item = fragment.querySelector('.recurrence-item');
         if (rec) {
-            clone.querySelector('select[name="recurrence_type[]"]').value = rec.type;
+            fragment.querySelector('select[name="recurrence_type[]"]').value = rec.type;
             if (rec.offset) {
                 if (rec.offset.exact_duration_seconds) {
                     const dur = rec.offset.exact_duration_seconds;
                     const days = Math.floor(dur / 86400);
                     const hours = Math.floor((dur % 86400) / 3600);
                     const minutes = Math.floor((dur % 3600) / 60);
-                    if (days) clone.querySelector('input[name="offset_days[]"]').value = days;
-                    if (hours) clone.querySelector('input[name="offset_hours[]"]').value = hours;
-                    if (minutes) clone.querySelector('input[name="offset_minutes[]"]').value = minutes;
+                    if (days) fragment.querySelector('input[name="offset_days[]"]').value = days;
+                    if (hours) fragment.querySelector('input[name="offset_hours[]"]').value = hours;
+                    if (minutes) fragment.querySelector('input[name="offset_minutes[]"]').value = minutes;
                 }
                 if (rec.offset.months) {
-                    clone.querySelector('input[name="offset_months[]"]').value = rec.offset.months;
+                    fragment.querySelector('input[name="offset_months[]"]').value = rec.offset.months;
                 }
                 if (rec.offset.years) {
-                    clone.querySelector('input[name="offset_years[]"]').value = rec.offset.years;
+                    fragment.querySelector('input[name="offset_years[]"]').value = rec.offset.years;
                 }
             }
         }
-        recurrences.appendChild(clone);
+
+        const recManager = createResponsibleManager(
+            item.querySelector('.recurrence-responsible-selector .add-responsible'),
+            item.querySelector('.recurrence-responsible-selector .dropdown'),
+            item.querySelector('.recurrence-responsible-list'),
+            null
+        );
+
+        const delegationList = item.querySelector('.delegations-list');
+        const delegationTemplate = item.querySelector('.delegation-template');
+        function addDelegation(data) {
+            const df = delegationTemplate.content.cloneNode(true);
+            const delItem = df.querySelector('.delegation-item');
+            delItem.querySelector('.remove-delegation').addEventListener('click', () => delItem.remove());
+            const instInput = delItem.querySelector('.delegation-instance');
+            const delManager = createResponsibleManager(
+                delItem.querySelector('.delegation-responsible-selector .add-responsible'),
+                delItem.querySelector('.delegation-responsible-selector .dropdown'),
+                delItem.querySelector('.delegation-responsible-list'),
+                null
+            );
+            if (data) {
+                instInput.value = data.instance_index;
+                (data.responsible || []).forEach(u => delManager.addUser(u));
+            }
+            delegationList.appendChild(delItem);
+        }
+        item.querySelector('.add-delegation').addEventListener('click', function () {
+            addDelegation();
+        });
+
+        if (rec) {
+            (rec.responsible || []).forEach(u => recManager.addUser(u));
+            (rec.delegations || []).forEach(d => addDelegation(d));
+        }
+
+        recurrences.appendChild(fragment);
     }
+
     addRecurrence.addEventListener('click', function () {
         addRecurrenceItem();
     });
@@ -172,45 +291,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    const responsibleList = document.getElementById('responsible-list');
-    const addResponsible = document.getElementById('add-responsible');
-    const responsibleDropdown = document.getElementById('responsible-dropdown');
-    const trashUrl = "{{ url_for('static', path='trash.svg') }}";
-
-    function addUser(user) {
-        const li = document.createElement('li');
-        li.textContent = user;
-        const hidden = document.createElement('input');
-        hidden.type = 'hidden';
-        hidden.name = 'responsible';
-        hidden.value = user;
-        li.appendChild(hidden);
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.innerHTML = '<img src="' + trashUrl + '" alt="Remove" class="icon">';
-        btn.addEventListener('click', function () { li.remove(); });
-        li.appendChild(btn);
-        responsibleList.appendChild(li);
-    }
-
-    addResponsible.addEventListener('click', function (e) {
-        e.stopPropagation();
-        responsibleDropdown.classList.toggle('show');
-    });
-
-    responsibleDropdown.addEventListener('click', function (e) {
-        if (e.target.dataset.user) {
-            e.preventDefault();
-            addUser(e.target.dataset.user);
-            responsibleDropdown.classList.remove('show');
-        }
-    });
-
-    document.addEventListener('click', function (e) {
-        if (!responsibleDropdown.contains(e.target) && e.target !== addResponsible) {
-            responsibleDropdown.classList.remove('show');
-        }
-    });
+    const entryManager = createResponsibleManager(
+        document.getElementById('add-responsible'),
+        document.getElementById('responsible-dropdown'),
+        document.getElementById('responsible-list'),
+        'responsible'
+    );
 
     {% if entry_data %}
     const data = {{ entry_data | tojson }};
@@ -228,8 +314,9 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('none_after').value = data.none_after.slice(0,16);
     }
     data.recurrences.forEach(r => addRecurrenceItem(r));
-    data.responsible.forEach(u => addUser(u));
+    data.responsible.forEach(u => entryManager.addUser(u));
     {% endif %}
+
     const form = document.getElementById('entry-form');
     const durationInputs = document.querySelectorAll('.duration-inputs input');
     function validateDuration() {
@@ -251,10 +338,32 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!validateDuration()) {
             e.preventDefault();
             durationInputs[0].reportValidity();
+            return;
         }
+        document.querySelectorAll('input[name="recurrence_responsible[]"]').forEach(el => el.remove());
+        document.querySelectorAll('input[name="recurrence_delegations[]"]').forEach(el => el.remove());
+        document.querySelectorAll('.recurrence-item').forEach(item => {
+            const resps = Array.from(item.querySelectorAll('.recurrence-responsible-list li')).map(li => li.dataset.user);
+            const hiddenR = document.createElement('input');
+            hiddenR.type = 'hidden';
+            hiddenR.name = 'recurrence_responsible[]';
+            hiddenR.value = JSON.stringify(resps);
+            form.appendChild(hiddenR);
+            const delegations = [];
+            item.querySelectorAll('.delegation-item').forEach(delItem => {
+                const idx = parseInt(delItem.querySelector('.delegation-instance').value);
+                if (!isNaN(idx)) {
+                    const resp = Array.from(delItem.querySelectorAll('.delegation-responsible-list li')).map(li => li.dataset.user);
+                    delegations.push({instance_index: idx, responsible: resp});
+                }
+            });
+            const hiddenD = document.createElement('input');
+            hiddenD.type = 'hidden';
+            hiddenD.name = 'recurrence_delegations[]';
+            hiddenD.value = JSON.stringify(delegations);
+            form.appendChild(hiddenD);
+        });
     });
-
-    // form submits normally to backend
 });
 </script>
 {% endblock %}

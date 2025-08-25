@@ -6,9 +6,9 @@
 {% if overdue %}
 <h2>Overdue</h2>
 <ul class="time-list">
-    {% for entry, period in overdue %}
+    {% for entry, period, responsible in overdue %}
     <li>
-        {% for user in entry.responsible %}
+        {% for user in responsible %}
         <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
         <a href="{{ request.url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ entry.title }}</a>
@@ -24,9 +24,9 @@
 {% if now_periods %}
 <h2>Now</h2>
 <ul class="time-list">
-    {% for entry, period, completion in now_periods %}
+    {% for entry, period, completion, responsible in now_periods %}
     <li>
-        {% for user in entry.responsible %}
+        {% for user in responsible %}
         <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
         <a href="{{ request.url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ entry.title }}</a>
@@ -46,9 +46,9 @@
 {% if upcoming %}
 <h2>Upcoming</h2>
 <ul class="time-list">
-    {% for entry, period in upcoming %}
+    {% for entry, period, responsible in upcoming %}
     <li>
-        {% for user in entry.responsible %}
+        {% for user in responsible %}
         <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
         <a href="{{ request.url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ entry.title }}</a>
