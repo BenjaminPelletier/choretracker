@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}{{ entry.title }} - Chore Tracker{% endblock %}
+{% block title %}{{ entry.title }} instance - Chore Tracker{% endblock %}
 
 {% block content %}
-<h1><a href="{{ request.url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a></h1>
+<h1><a href="{{ request.url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a> instance</h1>
 <div class="time-range">
     <span>{{ period|format_time_range }}</span>
     {% for user in responsible %}
