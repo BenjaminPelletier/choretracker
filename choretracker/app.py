@@ -321,6 +321,7 @@ async def index(request: Request):
             "now_periods": current,
             "upcoming": upcoming,
             "CalendarEntryType": CalendarEntryType,
+            "now_ts": now.timestamp(),
         },
     )
 

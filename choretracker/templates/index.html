@@ -12,7 +12,7 @@
         <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
         <a href="{{ request.url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ entry.title }}</a>
-        <span class="time-suffix" data-kind="due-ago" data-end="{{ period.end.isoformat() }}"></span>
+        <span class="time-suffix" data-kind="due-ago" data-end="{{ period.end.timestamp() }}"></span>
         {% if user_has(request.session.get('user'), 'chores.complete_overdue') %}
         <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ period.recurrence_index }}" data-iindex="{{ period.instance_index }}" data-action="add" />
         {% endif %}
@@ -31,7 +31,7 @@
         {% endfor %}
         <a href="{{ request.url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ entry.title }}</a>
         {% if entry.type == CalendarEntryType.Chore %}
-        <span class="time-suffix" data-kind="due-in" data-end="{{ period.end.isoformat() }}"></span>
+        <span class="time-suffix" data-kind="due-in" data-end="{{ period.end.timestamp() }}"></span>
         {% if completion %}
         <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ period.recurrence_index }}" data-iindex="{{ period.instance_index }}" {% if completion.completed_by == request.session.get('user') or user_has(request.session.get('user'), 'chores.override_complete') %}data-action="remove"{% endif %} />
         {% elif user_has(request.session.get('user'), 'chores.complete_on_time') %}
@@ -52,7 +52,7 @@
         <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
         <a href="{{ request.url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ entry.title }}</a>
-        <span class="time-suffix" data-kind="starts-in" data-start="{{ period.start.isoformat() }}"></span>
+        <span class="time-suffix" data-kind="starts-in" data-start="{{ period.start.timestamp() }}"></span>
     </li>
     {% endfor %}
 </ul>
@@ -72,22 +72,26 @@ const formatDuration = (seconds) => {
     return Math.floor(abs / week) + 'w';
 };
 
+const serverNow = {{ now_ts|float }} * 1000;
+const loadTime = Date.now();
+const currentServerTime = () => new Date(serverNow + (Date.now() - loadTime));
+
 function updateTimes() {
-    const now = new Date();
+    const now = currentServerTime();
     let refresh = false;
     document.querySelectorAll('[data-kind="due-in"]').forEach(el => {
-        const end = new Date(el.dataset.end);
+        const end = new Date(parseFloat(el.dataset.end) * 1000);
         const diff = (end - now) / 1000;
         if (diff <= 0) refresh = true;
         el.textContent = `(Due in ${formatDuration(diff)})`;
     });
     document.querySelectorAll('[data-kind="due-ago"]').forEach(el => {
-        const end = new Date(el.dataset.end);
+        const end = new Date(parseFloat(el.dataset.end) * 1000);
         const diff = (now - end) / 1000;
         el.textContent = `(Due ${formatDuration(diff)} ago)`;
     });
     document.querySelectorAll('[data-kind="starts-in"]').forEach(el => {
-        const start = new Date(el.dataset.start);
+        const start = new Date(parseFloat(el.dataset.start) * 1000);
         const diff = (start - now) / 1000;
         if (diff <= 0) refresh = true;
         el.textContent = `(Starts in ${formatDuration(diff)})`;
