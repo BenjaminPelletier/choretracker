@@ -577,27 +577,49 @@ async def view_calendar_entry(request: Request, entry_id: int):
     MAX_INSTANCES = 5
     comps_list = completion_store.list_for_entry(entry_id)
     comp_map = {(c.recurrence_index, c.instance_index): c for c in comps_list}
-    completion_periods: list[tuple[TimePeriod, ChoreCompletion, bool]] = []
+    completion_periods: list[
+        tuple[TimePeriod, ChoreCompletion, bool, bool, list[str]]
+    ] = []
     for comp in comps_list:
-        period = find_time_period(entry, comp.recurrence_index, comp.instance_index)
+        period = find_time_period(
+            entry, comp.recurrence_index, comp.instance_index, include_skipped=True
+        )
         if not period:
             continue
         can_remove = comp.completed_by == current_user or user_store.has_permission(
             current_user, "chores.override_complete"
         )
-        completion_periods.append((period, comp, can_remove))
+        is_skipped = False
+        if 0 <= comp.recurrence_index < len(entry.recurrences):
+            rec = entry.recurrences[comp.recurrence_index]
+            is_skipped = comp.instance_index in rec.skipped_instances
+        responsible = responsible_for(
+            entry, comp.recurrence_index, comp.instance_index
+        )
+        completion_periods.append((period, comp, can_remove, is_skipped, responsible))
     now = datetime.now()
-    past_noncompleted: list[tuple[TimePeriod, ChoreCompletion | None, bool]] = []
-    upcoming: list[tuple[TimePeriod, ChoreCompletion | None, bool]] = []
-    for period in enumerate_time_periods(entry):
+    past_noncompleted: list[
+        tuple[TimePeriod, ChoreCompletion | None, bool, bool, list[str]]
+    ] = []
+    upcoming: list[
+        tuple[TimePeriod, ChoreCompletion | None, bool, bool, list[str]]
+    ] = []
+    for period in enumerate_time_periods(entry, include_skipped=True):
         key = (period.recurrence_index, period.instance_index)
         if key in comp_map:
             continue
+        is_skipped = False
+        if 0 <= period.recurrence_index < len(entry.recurrences):
+            rec = entry.recurrences[period.recurrence_index]
+            is_skipped = period.instance_index in rec.skipped_instances
+        responsible = responsible_for(
+            entry, period.recurrence_index, period.instance_index
+        )
         if period.end < now:
-            past_noncompleted.append((period, None, False))
+            past_noncompleted.append((period, None, False, is_skipped, responsible))
         else:
             if len(upcoming) < MAX_INSTANCES:
-                upcoming.append((period, None, False))
+                upcoming.append((period, None, False, is_skipped, responsible))
             else:
                 break
     past_instances = past_noncompleted + completion_periods

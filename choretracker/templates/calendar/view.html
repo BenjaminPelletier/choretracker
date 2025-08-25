@@ -42,14 +42,18 @@
     {% if past_instances %}
     <h3>Past</h3>
     <ul class="time-list">
-        {% for period, completion, can_remove in past_instances %}
+        {% for period, completion, can_remove, is_skipped, responsible in past_instances %}
         <li>
-            Due {{ period.end|format_datetime(include_day=True) }}
+            <a href="{{ url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">Due {{ period.end|format_datetime(include_day=True) }}</a>
             {% if completion %}
             <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ completion.recurrence_index }}" data-iindex="{{ completion.instance_index }}" {% if can_remove %}data-action="remove"{% endif %} />
             <img src="{{ request.url_for('profile_picture', username=completion.completed_by) }}" alt="{{ completion.completed_by }}" class="profile-icon" />
             {{ completion.completed_at|format_completion_time(period.end) }}
             {% endif %}
+            {% for user in responsible %}
+            <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+            {% endfor %}
+            {% if is_skipped %} (skipped){% endif %}
         </li>
         {% endfor %}
     </ul>
@@ -57,9 +61,13 @@
     {% if upcoming_instances %}
     <h3>Upcoming</h3>
     <ul class="time-list">
-        {% for period, completion, can_remove in upcoming_instances %}
+        {% for period, completion, can_remove, is_skipped, responsible in upcoming_instances %}
         <li>
-            Due {{ period.end|format_datetime(include_day=True) }}
+            <a href="{{ url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">Due {{ period.end|format_datetime(include_day=True) }}</a>
+            {% for user in responsible %}
+            <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+            {% endfor %}
+            {% if is_skipped %} (skipped){% endif %}
         </li>
         {% endfor %}
     </ul>

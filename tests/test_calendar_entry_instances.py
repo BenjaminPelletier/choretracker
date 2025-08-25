@@ -36,7 +36,10 @@ def test_instances_past_and_upcoming(tmp_path, monkeypatch):
         type=CalendarEntryType.Chore,
         first_start=datetime(2000, 1, 1, 0, 0, 0),
         duration_seconds=3600,
-        recurrences=[Recurrence(type=RecurrenceType.Weekly)],
+        recurrences=[
+            Recurrence(type=RecurrenceType.Weekly, skipped_instances=[1])
+        ],
+        responsible=["Bob"],
     )
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id
@@ -48,9 +51,22 @@ def test_instances_past_and_upcoming(tmp_path, monkeypatch):
     text = response.text
     assert "<h2>Instances</h2>" in text
     assert "Past" in text and "Upcoming" in text
-    # early completion should show under Past
-    assert "Due Saturday 2000-01-22 01:00" in text
-    # first upcoming instance should be the next one after the completed instance
-    assert "Due Saturday 2000-01-29 01:00" in text
-    # profile icon for completed user displayed
+    # early completion should show under Past and be linked
+    assert (
+        f'<a href="http://testserver/calendar/entry/{entry_id}/period/0/2">Due Saturday 2000-01-22 01:00</a>'
+        in text
+    )
+    # skipped past instance is listed with annotation and responsible profile
+    assert (
+        f'<a href="http://testserver/calendar/entry/{entry_id}/period/0/1">Due Saturday 2000-01-15 01:00</a>'
+        in text
+    )
+    assert "(skipped)" in text
+    # first upcoming instance is linked
+    assert (
+        f'<a href="http://testserver/calendar/entry/{entry_id}/period/0/3">Due Saturday 2000-01-29 01:00</a>'
+        in text
+    )
+    # profile icons for completed and responsible users displayed
     assert "/users/Admin/profile_picture" in text
+    assert "/users/Bob/profile_picture" in text
