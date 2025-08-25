@@ -108,6 +108,24 @@ def format_datetime(dt: datetime | None, include_day: bool = False) -> str:
 templates.env.filters["format_datetime"] = format_datetime
 
 
+def format_completion_time(completed: datetime, due: datetime) -> str:
+    """Format ``completed`` dropping leading parts common with ``due``."""
+    due_str = format_datetime(due, include_day=True)
+    comp_str = format_datetime(completed, include_day=True)
+    due_parts = due_str.split(" ")
+    comp_parts = comp_str.split(" ")
+    prefix = 0
+    for d, c in zip(due_parts, comp_parts):
+        if d == c:
+            prefix += len(d) + 1  # account for trailing space
+        else:
+            break
+    return comp_str[prefix:]
+
+
+templates.env.filters["format_completion_time"] = format_completion_time
+
+
 def format_duration(td: timedelta | None) -> str:
     if not td:
         return ""
@@ -556,22 +574,66 @@ async def view_calendar_entry(request: Request, entry_id: int):
         raise HTTPException(status_code=404)
     require_entry_read_permission(request, entry.type)
     current_user = request.session.get("user")
-    comps: list[tuple[ChoreCompletion, TimePeriod, bool]] = []
-    for comp in completion_store.list_for_entry(entry_id):
-        period = find_time_period(entry, comp.recurrence_index, comp.instance_index)
+    MAX_INSTANCES = 5
+    comps_list = completion_store.list_for_entry(entry_id)
+    comp_map = {(c.recurrence_index, c.instance_index): c for c in comps_list}
+    completion_periods: list[
+        tuple[TimePeriod, ChoreCompletion, bool, bool, list[str]]
+    ] = []
+    for comp in comps_list:
+        period = find_time_period(
+            entry, comp.recurrence_index, comp.instance_index, include_skipped=True
+        )
         if not period:
             continue
         can_remove = comp.completed_by == current_user or user_store.has_permission(
             current_user, "chores.override_complete"
         )
-        comps.append((comp, period, can_remove))
+        is_skipped = False
+        if 0 <= comp.recurrence_index < len(entry.recurrences):
+            rec = entry.recurrences[comp.recurrence_index]
+            is_skipped = comp.instance_index in rec.skipped_instances
+        responsible = responsible_for(
+            entry, comp.recurrence_index, comp.instance_index
+        )
+        completion_periods.append((period, comp, can_remove, is_skipped, responsible))
+    now = datetime.now()
+    past_noncompleted: list[
+        tuple[TimePeriod, ChoreCompletion | None, bool, bool, list[str]]
+    ] = []
+    upcoming: list[
+        tuple[TimePeriod, ChoreCompletion | None, bool, bool, list[str]]
+    ] = []
+    for period in enumerate_time_periods(entry, include_skipped=True):
+        key = (period.recurrence_index, period.instance_index)
+        if key in comp_map:
+            continue
+        is_skipped = False
+        if 0 <= period.recurrence_index < len(entry.recurrences):
+            rec = entry.recurrences[period.recurrence_index]
+            is_skipped = period.instance_index in rec.skipped_instances
+        responsible = responsible_for(
+            entry, period.recurrence_index, period.instance_index
+        )
+        if period.end < now:
+            past_noncompleted.append((period, None, False, is_skipped, responsible))
+        else:
+            if len(upcoming) < MAX_INSTANCES:
+                upcoming.append((period, None, False, is_skipped, responsible))
+            else:
+                break
+    past_instances = past_noncompleted + completion_periods
+    past_instances.sort(key=lambda x: x[0].start)
+    past_instances = past_instances[-MAX_INSTANCES:]
+    upcoming.sort(key=lambda x: x[0].start)
     return templates.TemplateResponse(
         "calendar/view.html",
         {
             "request": request,
             "entry": entry,
             "can_edit": can_edit_entry(current_user, entry),
-            "completions": comps,
+            "past_instances": past_instances,
+            "upcoming_instances": upcoming,
         },
     )
 
