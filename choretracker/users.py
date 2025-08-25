@@ -173,7 +173,7 @@ def init_db(engine) -> None:
                 username="Admin",
                 password_hash=hash_secret("admin"),
                 pin_hash=hash_secret("0000"),
-                permissions=["admin", "iam"],
+                permissions=["admin"],
             )
             session.add(admin)
         viewer_perms = ["chores.read", "events.read", "reminders.read"]

@@ -61,7 +61,7 @@
     <h2>Permissions</h2>
     <div class="group">
         <div class="group">
-            <h3>User Management</h3>
+            <h3>Management</h3>
             {% if user_has(request.session.get('user'), 'admin') %}
             <label class="checkbox">
                 <input type="checkbox" name="admin" {% if user and 'admin' in user.permissions %}checked{% endif %}>
