@@ -106,6 +106,42 @@ def format_datetime(dt: datetime | None, include_day: bool = False) -> str:
 templates.env.filters["format_datetime"] = format_datetime
 
 
+def format_duration(td: timedelta | None) -> str:
+    if not td:
+        return ""
+    td = td - timedelta(seconds=td.seconds % 60, microseconds=td.microseconds)
+    s = str(td)
+    if s.endswith(":00"):
+        s = s[:-3]
+    return s
+
+
+def format_offset(offset: Offset | None) -> str:
+    if not offset:
+        return ""
+    parts: list[str] = []
+    if offset.years:
+        parts.append(f"{offset.years}Y")
+    if offset.months:
+        parts.append(f"{offset.months}M")
+    if offset.exact_duration_seconds:
+        td = timedelta(seconds=offset.exact_duration_seconds)
+        days = td.days
+        hours, remainder = divmod(td.seconds, 3600)
+        minutes = remainder // 60
+        if days:
+            parts.append(f"{days}d")
+        if hours:
+            parts.append(f"{hours}h")
+        if minutes:
+            parts.append(f"{minutes}m")
+    return "".join(parts)
+
+
+templates.env.filters["format_duration"] = format_duration
+templates.env.filters["format_offset"] = format_offset
+
+
 def format_time_range(period: TimePeriod) -> str:
     start = period.start.replace(second=0, microsecond=0)
     end = period.end.replace(second=0, microsecond=0)
