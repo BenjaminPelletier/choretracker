@@ -327,3 +327,18 @@ def responsible_for(
             return rec.responsible
     return entry.responsible
 
+
+def find_delegation(
+    entry: CalendarEntry, recurrence_index: int, instance_index: int
+) -> Optional[Delegation]:
+    if 0 <= recurrence_index < len(entry.recurrences):
+        rec = entry.recurrences[recurrence_index]
+        if not isinstance(rec, Recurrence):
+            rec = Recurrence.model_validate(rec)
+        for d in rec.delegations:
+            if not isinstance(d, Delegation):
+                d = Delegation.model_validate(d)
+            if d.instance_index == instance_index:
+                return d
+    return None
+

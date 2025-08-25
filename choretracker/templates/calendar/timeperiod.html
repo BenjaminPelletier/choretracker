@@ -6,6 +6,9 @@
 <h1><a href="{{ request.url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a></h1>
 <div class="time-range">
     <span>{{ period|format_time_range }}</span>
+    {% for user in responsible %}
+    <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+    {% endfor %}
     {% if entry.type == CalendarEntryType.Chore %}
         {% if period.end <= now %}
             {% if not completion and user_has(request.session.get('user'), 'chores.complete_overdue') %}
@@ -25,12 +28,45 @@
         {% endif %}
     {% endif %}
 </div>
-<p>
-    {% for user in responsible %}
-    <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
-    {% endfor %}
-</p>
 <p>{{ entry.description }}</p>
+{% if can_edit and period.recurrence_index >= 0 %}
+    {% if delegation %}
+    <form method="post" action="{{ request.url_for('delegate_instance', entry_id=entry.id) }}" class="delegation-form">
+        <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
+        <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
+        <div class="responsible-selector delegation-responsible-selector">
+            <button type="button" id="add-delegation-responsible">Add</button>
+            <div class="dropdown" id="delegation-dropdown">
+                {% for u in all_users() if u.username != request.session.get('user') and u.username != 'Viewer' %}
+                <a href="#" data-user="{{ u.username }}">{{ u.username }}</a>
+                {% endfor %}
+            </div>
+        </div>
+        <ul class="responsible-list delegation-responsible-list" id="delegation-responsible-list"></ul>
+        <button type="submit">Update Delegation</button>
+    </form>
+    <form method="post" action="{{ request.url_for('remove_delegation', entry_id=entry.id) }}" class="delegation-remove-form">
+        <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
+        <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
+        <button type="submit">Remove Delegation</button>
+    </form>
+    {% else %}
+    <form method="post" action="{{ request.url_for('delegate_instance', entry_id=entry.id) }}" class="delegation-form">
+        <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
+        <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
+        <div class="responsible-selector delegation-responsible-selector">
+            <button type="button" id="add-delegation-responsible">Add</button>
+            <div class="dropdown" id="delegation-dropdown">
+                {% for u in all_users() if u.username != request.session.get('user') and u.username != 'Viewer' %}
+                <a href="#" data-user="{{ u.username }}">{{ u.username }}</a>
+                {% endfor %}
+            </div>
+        </div>
+        <ul class="responsible-list delegation-responsible-list" id="delegation-responsible-list"></ul>
+        <button type="submit">Delegate</button>
+    </form>
+    {% endif %}
+{% endif %}
 {% if can_edit and period.recurrence_index >= 0 %}
 <form method="post" action="{{ request.url_for(is_skipped and 'unskip_instance' or 'skip_instance', entry_id=entry.id) }}">
     <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
@@ -52,6 +88,57 @@ document.querySelectorAll('.checkbox-icon[data-action]').forEach(el => {
         });
         location.reload();
     });
+});
+document.addEventListener('DOMContentLoaded', function () {
+    const trashUrl = "{{ url_for('static', path='trash.svg') }}";
+    function createResponsibleManager(addBtn, dropdown, list) {
+        function addUser(user) {
+            const li = document.createElement('li');
+            li.textContent = user;
+            li.dataset.user = user;
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = 'responsible[]';
+            hidden.value = user;
+            li.appendChild(hidden);
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.innerHTML = '<img src="' + trashUrl + '" alt="Remove" class="icon">';
+            btn.addEventListener('click', () => li.remove());
+            li.appendChild(btn);
+            list.appendChild(li);
+        }
+        addBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            dropdown.classList.toggle('show');
+        });
+        dropdown.addEventListener('click', e => {
+            if (e.target.dataset.user) {
+                e.preventDefault();
+                addUser(e.target.dataset.user);
+                dropdown.classList.remove('show');
+            }
+        });
+        document.addEventListener('click', e => {
+            if (!dropdown.contains(e.target) && e.target !== addBtn) {
+                dropdown.classList.remove('show');
+            }
+        });
+        return { addUser };
+    }
+    const addBtn = document.getElementById('add-delegation-responsible');
+    if (addBtn) {
+        const mgr = createResponsibleManager(
+            addBtn,
+            document.getElementById('delegation-dropdown'),
+            document.getElementById('delegation-responsible-list')
+        );
+        {% if delegation %}
+            {% for u in delegation.responsible %}
+                mgr.addUser("{{ u }}");
+            {% endfor %}
+        {% endif %}
+    }
 });
 </script>
 {% endblock %}

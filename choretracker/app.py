@@ -31,6 +31,7 @@ from .calendar import (
     TimePeriod,
     enumerate_time_periods,
     find_time_period,
+    find_delegation,
     responsible_for,
 )
 
@@ -550,6 +551,7 @@ async def view_time_period(
     if rindex >= 0 and rindex < len(entry.recurrences):
         rec = entry.recurrences[rindex]
         is_skipped = iindex in rec.skipped_instances
+    delegation = find_delegation(entry, rindex, iindex)
     current_user = request.session.get("user")
     return templates.TemplateResponse(
         "calendar/timeperiod.html",
@@ -563,6 +565,7 @@ async def view_time_period(
             "now": datetime.now(),
             "CalendarEntryType": CalendarEntryType,
             "responsible": responsible_for(entry, rindex, iindex),
+            "delegation": delegation,
         },
     )
 
@@ -763,6 +766,75 @@ async def remove_completion(request: Request, entry_id: int):
         raise HTTPException(status_code=403)
     completion_store.delete(entry_id, rindex, iindex)
     return {"status": "ok"}
+
+
+@app.post("/calendar/{entry_id}/delegation")
+async def delegate_instance(request: Request, entry_id: int):
+    entry = calendar_store.get(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404)
+    require_entry_write_permission(request, entry)
+    form = await request.form()
+    rindex = int(form.get("recurrence_index", -1))
+    iindex = int(form.get("instance_index", -1))
+    responsible = form.getlist("responsible[]")
+    if entry.type == CalendarEntryType.Chore and not responsible:
+        raise HTTPException(status_code=400)
+    if rindex < 0 or rindex >= len(entry.recurrences):
+        raise HTTPException(status_code=400)
+    rec = entry.recurrences[rindex]
+    if not isinstance(rec, Recurrence):
+        rec = Recurrence.model_validate(rec)
+        entry.recurrences[rindex] = rec
+    existing = find_delegation(entry, rindex, iindex)
+    if existing:
+        existing.responsible = responsible
+    else:
+        rec.delegations.append(Delegation(instance_index=iindex, responsible=responsible))
+    calendar_store.update(entry_id, entry)
+    referer = request.headers.get(
+        "referer",
+        str(
+            request.url_for(
+                "view_time_period", entry_id=entry_id, rindex=rindex, iindex=iindex
+            )
+        ),
+    )
+    return RedirectResponse(url=referer, status_code=303)
+
+
+@app.post("/calendar/{entry_id}/delegation/remove")
+async def remove_delegation(request: Request, entry_id: int):
+    entry = calendar_store.get(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404)
+    require_entry_write_permission(request, entry)
+    form = await request.form()
+    rindex = int(form.get("recurrence_index", -1))
+    iindex = int(form.get("instance_index", -1))
+    if rindex < 0 or rindex >= len(entry.recurrences):
+        raise HTTPException(status_code=400)
+    rec = entry.recurrences[rindex]
+    if not isinstance(rec, Recurrence):
+        rec = Recurrence.model_validate(rec)
+        entry.recurrences[rindex] = rec
+    for idx, d in enumerate(rec.delegations):
+        if not isinstance(d, Delegation):
+            d = Delegation.model_validate(d)
+            rec.delegations[idx] = d
+        if d.instance_index == iindex:
+            del rec.delegations[idx]
+            break
+    calendar_store.update(entry_id, entry)
+    referer = request.headers.get(
+        "referer",
+        str(
+            request.url_for(
+                "view_time_period", entry_id=entry_id, rindex=rindex, iindex=iindex
+            )
+        ),
+    )
+    return RedirectResponse(url=referer, status_code=303)
 
 
 @app.post("/calendar/{entry_id}/skip")
