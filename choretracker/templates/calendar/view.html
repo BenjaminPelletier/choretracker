@@ -26,7 +26,12 @@
         <button type="button" id="edit-first-start" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
         {% endif %}
     </span></dt>
-    <dt>Duration: {{ entry.duration|format_duration }}</dt>
+    <dt>Duration: <span id="duration-container" data-duration-seconds="{{ entry.duration.total_seconds()|int }}">
+        <span id="duration-text">{{ entry.duration|format_duration }}</span>
+        {% if can_edit %}
+        <button type="button" id="edit-duration" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
+        {% endif %}
+    </span></dt>
     <dt>Recurrences{% if can_edit %} <button type="button" id="add-recurrence" class="icon-button"><img src="{{ url_for('static', path='plus.svg') }}" alt="Add recurrence" class="icon"></button>{% endif %}</dt>
     <dd id="recurrence-container">
         {% if entry.recurrences %}
@@ -49,13 +54,25 @@
         {% endif %}
     </dd>
     {% if entry.recurrences %}
-        {% if entry.none_after %}
-    <dt>None after: {{ entry.none_after|format_datetime(include_day=True) }}</dt>
-        {% else %}
-    <dt>Repeats forever</dt>
-        {% endif %}
+        <dt id="none-after-row" data-current="{{ entry.none_after.strftime('%Y-%m-%dT%H:%M') if entry.none_after else '' }}">
+            {% if entry.none_after %}
+            None after: <span id="none-after-text">{{ entry.none_after|format_datetime(include_day=True) }}</span>
+            {% else %}
+            Repeats forever
+            {% endif %}
+            {% if can_edit %}
+            <button type="button" id="edit-none-after" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
+            {% endif %}
+        </dt>
     {% endif %}
-    <dt>Responsible</dt><dd>{{ entry.responsible|join(', ') }}</dd>
+    <dt>Responsible: <span id="entry-responsible-container" data-responsible='{{ entry.responsible|tojson }}'>
+        {% for user in entry.responsible %}
+        <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+        {% endfor %}
+        {% if can_edit %}
+        <button type="button" id="edit-responsible" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
+        {% endif %}
+    </span></dt>
     <dt>Owner</dt><dd>{{ entry.owner }}</dd>
 </dl>
 {% if past_instances or upcoming_instances %}
@@ -151,6 +168,173 @@ document.addEventListener('DOMContentLoaded', () => {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({first_start: input.value})
+                });
+                location.reload();
+            });
+            cancel.addEventListener('click', () => location.reload());
+        });
+    }
+
+    const durEdit = document.getElementById('edit-duration');
+    if (durEdit) {
+        durEdit.addEventListener('click', () => {
+            const container = document.getElementById('duration-container');
+            const total = parseInt(container.dataset.durationSeconds || '0');
+            const days = Math.floor(total / 86400);
+            const hours = Math.floor((total % 86400) / 3600);
+            const minutes = Math.floor((total % 3600) / 60);
+            container.innerHTML = '';
+            const dayInput = document.createElement('input');
+            dayInput.type = 'number';
+            dayInput.placeholder = 'Days';
+            dayInput.min = '0';
+            dayInput.className = 'inline-input';
+            if (days) dayInput.value = days;
+            dayInput.style.width = '4ch';
+            const hourInput = document.createElement('input');
+            hourInput.type = 'number';
+            hourInput.placeholder = 'Hours';
+            hourInput.min = '0';
+            hourInput.className = 'inline-input';
+            if (hours) hourInput.value = hours;
+            hourInput.style.width = '4ch';
+            const minuteInput = document.createElement('input');
+            minuteInput.type = 'number';
+            minuteInput.placeholder = 'Minutes';
+            minuteInput.min = '0';
+            minuteInput.max = '59';
+            minuteInput.className = 'inline-input';
+            if (minutes) minuteInput.value = minutes;
+            minuteInput.style.width = '4ch';
+            const save = makeBtn(diskUrl, 'Save');
+            const cancel = makeBtn(xUrl, 'Cancel');
+            container.appendChild(dayInput);
+            container.appendChild(hourInput);
+            container.appendChild(minuteInput);
+            container.appendChild(save);
+            container.appendChild(cancel);
+            save.addEventListener('click', async () => {
+                await fetch(`/calendar/${entryId}/update`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        duration_days: parseInt(dayInput.value || '0'),
+                        duration_hours: parseInt(hourInput.value || '0'),
+                        duration_minutes: parseInt(minuteInput.value || '0')
+                    })
+                });
+                location.reload();
+            });
+            cancel.addEventListener('click', () => location.reload());
+        });
+    }
+
+    const naEdit = document.getElementById('edit-none-after');
+    if (naEdit) {
+        naEdit.addEventListener('click', () => {
+            const row = document.getElementById('none-after-row');
+            const current = row.dataset.current;
+            row.innerHTML = '';
+            const label = document.createElement('span');
+            label.textContent = 'Never after: ';
+            const input = document.createElement('input');
+            input.type = 'datetime-local';
+            if (current) input.value = current;
+            input.className = 'inline-input';
+            const clearBtn = makeBtn(trashUrl, 'Clear');
+            const save = makeBtn(diskUrl, 'Save');
+            const cancel = makeBtn(xUrl, 'Cancel');
+            row.appendChild(label);
+            row.appendChild(input);
+            row.appendChild(clearBtn);
+            row.appendChild(save);
+            row.appendChild(cancel);
+            clearBtn.addEventListener('click', () => { input.value = ''; });
+            save.addEventListener('click', async () => {
+                await fetch(`/calendar/${entryId}/update`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ none_after: input.value })
+                });
+                location.reload();
+            });
+            cancel.addEventListener('click', () => location.reload());
+        });
+    }
+
+    const respEdit = document.getElementById('edit-responsible');
+    if (respEdit) {
+        respEdit.addEventListener('click', () => {
+            const container = document.getElementById('entry-responsible-container');
+            const responsible = JSON.parse(container.dataset.responsible || '[]');
+            container.innerHTML = '';
+            const respContainer = document.createElement('span');
+
+            function addResp(user) {
+                const wrapper = document.createElement('span');
+                const img = document.createElement('img');
+                img.src = profileUrlTemplate.replace('__user__', encodeURIComponent(user));
+                img.alt = user;
+                img.className = 'profile-icon';
+                const rm = makeBtn(trashUrl, 'Remove');
+                rm.addEventListener('click', () => {
+                    wrapper.remove();
+                    const idx = responsible.indexOf(user);
+                    if (idx >= 0) responsible.splice(idx, 1);
+                    refreshDropdown();
+                });
+                wrapper.appendChild(img);
+                wrapper.appendChild(rm);
+                respContainer.appendChild(wrapper);
+            }
+
+            const addWrap = document.createElement('span');
+            addWrap.className = 'responsible-selector';
+            const addBtn = makeBtn(plusUrl, 'Add user');
+            const dropdown = document.createElement('div');
+            dropdown.className = 'dropdown';
+            dropdown.style.display = 'none';
+
+            function refreshDropdown() {
+                dropdown.innerHTML = '';
+                allUsers.filter(u => !responsible.includes(u)).forEach(u => {
+                    const a = document.createElement('a');
+                    a.href = '#';
+                    a.textContent = u;
+                    a.addEventListener('click', e => {
+                        e.preventDefault();
+                        responsible.push(u);
+                        addResp(u);
+                        dropdown.style.display = 'none';
+                        refreshDropdown();
+                    });
+                    dropdown.appendChild(a);
+                });
+            }
+
+            addBtn.addEventListener('click', () => {
+                dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+            });
+
+            addWrap.appendChild(addBtn);
+            addWrap.appendChild(dropdown);
+
+            responsible.forEach(u => addResp(u));
+            refreshDropdown();
+
+            const save = makeBtn(diskUrl, 'Save');
+            const cancel = makeBtn(xUrl, 'Cancel');
+
+            container.appendChild(respContainer);
+            container.appendChild(addWrap);
+            container.appendChild(save);
+            container.appendChild(cancel);
+
+            save.addEventListener('click', async () => {
+                await fetch(`/calendar/${entryId}/update`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({responsible: responsible})
                 });
                 location.reload();
             });
