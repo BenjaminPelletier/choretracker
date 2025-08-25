@@ -55,16 +55,13 @@ completion_store = ChoreCompletionStore(engine)
 ALL_PERMISSIONS = [
     "chores.read",
     "chores.write",
-    "chores.edit_others",
     "chores.complete_on_time",
     "chores.complete_overdue",
     "chores.override_complete",
     "events.read",
     "events.write",
-    "events.edit_others",
     "reminders.read",
     "reminders.write",
-    "reminders.edit_others",
     "iam",
 ]
 
@@ -80,12 +77,6 @@ WRITE_PERMS = {
     CalendarEntryType.Chore: "chores.write",
 }
 
-EDIT_OTHER_PERMS = {
-    CalendarEntryType.Event: "events.edit_others",
-    CalendarEntryType.Reminder: "reminders.edit_others",
-    CalendarEntryType.Chore: "chores.edit_others",
-}
-
 app = FastAPI()
 
 BASE_PATH = Path(__file__).resolve().parent
@@ -96,7 +87,6 @@ templates.env.globals["all_users"] = lambda: sorted(
 )
 templates.env.globals["user_has"] = user_store.has_permission
 templates.env.globals["WRITE_PERMS"] = WRITE_PERMS
-templates.env.globals["EDIT_OTHER_PERMS"] = EDIT_OTHER_PERMS
 templates.env.globals["timedelta"] = timedelta
 templates.env.globals["LOGOUT_DURATION"] = LOGOUT_DURATION
 def format_datetime(dt: datetime | None, include_day: bool = False) -> str:

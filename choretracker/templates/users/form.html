@@ -84,10 +84,6 @@
                 <span>Create</span>
             </label>
             <label class="checkbox">
-                <input type="checkbox" name="chores.edit_others" {% if user and 'chores.edit_others' in user.permissions %}checked{% endif %}>
-                <span>Edit others'</span>
-            </label>
-            <label class="checkbox">
                 <input type="checkbox" name="chores.complete_on_time" {% if user and 'chores.complete_on_time' in user.permissions %}checked{% endif %}>
                 <span>Complete on time</span>
             </label>
@@ -110,10 +106,6 @@
                 <input type="checkbox" name="events.write" {% if user and 'events.write' in user.permissions %}checked{% endif %}>
                 <span>Create</span>
             </label>
-            <label class="checkbox">
-                <input type="checkbox" name="events.edit_others" {% if user and 'events.edit_others' in user.permissions %}checked{% endif %}>
-                <span>Edit others'</span>
-            </label>
         </div>
         <div class="group">
             <h3>Reminders</h3>
@@ -124,10 +116,6 @@
             <label class="checkbox">
                 <input type="checkbox" name="reminders.write" {% if user and 'reminders.write' in user.permissions %}checked{% endif %}>
                 <span>Create</span>
-            </label>
-            <label class="checkbox">
-                <input type="checkbox" name="reminders.edit_others" {% if user and 'reminders.edit_others' in user.permissions %}checked{% endif %}>
-                <span>Edit others'</span>
             </label>
         </div>
     </div>
