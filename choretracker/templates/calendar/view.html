@@ -20,6 +20,14 @@
     {% endif %}
 </div>
 <dl>
+    <dt>Managers: <span id="entry-managers-container" data-managers='{{ entry.managers|tojson }}'>
+        {% for user in entry.managers %}
+        <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+        {% endfor %}
+        {% if can_edit %}
+        <button type="button" id="edit-managers" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
+        {% endif %}
+    </span></dt>
     <dt>First start: <span id="first-start-container">
         <span id="first-start-text">{{ entry.first_start|format_datetime(include_day=True) }}</span>
         {% if can_edit %}
@@ -30,6 +38,14 @@
         <span id="duration-text">{{ entry.duration|format_duration }}</span>
         {% if can_edit %}
         <button type="button" id="edit-duration" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
+        {% endif %}
+    </span></dt>
+    <dt>Responsible: <span id="entry-responsible-container" data-responsible='{{ entry.responsible|tojson }}'>
+        {% for user in entry.responsible %}
+        <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+        {% endfor %}
+        {% if can_edit %}
+        <button type="button" id="edit-responsible" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
         {% endif %}
     </span></dt>
     <dt>Recurrences{% if can_edit %} <button type="button" id="add-recurrence" class="icon-button"><img src="{{ url_for('static', path='plus.svg') }}" alt="Add recurrence" class="icon"></button>{% endif %}</dt>
@@ -65,20 +81,6 @@
             {% endif %}
         </dt>
     {% endif %}
-    <dt>Responsible: <span id="entry-responsible-container" data-responsible='{{ entry.responsible|tojson }}'>
-        {% for user in entry.responsible %}
-        <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
-        {% endfor %}
-        {% if can_edit %}
-        <button type="button" id="edit-responsible" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
-        {% endif %}
-    </span></dt>
-    <dt>Managers</dt>
-    <dd>
-        {% for user in entry.managers %}
-        <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
-        {% endfor %}
-    </dd>
 </dl>
 {% if past_instances or upcoming_instances %}
 <h2>Instances</h2>
@@ -260,6 +262,86 @@ document.addEventListener('DOMContentLoaded', () => {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ none_after: input.value })
+                });
+                location.reload();
+            });
+            cancel.addEventListener('click', () => location.reload());
+        });
+    }
+
+    const mgrEdit = document.getElementById('edit-managers');
+    if (mgrEdit) {
+        mgrEdit.addEventListener('click', () => {
+            const container = document.getElementById('entry-managers-container');
+            const managers = JSON.parse(container.dataset.managers || '[]');
+            container.innerHTML = '';
+            const mgrContainer = document.createElement('span');
+
+            function addMgr(user) {
+                const wrapper = document.createElement('span');
+                const img = document.createElement('img');
+                img.src = profileUrlTemplate.replace('__user__', encodeURIComponent(user));
+                img.alt = user;
+                img.className = 'profile-icon';
+                const rm = makeBtn(trashUrl, 'Remove');
+                rm.addEventListener('click', () => {
+                    wrapper.remove();
+                    const idx = managers.indexOf(user);
+                    if (idx >= 0) managers.splice(idx, 1);
+                    refreshDropdown();
+                });
+                wrapper.appendChild(img);
+                wrapper.appendChild(rm);
+                mgrContainer.appendChild(wrapper);
+            }
+
+            const addWrap = document.createElement('span');
+            addWrap.className = 'responsible-selector';
+            const addBtn = makeBtn(plusUrl, 'Add user');
+            const dropdown = document.createElement('div');
+            dropdown.className = 'dropdown';
+            dropdown.style.display = 'none';
+
+            function refreshDropdown() {
+                dropdown.innerHTML = '';
+                allUsers.filter(u => !managers.includes(u)).forEach(u => {
+                    const a = document.createElement('a');
+                    a.href = '#';
+                    a.textContent = u;
+                    a.addEventListener('click', e => {
+                        e.preventDefault();
+                        managers.push(u);
+                        addMgr(u);
+                        dropdown.style.display = 'none';
+                        refreshDropdown();
+                    });
+                    dropdown.appendChild(a);
+                });
+            }
+
+            addBtn.addEventListener('click', () => {
+                dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+            });
+
+            addWrap.appendChild(addBtn);
+            addWrap.appendChild(dropdown);
+
+            managers.forEach(u => addMgr(u));
+            refreshDropdown();
+
+            const save = makeBtn(diskUrl, 'Save');
+            const cancel = makeBtn(xUrl, 'Cancel');
+
+            container.appendChild(mgrContainer);
+            container.appendChild(addWrap);
+            container.appendChild(save);
+            container.appendChild(cancel);
+
+            save.addEventListener('click', async () => {
+                await fetch(`/calendar/${entryId}/update`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({managers: managers})
                 });
                 location.reload();
             });
