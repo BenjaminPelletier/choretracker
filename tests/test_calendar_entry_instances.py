@@ -2,6 +2,7 @@ import importlib
 import sys
 from pathlib import Path
 from datetime import datetime
+import re
 
 from fastapi.testclient import TestClient
 
@@ -70,3 +71,10 @@ def test_instances_past_and_upcoming(tmp_path, monkeypatch):
     # profile icons for completed and responsible users displayed
     assert "/users/Admin/profile_picture" in text
     assert "/users/Bob/profile_picture" in text
+    # Responsible icon should appear before completion details
+    line = re.search(
+        rf'<a href="http://testserver/calendar/entry/{entry_id}/period/0/2">Due Saturday 2000-01-22 01:00</a>(.*?)</li>',
+        text,
+        re.DOTALL,
+    ).group(1)
+    assert line.index('/users/Bob/profile_picture') < line.index('checkbox-checked.svg')
