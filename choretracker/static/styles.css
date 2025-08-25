@@ -43,6 +43,13 @@ h1 {
 
 
 .icon {
+    width: 1em;
+    height: 1em;
+    vertical-align: middle;
+}
+
+/* Larger icons for headings */
+h1 .icon {
     width: 1.5rem;
     height: 1.5rem;
 }
@@ -97,6 +104,11 @@ h1 {
     border: none;
     padding: 0;
     cursor: pointer;
+}
+
+/* Ensure inline editors match surrounding text */
+.inline-input {
+    font-size: inherit;
 }
 
 .login-container {

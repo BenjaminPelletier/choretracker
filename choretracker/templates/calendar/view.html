@@ -20,13 +20,12 @@
     {% endif %}
 </div>
 <dl>
-    <dt>First start</dt>
-    <dd id="first-start-container">
+    <dt>First start: <span id="first-start-container">
         <span id="first-start-text">{{ entry.first_start|format_datetime(include_day=True) }}</span>
         {% if can_edit %}
         <button type="button" id="edit-first-start" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
         {% endif %}
-    </dd>
+    </span></dt>
     <dt>Duration: {{ entry.duration|format_duration }}</dt>
     <dt>Recurrences</dt>
     <dd>
@@ -126,6 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const input = document.createElement('input');
             input.type = 'datetime-local';
             input.value = "{{ entry.first_start.strftime('%Y-%m-%dT%H:%M') }}";
+            input.className = 'inline-input';
             const save = makeBtn(diskUrl, 'Save');
             const cancel = makeBtn(xUrl, 'Cancel');
             container.innerHTML = '';
@@ -151,6 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const textarea = document.createElement('textarea');
             const raw = atob(descEdit.dataset.desc || '');
             textarea.value = raw;
+            textarea.className = 'inline-input';
             const save = makeBtn(diskUrl, 'Save');
             const cancel = makeBtn(xUrl, 'Cancel');
             container.innerHTML = '';
@@ -176,7 +177,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const titleInput = document.createElement('input');
             titleInput.type = 'text';
             titleInput.value = {{ entry.title|tojson }};
+            titleInput.className = 'inline-input';
             const typeSelect = document.createElement('select');
+            typeSelect.className = 'inline-input';
             {% for t in CalendarEntryType %}
             const opt{{ loop.index0 }} = document.createElement('option');
             opt{{ loop.index0 }}.value = "{{ t.value }}";
