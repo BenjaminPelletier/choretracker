@@ -43,4 +43,6 @@ docker run -e CHORETRACKER_DB=/data/choretracker.db -v $(pwd)/data:/data -p 8000
 ```
 
 A new database is automatically populated with an `Admin` user (password
-`admin`, PIN `0000`) that has both `admin` and `iam` permissions.
+`admin`, PIN `0000`) that has the `admin` permission.
+The `admin` permission grants all actions, including those normally
+requiring `iam`.

@@ -7,7 +7,8 @@
 <ul>
 {% for u in users %}
     <li>
-        {{ u.username }}{% if 'admin' in u.permissions %} (admin){% endif %}{% if 'iam' in u.permissions %} (iam){% endif %}
+        <img src="{{ url_for('profile_picture', username=u.username) }}" alt="{{ u.username }}" class="profile-icon">
+        {{ u.username }}{% if 'admin' in u.permissions %} (admin){% endif %}
         <a href="{{ url_for('edit_user', username=u.username) }}"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></a>
         <form method="post" action="{{ url_for('delete_user', username=u.username) }}" style="display:inline">
             <button type="submit" class="icon-button"><img src="{{ url_for('static', path='trash.svg') }}" alt="Delete" class="icon"></button>
