@@ -643,6 +643,7 @@ async def view_calendar_entry(request: Request, entry_id: int):
             "past_instances": past_instances,
             "upcoming_instances": upcoming,
             "CalendarEntryType": CalendarEntryType,
+            "RecurrenceType": RecurrenceType,
         },
     )
 
@@ -841,6 +842,35 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
         entry.title = data["title"].strip()
     if "type" in data:
         entry.type = CalendarEntryType(data["type"])
+    calendar_store.update(entry_id, entry)
+    return JSONResponse({"status": "ok"})
+
+
+@app.post("/calendar/{entry_id}/recurrence/update")
+async def update_recurrence(request: Request, entry_id: int):
+    entry = calendar_store.get(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404)
+    require_entry_write_permission(request, entry)
+    data = await request.json()
+    rindex = int(data.get("recurrence_index", -1))
+    if rindex < 0 or rindex >= len(entry.recurrences):
+        raise HTTPException(status_code=400)
+    rec = entry.recurrences[rindex]
+    if not isinstance(rec, Recurrence):
+        rec = Recurrence.model_validate(rec)
+        entry.recurrences[rindex] = rec
+    if "type" in data:
+        rec.type = RecurrenceType(data["type"])
+    days = int(data.get("offset_days") or 0)
+    hours = int(data.get("offset_hours") or 0)
+    minutes = int(data.get("offset_minutes") or 0)
+    if days or hours or minutes:
+        rec.offset = Offset(exact_duration_seconds=days * 86400 + hours * 3600 + minutes * 60)
+    else:
+        rec.offset = None
+    if "responsible" in data:
+        rec.responsible = list(data["responsible"])
     calendar_store.update(entry_id, entry)
     return JSONResponse({"status": "ok"})
 
