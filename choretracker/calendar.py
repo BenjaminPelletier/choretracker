@@ -141,13 +141,19 @@ class ChoreCompletionStore:
             return session.exec(stmt).first()
 
     def create(
-        self, entry_id: int, recurrence_index: int, instance_index: int, user: str
+        self,
+        entry_id: int,
+        recurrence_index: int,
+        instance_index: int,
+        user: str,
+        completed_at: datetime | None = None,
     ) -> None:
         completion = ChoreCompletion(
             entry_id=entry_id,
             recurrence_index=recurrence_index,
             instance_index=instance_index,
             completed_by=user,
+            completed_at=completed_at or datetime.now(),
         )
         with Session(self.engine) as session:
             session.add(completion)
