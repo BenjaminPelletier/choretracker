@@ -576,13 +576,14 @@ async def list_calendar_entries(request: Request, entry_type: str):
 
 
 @app.get("/calendar/entry/{entry_id}", response_class=HTMLResponse)
-async def view_calendar_entry(request: Request, entry_id: int):
+async def view_calendar_entry(
+    request: Request, entry_id: int, past_entries: int = 5, upcoming_entries: int = 5
+):
     entry = calendar_store.get(entry_id)
     if not entry:
         raise HTTPException(status_code=404)
     require_entry_read_permission(request, entry.type)
     current_user = request.session.get("user")
-    MAX_INSTANCES = 5
     comps_list = completion_store.list_for_entry(entry_id)
     comp_map = {(c.recurrence_index, c.instance_index): c for c in comps_list}
     completion_periods: list[
@@ -626,13 +627,13 @@ async def view_calendar_entry(request: Request, entry_id: int):
         if period.end < now:
             past_noncompleted.append((period, None, False, is_skipped, responsible))
         else:
-            if len(upcoming) < MAX_INSTANCES:
+            if len(upcoming) < upcoming_entries:
                 upcoming.append((period, None, False, is_skipped, responsible))
             else:
                 break
     past_instances = past_noncompleted + completion_periods
     past_instances.sort(key=lambda x: x[0].start)
-    past_instances = past_instances[-MAX_INSTANCES:]
+    past_instances = past_instances[-past_entries:]
     upcoming.sort(key=lambda x: x[0].start)
     return templates.TemplateResponse(
         "calendar/view.html",
@@ -642,6 +643,8 @@ async def view_calendar_entry(request: Request, entry_id: int):
             "can_edit": can_edit_entry(current_user, entry),
             "past_instances": past_instances,
             "upcoming_instances": upcoming,
+            "past_entries": past_entries,
+            "upcoming_entries": upcoming_entries,
             "CalendarEntryType": CalendarEntryType,
             "RecurrenceType": RecurrenceType,
         },
