@@ -37,19 +37,33 @@
     <dt>Responsible</dt><dd>{{ entry.responsible|join(', ') }}</dd>
     <dt>Owner</dt><dd>{{ entry.owner }}</dd>
 </dl>
-{% if completions %}
-<h2>Completions</h2>
-<ul class="time-list">
-    {% for comp, period, can_remove in completions %}
-    <li>
-        {{ comp.completed_by }} {{ comp.completed_at|format_datetime }}
-        <a href="{{ url_for('view_time_period', entry_id=entry.id, rindex=comp.recurrence_index, iindex=comp.instance_index) }}">due {{ period.end|format_datetime }}</a>
-        {% if can_remove %}
-        <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ comp.recurrence_index }}" data-iindex="{{ comp.instance_index }}" data-action="remove" />
-        {% endif %}
-    </li>
-    {% endfor %}
-</ul>
+{% if past_instances or upcoming_instances %}
+<h2>Instances</h2>
+    {% if past_instances %}
+    <h3>Past</h3>
+    <ul class="time-list">
+        {% for period, completion, can_remove in past_instances %}
+        <li>
+            Due {{ period.end|format_datetime(include_day=True) }}
+            {% if completion %}
+            <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ completion.recurrence_index }}" data-iindex="{{ completion.instance_index }}" {% if can_remove %}data-action="remove"{% endif %} />
+            <img src="{{ request.url_for('profile_picture', username=completion.completed_by) }}" alt="{{ completion.completed_by }}" class="profile-icon" />
+            {{ completion.completed_at|format_completion_time(period.end) }}
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    {% if upcoming_instances %}
+    <h3>Upcoming</h3>
+    <ul class="time-list">
+        {% for period, completion, can_remove in upcoming_instances %}
+        <li>
+            Due {{ period.end|format_datetime(include_day=True) }}
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
 {% endif %}
 <script>
 document.querySelectorAll('.checkbox-icon[data-action="remove"]').forEach(el => {
