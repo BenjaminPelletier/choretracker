@@ -30,7 +30,7 @@
 <form method="post" action="{{ request.url_for(is_skipped and 'unskip_instance' or 'skip_instance', entry_id=entry.id) }}">
     <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
     <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
-    <button type="submit">{{ 'Do not skip this instance' if is_skipped else 'Skip this instance' }}</button>
+    <button type="submit" class="skip-button">{{ 'Do not skip this instance' if is_skipped else 'Skip this instance' }}</button>
 </form>
 {% endif %}
 <script>
