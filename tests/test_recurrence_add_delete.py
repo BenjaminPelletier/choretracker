@@ -51,8 +51,12 @@ def test_add_recurrence(tmp_path, monkeypatch):
         },
     )
     assert resp.status_code == 200
+    data = resp.json()
+    new_id = entry_id
+    if "redirect" in data:
+        new_id = int(data["redirect"].split("/")[-1])
 
-    updated = app_module.calendar_store.get(entry_id)
+    updated = app_module.calendar_store.get(new_id)
     assert len(updated.recurrences) == 1
     rec = updated.recurrences[0]
     assert rec.type == RecurrenceType.Weekly
@@ -83,11 +87,17 @@ def test_delete_recurrence(tmp_path, monkeypatch):
         json={"recurrence_index": 0},
     )
     assert resp.status_code == 200
+    data = resp.json()
+    new_id = entry_id
+    if "redirect" in data:
+        new_id = int(data["redirect"].split("/")[-1])
 
-    updated = app_module.calendar_store.get(entry_id)
+    updated = app_module.calendar_store.get(new_id)
     assert len(updated.recurrences) == 1
     assert updated.recurrences[0].type == RecurrenceType.MonthlyDayOfMonth
 
-    comps = app_module.completion_store.list_for_entry(entry_id)
-    assert len(comps) == 1
-    assert comps[0].recurrence_index == 0
+    comps_old = app_module.completion_store.list_for_entry(entry_id)
+    assert len(comps_old) == 1
+    assert comps_old[0].recurrence_index == 1
+    comps_new = app_module.completion_store.list_for_entry(new_id)
+    assert comps_new == []
