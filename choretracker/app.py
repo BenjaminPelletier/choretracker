@@ -969,7 +969,7 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
     resp = {"status": "ok"}
     if did_split:
         resp["redirect"] = str(
-            request.url_for("view_calendar_entry", entry_id=entry_id)
+            request.url_for("view_calendar_entry", entry_id=entry.id)
         )
     return JSONResponse(resp)
 
@@ -1004,7 +1004,7 @@ async def update_recurrence(request: Request, entry_id: int):
     resp = {"status": "ok"}
     if did_split:
         resp["redirect"] = str(
-            request.url_for("view_calendar_entry", entry_id=entry_id)
+            request.url_for("view_calendar_entry", entry_id=entry.id)
         )
     return JSONResponse(resp)
 
@@ -1032,7 +1032,7 @@ async def add_recurrence(request: Request, entry_id: int):
     resp = {"status": "ok", "recurrence_index": len(entry.recurrences) - 1}
     if did_split:
         resp["redirect"] = str(
-            request.url_for("view_calendar_entry", entry_id=entry_id)
+            request.url_for("view_calendar_entry", entry_id=entry.id)
         )
     return JSONResponse(resp)
 
@@ -1067,7 +1067,7 @@ async def delete_recurrence(request: Request, entry_id: int):
     resp = {"status": "ok"}
     if did_split:
         resp["redirect"] = str(
-            request.url_for("view_calendar_entry", entry_id=entry_id)
+            request.url_for("view_calendar_entry", entry_id=entry.id)
         )
     return JSONResponse(resp)
 

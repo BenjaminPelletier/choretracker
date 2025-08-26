@@ -52,3 +52,35 @@ def test_inline_update(tmp_path, monkeypatch):
     page = client.get(f"/calendar/entry/{entry_id}")
     assert "New Title" in page.text
     assert "Reminder" in page.text
+
+
+def test_title_edit_redirects_after_split(tmp_path, monkeypatch):
+    db_file = tmp_path / "test.db"
+    monkeypatch.setenv("CHORETRACKER_DB", str(db_file))
+    if "choretracker.app" in sys.modules:
+        del sys.modules["choretracker.app"]
+    app_module = importlib.import_module("choretracker.app")
+
+    client = TestClient(app_module.app)
+    client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
+
+    entry = CalendarEntry(
+        title="Old",
+        description="",
+        type=CalendarEntryType.Event,
+        first_start=datetime(2000, 1, 1, 0, 0),
+        duration_seconds=60,
+        managers=["Admin"],
+    )
+    app_module.calendar_store.create(entry)
+    entry_id = app_module.calendar_store.list_entries()[0].id
+
+    resp = client.post(
+        f"/calendar/{entry_id}/update", json={"title": "New"}
+    )
+    data = resp.json()
+    assert "redirect" in data
+    new_id = int(data["redirect"].split("/")[-1])
+    assert new_id != entry_id
+    assert app_module.calendar_store.get(entry_id).title == "Old"
+    assert app_module.calendar_store.get(new_id).title == "New"
