@@ -101,6 +101,7 @@ class CalendarEntryStore:
                 return
             entry.title = new_data.title
             entry.description = new_data.description
+            entry.type = new_data.type
             entry.first_start = new_data.first_start
             entry.duration_seconds = new_data.duration_seconds
             entry.recurrences = new_data.recurrences
