@@ -182,13 +182,18 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(save);
             container.appendChild(cancel);
             save.addEventListener('click', async () => {
-                await fetch(`/calendar/${entryId}/update`, {
+                const resp = await fetch(`/calendar/${entryId}/update`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     credentials: 'same-origin',
                     body: JSON.stringify({first_start: input.value})
                 });
-                location.reload();
+                const data = await resp.json();
+                if (data.redirect) {
+                    window.location = data.redirect;
+                } else {
+                    location.reload();
+                }
             });
             cancel.addEventListener('click', () => location.reload());
         });
@@ -233,7 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(save);
             container.appendChild(cancel);
             save.addEventListener('click', async () => {
-                await fetch(`/calendar/${entryId}/update`, {
+                const resp = await fetch(`/calendar/${entryId}/update`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     credentials: 'same-origin',
@@ -243,7 +248,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         duration_minutes: parseInt(minuteInput.value || '0')
                     })
                 });
-                location.reload();
+                const data = await resp.json();
+                if (data.redirect) {
+                    window.location = data.redirect;
+                } else {
+                    location.reload();
+                }
             });
             cancel.addEventListener('click', () => location.reload());
         });
@@ -579,7 +589,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify(payload)
             });
             if (resp.ok) {
-                location.reload();
+                const data = await resp.json();
+                if (data.redirect) {
+                    window.location = data.redirect;
+                } else {
+                    location.reload();
+                }
             } else {
                 alert(`Failed to ${isNew ? 'add' : 'update'} recurrence`);
             }
@@ -621,7 +636,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({recurrence_index: rindex})
             });
             if (resp.ok) {
-                location.reload();
+                const data = await resp.json();
+                if (data.redirect) {
+                    window.location = data.redirect;
+                } else {
+                    location.reload();
+                }
             } else {
                 alert('Failed to delete recurrence');
             }
@@ -701,13 +721,18 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(save);
             container.appendChild(cancel);
             save.addEventListener('click', async () => {
-                await fetch(`/calendar/${entryId}/update`, {
+                const resp = await fetch(`/calendar/${entryId}/update`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     credentials: 'same-origin',
                     body: JSON.stringify({title: titleInput.value, type: typeSelect.value})
                 });
-                location.reload();
+                const data = await resp.json();
+                if (data.redirect) {
+                    window.location = data.redirect;
+                } else {
+                    location.reload();
+                }
             });
             cancel.addEventListener('click', () => location.reload());
         });
