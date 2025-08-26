@@ -586,16 +586,28 @@ async def list_calendar_entries(request: Request, entry_type: str):
     require_entry_read_permission(request, etype)
     entries = [e for e in calendar_store.list_entries() if e.type == etype]
     counts = Counter(e.title for e in entries)
+    now = datetime.now()
+    active_entries = []
+    past_entries = []
+    start_map = {}
     for entry in entries:
+        start, end = entry_time_bounds(entry)
+        start_map[entry.id] = start
         if counts[entry.title] > 1:
-            start, end = entry_time_bounds(entry)
             entry.title = f"{entry.title} ({time_range_summary(start, end)})"
+        if end is None or end > now:
+            active_entries.append(entry)
+        else:
+            past_entries.append(entry)
+    active_entries.sort(key=lambda e: start_map[e.id], reverse=True)
+    past_entries.sort(key=lambda e: start_map[e.id], reverse=True)
     current_user = request.session.get("user")
     return templates.TemplateResponse(
         "calendar/list.html",
         {
             "request": request,
-            "entries": entries,
+            "active_entries": active_entries,
+            "past_entries": past_entries,
             "entry_type": etype,
             "current_user": current_user,
         },
