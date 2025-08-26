@@ -449,6 +449,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let recList = document.getElementById('recurrence-list');
 
     function setupRecurrenceEditor(li, rindex, originalType, originalResp, offsetSeconds, isNew) {
+        if (isNew && addRecurrence) {
+            addRecurrence.style.display = 'none';
+        }
         const days = Math.floor(offsetSeconds / 86400);
         const hours = Math.floor((offsetSeconds % 86400) / 3600);
         const minutes = Math.floor((offsetSeconds % 3600) / 60);
@@ -586,6 +589,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 li.remove();
                 if (!recList || recList.children.length === 0) {
                     recContainer.textContent = 'None';
+                }
+                if (addRecurrence) {
+                    addRecurrence.style.display = '';
                 }
             } else {
                 location.reload();
