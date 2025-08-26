@@ -116,6 +116,7 @@ document.querySelectorAll('.checkbox-icon[data-action]').forEach(el => {
         await fetch(url, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
             body: JSON.stringify({recurrence_index: r, instance_index: i})
         });
         location.reload();

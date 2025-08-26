@@ -93,6 +93,7 @@ document.querySelectorAll('.checkbox-icon[data-action]').forEach(el => {
         await fetch(url, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
             body: JSON.stringify({recurrence_index: r, instance_index: i})
         });
         location.reload();
@@ -112,7 +113,7 @@ document.addEventListener('DOMContentLoaded', function () {
             input.value = li.dataset.user;
             form.appendChild(input);
         });
-        fetch(form.action, { method: 'POST', body: new FormData(form) }).then(() => location.reload());
+        fetch(form.action, { method: 'POST', credentials: 'same-origin', body: new FormData(form) }).then(() => location.reload());
     }
     list.addEventListener('click', e => {
         if (e.target.closest('.remove-user')) {
