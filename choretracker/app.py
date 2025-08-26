@@ -227,11 +227,16 @@ class EnsureUserMiddleware(BaseHTTPMiddleware):
         user = session.get("user")
         now = datetime.now().timestamp()
         if user:
-            last = session.get("last_active", now)
-            if user != "Viewer" and now - last > LOGOUT_DURATION.total_seconds():
-                session["user"] = "Viewer"
-                user = "Viewer"
-            session["last_active"] = now
+            if not user_store.get(user):
+                session.clear()
+                if not (path == "/login" or path.startswith("/static")):
+                    return RedirectResponse(url="/login")
+            else:
+                last = session.get("last_active", now)
+                if user != "Viewer" and now - last > LOGOUT_DURATION.total_seconds():
+                    session["user"] = "Viewer"
+                    user = "Viewer"
+                session["last_active"] = now
         elif not (path == "/login" or path.startswith("/static")):
             return RedirectResponse(url="/login")
 
