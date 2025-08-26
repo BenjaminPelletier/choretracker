@@ -33,13 +33,22 @@ def test_inline_update(tmp_path, monkeypatch):
     entry_id = app_module.calendar_store.list_entries()[0].id
 
     # Update first_start and description
-    client.post(f"/calendar/{entry_id}/update", json={"first_start": "2000-02-01T00:00", "description": "New desc"})
+    resp = client.post(
+        f"/calendar/{entry_id}/update",
+        json={"first_start": "2000-02-01T00:00", "description": "New desc"},
+    )
+    data = resp.json()
+    if "redirect" in data:
+        entry_id = int(data["redirect"].split("/")[-1])
     page = client.get(f"/calendar/entry/{entry_id}")
     assert "2000-02-01 00:00" in page.text
     assert "New desc" in page.text
 
     # Update title and type
-    client.post(f"/calendar/{entry_id}/update", json={"title": "New Title", "type": "Reminder"})
+    client.post(
+        f"/calendar/{entry_id}/update",
+        json={"title": "New Title", "type": "Reminder"},
+    )
     page = client.get(f"/calendar/entry/{entry_id}")
     assert "New Title" in page.text
     assert "Reminder" in page.text

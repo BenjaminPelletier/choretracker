@@ -39,19 +39,26 @@ def test_edit_permissions(tmp_path, monkeypatch):
     client.post("/login", data={"username": "Manager", "password": "manager"}, follow_redirects=False)
     resp = client.post(f"/calendar/{entry_id}/update", json={"title": "Updated"})
     assert resp.status_code == 200
-    assert app_module.calendar_store.get(entry_id).title == "Updated"
+    data = resp.json()
+    new_id = entry_id
+    if "redirect" in data:
+        new_id = int(data["redirect"].split("/")[-1])
+    assert app_module.calendar_store.get(entry_id).title == "Test"
+    assert app_module.calendar_store.get(new_id).title == "Updated"
 
     # Non-manager without admin cannot edit
     client.post("/login", data={"username": "Bob", "password": "bob"}, follow_redirects=False)
-    resp = client.post(f"/calendar/{entry_id}/update", json={"title": "Hack"}, follow_redirects=False)
+    resp = client.post(
+        f"/calendar/{new_id}/update", json={"title": "Hack"}, follow_redirects=False
+    )
     assert resp.status_code == 303
-    assert app_module.calendar_store.get(entry_id).title == "Updated"
+    assert app_module.calendar_store.get(new_id).title == "Updated"
 
     # Admin can edit even if not manager
     client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
-    resp = client.post(f"/calendar/{entry_id}/update", json={"title": "AdminUpdate"})
+    resp = client.post(f"/calendar/{new_id}/update", json={"title": "AdminUpdate"})
     assert resp.status_code == 200
-    assert app_module.calendar_store.get(entry_id).title == "AdminUpdate"
+    assert app_module.calendar_store.get(new_id).title == "AdminUpdate"
 
 
 def test_manager_prepopulated_and_required(tmp_path, monkeypatch):

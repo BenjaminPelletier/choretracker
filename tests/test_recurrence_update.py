@@ -62,6 +62,9 @@ def test_update_recurrence_responsible_and_offset(tmp_path, monkeypatch):
         },
     )
     assert resp.status_code == 200
+    data = resp.json()
+    if "redirect" in data:
+        entry_id = int(data["redirect"].split("/")[-1])
 
     updated = app_module.calendar_store.get(entry_id)
     rec = updated.recurrences[0]

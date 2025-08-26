@@ -226,6 +226,28 @@ def can_edit_entry(username: str, entry: CalendarEntry) -> bool:
     return user_store.has_permission(username, "admin")
 
 
+def split_entry_if_past(entry_id: int, entry: CalendarEntry, now: datetime | None = None) -> tuple[int, CalendarEntry, bool]:
+    """Split ``entry`` at ``now`` if it has instances in the past.
+
+    Returns ``(new_id, entry_obj, did_split)`` where ``entry_obj`` is the
+    original entry if no split occurred or the new entry if it did.
+    """
+    if now is None:
+        now = datetime.now()
+    has_past = False
+    for period in enumerate_time_periods(entry):
+        if period.start < now:
+            has_past = True
+        else:
+            break
+    if has_past:
+        new_entry = calendar_store.split(entry_id, now)
+        if not new_entry:
+            raise HTTPException(status_code=404)
+        return new_entry.id, new_entry, True
+    return entry_id, entry, False
+
+
 def require_entry_read_permission(request: Request, entry_type: CalendarEntryType) -> None:
     require_permission(request, READ_PERMS[entry_type])
 
@@ -900,35 +922,18 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
         raise HTTPException(status_code=404)
     require_entry_write_permission(request, entry)
     data = await request.json()
-    if "description" in data and set(data.keys()) == {"description"}:
-        desc = data["description"].strip()
-        now = datetime.now()
-        has_past = False
-        for period in enumerate_time_periods(entry):
-            if period.start < now:
-                has_past = True
-            else:
-                break
-        if has_past:
-            new_entry = calendar_store.split(entry_id, now)
-            if not new_entry:
-                raise HTTPException(status_code=404)
-            new_entry.description = desc
-            calendar_store.update(new_entry.id, new_entry)
-            return JSONResponse(
-                {
-                    "status": "ok",
-                    "redirect": str(
-                        request.url_for(
-                            "view_calendar_entry", entry_id=new_entry.id
-                        )
-                    ),
-                }
-            )
-        else:
-            entry.description = desc
-            calendar_store.update(entry_id, entry)
-            return JSONResponse({"status": "ok"})
+    split_fields = {
+        "description",
+        "title",
+        "type",
+        "first_start",
+        "duration_days",
+        "duration_hours",
+        "duration_minutes",
+    }
+    did_split = False
+    if split_fields & set(data.keys()):
+        entry_id, entry, did_split = split_entry_if_past(entry_id, entry)
 
     if "first_start" in data:
         entry.first_start = datetime.fromisoformat(data["first_start"])
@@ -961,7 +966,12 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
             raise HTTPException(status_code=400, detail="At least one manager required")
         entry.managers = managers
     calendar_store.update(entry_id, entry)
-    return JSONResponse({"status": "ok"})
+    resp = {"status": "ok"}
+    if did_split:
+        resp["redirect"] = str(
+            request.url_for("view_calendar_entry", entry_id=entry_id)
+        )
+    return JSONResponse(resp)
 
 
 @app.post("/calendar/{entry_id}/recurrence/update")
@@ -974,6 +984,7 @@ async def update_recurrence(request: Request, entry_id: int):
     rindex = int(data.get("recurrence_index", -1))
     if rindex < 0 or rindex >= len(entry.recurrences):
         raise HTTPException(status_code=400)
+    entry_id, entry, did_split = split_entry_if_past(entry_id, entry)
     rec = entry.recurrences[rindex]
     if not isinstance(rec, Recurrence):
         rec = Recurrence.model_validate(rec)
@@ -990,7 +1001,12 @@ async def update_recurrence(request: Request, entry_id: int):
     if "responsible" in data:
         rec.responsible = list(data["responsible"])
     calendar_store.update(entry_id, entry)
-    return JSONResponse({"status": "ok"})
+    resp = {"status": "ok"}
+    if did_split:
+        resp["redirect"] = str(
+            request.url_for("view_calendar_entry", entry_id=entry_id)
+        )
+    return JSONResponse(resp)
 
 
 @app.post("/calendar/{entry_id}/recurrence/add")
@@ -1002,6 +1018,7 @@ async def add_recurrence(request: Request, entry_id: int):
     data = await request.json()
     if "type" not in data:
         raise HTTPException(status_code=400)
+    entry_id, entry, did_split = split_entry_if_past(entry_id, entry)
     rtype = RecurrenceType(data["type"])
     days = int(data.get("offset_days") or 0)
     hours = int(data.get("offset_hours") or 0)
@@ -1012,7 +1029,12 @@ async def add_recurrence(request: Request, entry_id: int):
     rec = Recurrence(type=rtype, offset=offset, responsible=list(data.get("responsible") or []))
     entry.recurrences.append(rec)
     calendar_store.update(entry_id, entry)
-    return JSONResponse({"status": "ok", "recurrence_index": len(entry.recurrences) - 1})
+    resp = {"status": "ok", "recurrence_index": len(entry.recurrences) - 1}
+    if did_split:
+        resp["redirect"] = str(
+            request.url_for("view_calendar_entry", entry_id=entry_id)
+        )
+    return JSONResponse(resp)
 
 
 @app.post("/calendar/{entry_id}/recurrence/delete")
@@ -1025,6 +1047,7 @@ async def delete_recurrence(request: Request, entry_id: int):
     rindex = int(data.get("recurrence_index", -1))
     if rindex < 0 or rindex >= len(entry.recurrences):
         raise HTTPException(status_code=400)
+    entry_id, entry, did_split = split_entry_if_past(entry_id, entry)
     del entry.recurrences[rindex]
     calendar_store.update(entry_id, entry)
     # Remove completions for this recurrence and shift higher indices
@@ -1041,7 +1064,12 @@ async def delete_recurrence(request: Request, entry_id: int):
                 comp.completed_by,
                 comp.completed_at,
             )
-    return JSONResponse({"status": "ok"})
+    resp = {"status": "ok"}
+    if did_split:
+        resp["redirect"] = str(
+            request.url_for("view_calendar_entry", entry_id=entry_id)
+        )
+    return JSONResponse(resp)
 
 
 @app.post("/calendar/{entry_id}/delete")
