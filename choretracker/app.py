@@ -489,6 +489,7 @@ async def new_calendar_entry(request: Request, entry_type: str):
             "entry_type": entry_type,
             "entry": None,
             "current_user": current_user,
+            "RecurrenceType": RecurrenceType,
         },
     )
 
@@ -792,6 +793,7 @@ async def edit_calendar_entry(request: Request, entry_id: int):
             "entry": entry,
             "entry_data": entry_data,
             "current_user": current_user,
+            "RecurrenceType": RecurrenceType,
         },
     )
 
