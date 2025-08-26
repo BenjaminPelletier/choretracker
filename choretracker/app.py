@@ -172,7 +172,7 @@ def time_range_summary(start: datetime, end: datetime | None) -> str:
     start = start.replace(second=0, microsecond=0)
     start_str = start.strftime("%a %Y-%m-%d %H:%M")
     if end is None:
-        return f"(From {start_str}, indefinitely)"
+        return f"From {start_str}, indefinitely"
     end = end.replace(second=0, microsecond=0)
     if start.year != end.year:
         end_fmt = "%a %Y-%m-%d"
@@ -183,7 +183,7 @@ def time_range_summary(start: datetime, end: datetime | None) -> str:
     if start.hour != end.hour or start.minute != end.minute:
         end_fmt = f"{end_fmt + ' ' if end_fmt else ''}%H:%M"
     end_str = end.strftime(end_fmt).strip()
-    return f"({start_str} to {end_str})"
+    return f"{start_str} to {end_str}"
 
 
 templates.env.globals["time_range_summary"] = time_range_summary
@@ -589,7 +589,7 @@ async def list_calendar_entries(request: Request, entry_type: str):
     for entry in entries:
         if counts[entry.title] > 1:
             start, end = entry_time_bounds(entry)
-            entry.title = f"{entry.title} {time_range_summary(start, end)}"
+            entry.title = f"{entry.title} ({time_range_summary(start, end)})"
     current_user = request.session.get("user")
     return templates.TemplateResponse(
         "calendar/list.html",
