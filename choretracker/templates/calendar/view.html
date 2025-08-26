@@ -34,6 +34,9 @@
         <button type="button" id="edit-first-start" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
         {% endif %}
     </span></dt>
+    {% if entry.none_before %}
+    <dt>None before: <span id="none-before-text">{{ entry.none_before|format_datetime(include_day=True) }}</span></dt>
+    {% endif %}
     <dt>Duration: <span id="duration-container" data-duration-seconds="{{ entry.duration.total_seconds()|int }}">
         <span id="duration-text">{{ entry.duration|format_duration }}</span>
         {% if can_edit %}
@@ -637,12 +640,17 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(save);
             container.appendChild(cancel);
             save.addEventListener('click', async () => {
-                await fetch(`/calendar/${entryId}/update`, {
+                const resp = await fetch(`/calendar/${entryId}/update`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({description: textarea.value})
                 });
-                location.reload();
+                const data = await resp.json();
+                if (data.redirect) {
+                    window.location = data.redirect;
+                } else {
+                    location.reload();
+                }
             });
             cancel.addEventListener('click', () => location.reload());
         });

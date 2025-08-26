@@ -521,6 +521,10 @@ async def create_calendar_entry(request: Request):
 
     none_after_str = form.get("none_after")
     none_after = datetime.fromisoformat(none_after_str) if none_after_str else None
+    none_before_str = form.get("none_before")
+    none_before = datetime.fromisoformat(none_before_str) if none_before_str else None
+    none_before_str = form.get("none_before")
+    none_before = datetime.fromisoformat(none_before_str) if none_before_str else None
 
     responsible = form.getlist("responsible")
     managers = form.getlist("managers")
@@ -542,6 +546,7 @@ async def create_calendar_entry(request: Request):
         duration_seconds=int(duration.total_seconds()),
         recurrences=recurrences,
         none_after=none_after,
+        none_before=none_before,
         responsible=responsible,
         managers=managers,
     )
@@ -800,6 +805,7 @@ async def update_calendar_entry(request: Request, entry_id: int):
         duration_seconds=int(duration.total_seconds()),
         recurrences=recurrences,
         none_after=none_after,
+        none_before=none_before,
         responsible=responsible,
         managers=managers,
     )
@@ -838,6 +844,36 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
         raise HTTPException(status_code=404)
     require_entry_write_permission(request, entry)
     data = await request.json()
+    if "description" in data and set(data.keys()) == {"description"}:
+        desc = data["description"].strip()
+        now = datetime.now()
+        has_past = False
+        for period in enumerate_time_periods(entry):
+            if period.start < now:
+                has_past = True
+            else:
+                break
+        if has_past:
+            new_entry = calendar_store.split(entry_id, now)
+            if not new_entry:
+                raise HTTPException(status_code=404)
+            new_entry.description = desc
+            calendar_store.update(new_entry.id, new_entry)
+            return JSONResponse(
+                {
+                    "status": "ok",
+                    "redirect": str(
+                        request.url_for(
+                            "view_calendar_entry", entry_id=new_entry.id
+                        )
+                    ),
+                }
+            )
+        else:
+            entry.description = desc
+            calendar_store.update(entry_id, entry)
+            return JSONResponse({"status": "ok"})
+
     if "first_start" in data:
         entry.first_start = datetime.fromisoformat(data["first_start"])
     if "description" in data:
@@ -858,6 +894,9 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
     if "none_after" in data:
         na = data["none_after"]
         entry.none_after = datetime.fromisoformat(na) if na else None
+    if "none_before" in data:
+        nb = data["none_before"]
+        entry.none_before = datetime.fromisoformat(nb) if nb else None
     if "responsible" in data:
         entry.responsible = data["responsible"]
     if "managers" in data:
