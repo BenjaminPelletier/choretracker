@@ -51,7 +51,7 @@
                 <img src="{{ url_for('static', path='plus.svg') }}" alt="Add recurrence" class="icon">
             </button>
         </div>
-        <div id="recurrences"></div>
+        <div id="recurrence-container"></div>
     </div>
 
     <div class="field">
@@ -97,96 +97,15 @@
     <button type="submit">Save</button>
 </form>
 
-<template id="recurrence-template">
-    <div class="group recurrence-item">
-        <button type="button" class="remove-recurrence">
-            <img src="{{ url_for('static', path='trash.svg') }}" alt="Remove" class="icon">
-        </button>
-        <div class="group">
-            <div class="label-row">
-                <span class="group-title">Type</span>
-                <span class="help" data-help="Type of recurrence">?</span>
-            </div>
-            <select name="recurrence_type[]">
-                <option value="Weekly">Weekly</option>
-                <option value="MonthlyDayOfMonth">MonthlyDayOfMonth</option>
-                <option value="MonthlyDayOfWeek">MonthlyDayOfWeek</option>
-                <option value="AnnualDayOfMonth">AnnualDayOfMonth</option>
-            </select>
-        </div>
-        <div class="group offset">
-            <div class="label-row">
-                <span class="group-title">Offset</span>
-                <span class="help" data-help="Offset from nominal schedule">?</span>
-            </div>
-            <div class="offset-inputs">
-                <div class="date-row">
-                    <input type="number" name="offset_days[]" placeholder="Days" min="0">
-                    <input type="number" name="offset_months[]" placeholder="Months" min="0">
-                    <input type="number" name="offset_years[]" placeholder="Years" min="0">
-                </div>
-                <div class="time-row">
-                    <input type="number" name="offset_hours[]" placeholder="Hours" min="0" max="23">
-                    <input type="number" name="offset_minutes[]" placeholder="Minutes" min="0" max="59">
-                </div>
-            </div>
-        </div>
-        <div class="group">
-            <div class="label-row">
-                <span class="group-title">Responsible</span>
-                <span class="help" data-help="People responsible for this recurrence">?</span>
-            </div>
-            <div class="responsible-selector recurrence-responsible-selector">
-                <button type="button" class="add-responsible">Add</button>
-                <div class="dropdown">
-                    {% for u in all_users() %}
-                    <a href="#" data-user="{{ u.username }}">{{ u.username }}</a>
-                    {% endfor %}
-                </div>
-            </div>
-            <ul class="responsible-list recurrence-responsible-list"></ul>
-        </div>
-        <div class="group delegations">
-            <div class="label-row">
-                <span class="group-title">Delegations</span>
-                <span class="help" data-help="Override responsibility for a single instance">?</span>
-                <button type="button" class="add-delegation icon-button">
-                    <img src="{{ url_for('static', path='plus.svg') }}" alt="Add delegation" class="icon">
-                </button>
-            </div>
-            <div class="delegations-list"></div>
-            <template class="delegation-template">
-                <div class="delegation-item">
-                    <button type="button" class="remove-delegation"><img src="{{ url_for('static', path='trash.svg') }}" alt="Remove" class="icon"></button>
-                    <input type="number" class="delegation-instance" placeholder="Instance index" min="0">
-                    <div class="responsible-selector delegation-responsible-selector">
-                        <button type="button" class="add-responsible">Add</button>
-                        <div class="dropdown">
-                            {% for u in all_users() %}
-                            <a href="#" data-user="{{ u.username }}">{{ u.username }}</a>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    <ul class="responsible-list delegation-responsible-list"></ul>
-                </div>
-            </template>
-        </div>
-    </div>
-</template>
-
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    const recurrences = document.getElementById('recurrences');
-    const recurrenceTemplate = document.getElementById('recurrence-template');
+document.addEventListener('DOMContentLoaded', () => {
+    const recContainer = document.getElementById('recurrence-container');
+    let recList = document.getElementById('recurrence-list');
     const addRecurrence = document.getElementById('add-recurrence');
     const firstStart = document.getElementById('first_start');
     if (firstStart && !firstStart.value) {
         const now = new Date();
-        if (
-            now.getMinutes() > 0 ||
-            now.getSeconds() > 0 ||
-            now.getMilliseconds() > 0
-        ) {
+        if (now.getMinutes() > 0 || now.getSeconds() > 0 || now.getMilliseconds() > 0) {
             now.setHours(now.getHours() + 1);
         }
         now.setMinutes(0, 0, 0);
@@ -197,6 +116,182 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     const trashUrl = "{{ url_for('static', path='trash.svg') }}";
+    const plusUrl = "{{ url_for('static', path='plus.svg') }}";
+    const xUrl = "{{ url_for('static', path='x.svg') }}";
+    const profileUrlTemplate = "{{ request.url_for('profile_picture', username='__user__') }}";
+    const allUsers = {{ all_users()|selectattr('username','ne','Viewer')|map(attribute='username')|list|tojson }};
+    const recurrenceTypes = {{ RecurrenceType|map(attribute='value')|list|tojson }};
+
+    function makeBtn(url, alt) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'icon-button';
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = alt;
+        img.className = 'icon';
+        b.appendChild(img);
+        return b;
+    }
+
+    function setupRecurrenceEditor(li, rec) {
+        const offsetSeconds = rec && rec.offset && rec.offset.exact_duration_seconds ? rec.offset.exact_duration_seconds : 0;
+        const days = Math.floor(offsetSeconds / 86400);
+        const hours = Math.floor((offsetSeconds % 86400) / 3600);
+        const minutes = Math.floor((offsetSeconds % 3600) / 60);
+        li.innerHTML = '';
+
+        const typeSelect = document.createElement('select');
+        typeSelect.className = 'inline-input';
+        typeSelect.name = 'recurrence_type[]';
+        recurrenceTypes.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t;
+            opt.textContent = t;
+            if (rec && rec.type === t) opt.selected = true;
+            typeSelect.appendChild(opt);
+        });
+
+        const durationSpan = document.createElement('span');
+        const durLabel = document.createElement('span');
+        durLabel.textContent = 'Offset: ';
+        durationSpan.appendChild(durLabel);
+        const dayInput = document.createElement('input');
+        dayInput.type = 'number';
+        dayInput.placeholder = 'Days';
+        dayInput.min = '0';
+        dayInput.name = 'offset_days[]';
+        dayInput.className = 'inline-input';
+        if (days) dayInput.value = days;
+        dayInput.style.width = '4ch';
+        const hourInput = document.createElement('input');
+        hourInput.type = 'number';
+        hourInput.placeholder = 'Hours';
+        hourInput.min = '0';
+        hourInput.name = 'offset_hours[]';
+        hourInput.className = 'inline-input';
+        if (hours) hourInput.value = hours;
+        hourInput.style.width = '4ch';
+        const minuteInput = document.createElement('input');
+        minuteInput.type = 'number';
+        minuteInput.placeholder = 'Minutes';
+        minuteInput.min = '0';
+        minuteInput.max = '59';
+        minuteInput.name = 'offset_minutes[]';
+        minuteInput.className = 'inline-input';
+        if (minutes) minuteInput.value = minutes;
+        minuteInput.style.width = '4ch';
+        const monthInput = document.createElement('input');
+        monthInput.type = 'hidden';
+        monthInput.name = 'offset_months[]';
+        monthInput.value = rec && rec.offset && rec.offset.months ? rec.offset.months : 0;
+        const yearInput = document.createElement('input');
+        yearInput.type = 'hidden';
+        yearInput.name = 'offset_years[]';
+        yearInput.value = rec && rec.offset && rec.offset.years ? rec.offset.years : 0;
+        durationSpan.appendChild(dayInput);
+        durationSpan.appendChild(hourInput);
+        durationSpan.appendChild(minuteInput);
+        durationSpan.appendChild(monthInput);
+        durationSpan.appendChild(yearInput);
+
+        const respContainer = document.createElement('span');
+        const responsible = rec && rec.responsible ? [...rec.responsible] : [];
+
+        function addResp(user) {
+            const wrapper = document.createElement('span');
+            const img = document.createElement('img');
+            img.src = profileUrlTemplate.replace('__user__', encodeURIComponent(user));
+            img.alt = user;
+            img.className = 'profile-icon';
+            const rm = makeBtn(trashUrl, 'Remove');
+            rm.addEventListener('click', () => {
+                wrapper.remove();
+                const idx = responsible.indexOf(user);
+                if (idx >= 0) responsible.splice(idx, 1);
+                updateHidden();
+                refreshDropdown();
+            });
+            wrapper.appendChild(img);
+            wrapper.appendChild(rm);
+            respContainer.appendChild(wrapper);
+        }
+
+        const addWrap = document.createElement('span');
+        addWrap.className = 'responsible-selector';
+        const addBtn = makeBtn(plusUrl, 'Add user');
+        const dropdown = document.createElement('div');
+        dropdown.className = 'dropdown';
+        dropdown.style.display = 'none';
+
+        function refreshDropdown() {
+            dropdown.innerHTML = '';
+            allUsers.filter(u => !responsible.includes(u)).forEach(u => {
+                const a = document.createElement('a');
+                a.href = '#';
+                a.textContent = u;
+                a.addEventListener('click', e => {
+                    e.preventDefault();
+                    responsible.push(u);
+                    addResp(u);
+                    dropdown.style.display = 'none';
+                    refreshDropdown();
+                });
+                dropdown.appendChild(a);
+            });
+        }
+
+        addBtn.addEventListener('click', () => {
+            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+        });
+
+        addWrap.appendChild(addBtn);
+        addWrap.appendChild(dropdown);
+
+        const respHidden = document.createElement('input');
+        respHidden.type = 'hidden';
+        respHidden.name = 'recurrence_responsible[]';
+        const delHidden = document.createElement('input');
+        delHidden.type = 'hidden';
+        delHidden.name = 'recurrence_delegations[]';
+        delHidden.value = '[]';
+
+        function updateHidden() {
+            respHidden.value = JSON.stringify(responsible);
+        }
+
+        responsible.forEach(u => addResp(u));
+        refreshDropdown();
+        updateHidden();
+
+        const removeBtn = makeBtn(xUrl, 'Remove');
+        removeBtn.addEventListener('click', () => {
+            li.remove();
+            if (recList && recList.children.length === 0) {
+                recContainer.innerHTML = '';
+            }
+        });
+
+        li.appendChild(typeSelect);
+        li.appendChild(durationSpan);
+        li.appendChild(respContainer);
+        li.appendChild(addWrap);
+        li.appendChild(respHidden);
+        li.appendChild(delHidden);
+        li.appendChild(removeBtn);
+    }
+
+    addRecurrence.addEventListener('click', () => {
+        if (!recList) {
+            recList = document.createElement('ul');
+            recList.id = 'recurrence-list';
+            recContainer.appendChild(recList);
+        }
+        const li = document.createElement('li');
+        li.className = 'recurrence-item';
+        recList.appendChild(li);
+        setupRecurrenceEditor(li, null);
+    });
 
     function createResponsibleManager(addBtn, dropdown, list, inputName) {
         function addUser(user) {
@@ -236,77 +331,6 @@ document.addEventListener('DOMContentLoaded', function () {
         return { addUser, list };
     }
 
-    function addRecurrenceItem(rec) {
-        const fragment = recurrenceTemplate.content.cloneNode(true);
-        const item = fragment.querySelector('.recurrence-item');
-        if (rec) {
-            fragment.querySelector('select[name="recurrence_type[]"]').value = rec.type;
-            if (rec.offset) {
-                if (rec.offset.exact_duration_seconds) {
-                    const dur = rec.offset.exact_duration_seconds;
-                    const days = Math.floor(dur / 86400);
-                    const hours = Math.floor((dur % 86400) / 3600);
-                    const minutes = Math.floor((dur % 3600) / 60);
-                    if (days) fragment.querySelector('input[name="offset_days[]"]').value = days;
-                    if (hours) fragment.querySelector('input[name="offset_hours[]"]').value = hours;
-                    if (minutes) fragment.querySelector('input[name="offset_minutes[]"]').value = minutes;
-                }
-                if (rec.offset.months) {
-                    fragment.querySelector('input[name="offset_months[]"]').value = rec.offset.months;
-                }
-                if (rec.offset.years) {
-                    fragment.querySelector('input[name="offset_years[]"]').value = rec.offset.years;
-                }
-            }
-        }
-
-        const recManager = createResponsibleManager(
-            item.querySelector('.recurrence-responsible-selector .add-responsible'),
-            item.querySelector('.recurrence-responsible-selector .dropdown'),
-            item.querySelector('.recurrence-responsible-list'),
-            null
-        );
-
-        const delegationList = item.querySelector('.delegations-list');
-        const delegationTemplate = item.querySelector('.delegation-template');
-        function addDelegation(data) {
-            const df = delegationTemplate.content.cloneNode(true);
-            const delItem = df.querySelector('.delegation-item');
-            delItem.querySelector('.remove-delegation').addEventListener('click', () => delItem.remove());
-            const instInput = delItem.querySelector('.delegation-instance');
-            const delManager = createResponsibleManager(
-                delItem.querySelector('.delegation-responsible-selector .add-responsible'),
-                delItem.querySelector('.delegation-responsible-selector .dropdown'),
-                delItem.querySelector('.delegation-responsible-list'),
-                null
-            );
-            if (data) {
-                instInput.value = data.instance_index;
-                (data.responsible || []).forEach(u => delManager.addUser(u));
-            }
-            delegationList.appendChild(delItem);
-        }
-        item.querySelector('.add-delegation').addEventListener('click', function () {
-            addDelegation();
-        });
-
-        if (rec) {
-            (rec.responsible || []).forEach(u => recManager.addUser(u));
-            (rec.delegations || []).forEach(d => addDelegation(d));
-        }
-
-        recurrences.appendChild(fragment);
-    }
-
-    addRecurrence.addEventListener('click', function () {
-        addRecurrenceItem();
-    });
-    recurrences.addEventListener('click', function (e) {
-        if (e.target.closest('.remove-recurrence')) {
-            e.target.closest('.recurrence-item').remove();
-        }
-    });
-
     const entryRespManager = createResponsibleManager(
         document.getElementById('add-responsible'),
         document.getElementById('responsible-dropdown'),
@@ -338,7 +362,17 @@ document.addEventListener('DOMContentLoaded', function () {
     if (data.none_after) {
         document.getElementById('none_after').value = data.none_after.slice(0,16);
     }
-    data.recurrences.forEach(r => addRecurrenceItem(r));
+    if (!recList) {
+        recList = document.createElement('ul');
+        recList.id = 'recurrence-list';
+        recContainer.appendChild(recList);
+    }
+    data.recurrences.forEach(r => {
+        const li = document.createElement('li');
+        li.className = 'recurrence-item';
+        recList.appendChild(li);
+        setupRecurrenceEditor(li, r);
+    });
     data.responsible.forEach(u => entryRespManager.addUser(u));
     data.managers.forEach(u => entryManagersManager.addUser(u));
     {% endif %}
@@ -371,29 +405,6 @@ document.addEventListener('DOMContentLoaded', function () {
             alert('At least one manager required');
             return;
         }
-        document.querySelectorAll('input[name="recurrence_responsible[]"]').forEach(el => el.remove());
-        document.querySelectorAll('input[name="recurrence_delegations[]"]').forEach(el => el.remove());
-        document.querySelectorAll('.recurrence-item').forEach(item => {
-            const resps = Array.from(item.querySelectorAll('.recurrence-responsible-list li')).map(li => li.dataset.user);
-            const hiddenR = document.createElement('input');
-            hiddenR.type = 'hidden';
-            hiddenR.name = 'recurrence_responsible[]';
-            hiddenR.value = JSON.stringify(resps);
-            form.appendChild(hiddenR);
-            const delegations = [];
-            item.querySelectorAll('.delegation-item').forEach(delItem => {
-                const idx = parseInt(delItem.querySelector('.delegation-instance').value);
-                if (!isNaN(idx)) {
-                    const resp = Array.from(delItem.querySelectorAll('.delegation-responsible-list li')).map(li => li.dataset.user);
-                    delegations.push({instance_index: idx, responsible: resp});
-                }
-            });
-            const hiddenD = document.createElement('input');
-            hiddenD.type = 'hidden';
-            hiddenD.name = 'recurrence_delegations[]';
-            hiddenD.value = JSON.stringify(delegations);
-            form.appendChild(hiddenD);
-        });
     });
 });
 </script>
