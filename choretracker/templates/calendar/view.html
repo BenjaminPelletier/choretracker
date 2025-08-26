@@ -14,6 +14,12 @@
     {% endif %}
 </h1>
 <p class="time-range">{{ time_range_summary(entry_start, entry_end) }}</p>
+{% if prev_entry %}
+<p class="time-range">Previous: <a href="{{ url_for('view_calendar_entry', entry_id=prev_entry.id) }}">{{ time_range_summary(prev_start, prev_end) }}</a></p>
+{% endif %}
+{% if next_entry %}
+<p class="time-range">Next: <a href="{{ url_for('view_calendar_entry', entry_id=next_entry.id) }}">{{ time_range_summary(next_start, next_end) }}</a></p>
+{% endif %}
 <div class="description" id="description-container">
     <div id="description-text">{{ entry.description|markdown }}</div>
     {% if can_edit %}
@@ -131,6 +137,7 @@ document.querySelectorAll('.checkbox-icon[data-action="remove"]').forEach(el => 
         await fetch(`/calendar/${entry}/completion/remove`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
             body: JSON.stringify({recurrence_index: r, instance_index: i})
         });
         location.reload();
@@ -178,6 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 await fetch(`/calendar/${entryId}/update`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
+                    credentials: 'same-origin',
                     body: JSON.stringify({first_start: input.value})
                 });
                 location.reload();
@@ -228,6 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 await fetch(`/calendar/${entryId}/update`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
+                    credentials: 'same-origin',
                     body: JSON.stringify({
                         duration_days: parseInt(dayInput.value || '0'),
                         duration_hours: parseInt(hourInput.value || '0'),
@@ -265,6 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 await fetch(`/calendar/${entryId}/update`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
+                    credentials: 'same-origin',
                     body: JSON.stringify({ none_after: input.value })
                 });
                 location.reload();
@@ -345,6 +355,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 await fetch(`/calendar/${entryId}/update`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
+                    credentials: 'same-origin',
                     body: JSON.stringify({managers: managers})
                 });
                 location.reload();
@@ -425,6 +436,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 await fetch(`/calendar/${entryId}/update`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
+                    credentials: 'same-origin',
                     body: JSON.stringify({responsible: responsible})
                 });
                 location.reload();
@@ -644,6 +656,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const resp = await fetch(`/calendar/${entryId}/update`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
+                    credentials: 'same-origin',
                     body: JSON.stringify({description: textarea.value})
                 });
                 const data = await resp.json();
@@ -685,6 +698,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 await fetch(`/calendar/${entryId}/update`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
+                    credentials: 'same-origin',
                     body: JSON.stringify({title: titleInput.value, type: typeSelect.value})
                 });
                 location.reload();

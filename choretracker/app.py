@@ -623,6 +623,17 @@ async def view_calendar_entry(
         raise HTTPException(status_code=404)
     require_entry_read_permission(request, entry.type)
     entry_start, entry_end = entry_time_bounds(entry)
+    prev_entry = (
+        calendar_store.get(entry.previous_entry) if entry.previous_entry else None
+    )
+    next_entry = (
+        calendar_store.get(entry.next_entry) if entry.next_entry else None
+    )
+    prev_start = prev_end = next_start = next_end = None
+    if prev_entry:
+        prev_start, prev_end = entry_time_bounds(prev_entry)
+    if next_entry:
+        next_start, next_end = entry_time_bounds(next_entry)
     current_user = request.session.get("user")
     comps_list = completion_store.list_for_entry(entry_id)
     comp_map = {(c.recurrence_index, c.instance_index): c for c in comps_list}
@@ -689,6 +700,12 @@ async def view_calendar_entry(
             "RecurrenceType": RecurrenceType,
             "entry_start": entry_start,
             "entry_end": entry_end,
+            "prev_entry": prev_entry,
+            "next_entry": next_entry,
+            "prev_start": prev_start,
+            "prev_end": prev_end,
+            "next_start": next_start,
+            "next_end": next_end,
         },
     )
 
