@@ -208,22 +208,50 @@
             });
         });
         function performSwitch(username, next, pin) {
-            fetch('/switch/' + encodeURIComponent(username) + '?next=' + encodeURIComponent(next), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
-                body: new URLSearchParams({ pin: pin })
-            }).then(function (resp) {
-                if (resp.ok) {
-                    resp.json().then(function (data) {
+            var url = '/switch/' + encodeURIComponent(username) + '?next=' + encodeURIComponent(next);
+            if (window.fetch) {
+                fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+                    credentials: 'same-origin',
+                    body: 'pin=' + encodeURIComponent(pin)
+                }).then(function (resp) {
+                    if (resp.ok) {
+                        resp.json().then(function (data) {
+                            closePinModal();
+                            window.location.href = data.redirect;
+                        });
+                    } else {
+                        resp.json().then(function (data) {
+                            pinError.textContent = data.error || 'Invalid PIN';
+                        });
+                    }
+                }).catch(function () {
+                    pinError.textContent = 'Network error';
+                });
+            } else {
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', url);
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                xhr.setRequestHeader('Accept', 'application/json');
+                xhr.withCredentials = true;
+                xhr.onload = function () {
+                    var data = {};
+                    try {
+                        data = JSON.parse(xhr.responseText);
+                    } catch (e) {}
+                    if (xhr.status >= 200 && xhr.status < 300) {
                         closePinModal();
                         window.location.href = data.redirect;
-                    });
-                } else {
-                    resp.json().then(function (data) {
+                    } else {
                         pinError.textContent = data.error || 'Invalid PIN';
-                    });
-                }
-            });
+                    }
+                };
+                xhr.onerror = function () {
+                    pinError.textContent = 'Network error';
+                };
+                xhr.send('pin=' + encodeURIComponent(pin));
+            }
         }
 
         var loggedInUser = "{{ request.session.get('user') }}";
