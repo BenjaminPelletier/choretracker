@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from sqlmodel import create_engine
+from sqlalchemy import event
 from pydantic.json import pydantic_encoder
 from markdown import markdown as md
 from markupsafe import Markup
@@ -48,6 +49,11 @@ engine = create_engine(
     connect_args={"check_same_thread": False},
     json_serializer=lambda obj: json.dumps(obj, default=pydantic_encoder),
 )
+@event.listens_for(engine, "connect")
+def _set_sqlite_pragma(dbapi_connection, connection_record):
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 init_db(engine)
 user_store = UserStore(engine)
 calendar_store = CalendarEntryStore(engine)

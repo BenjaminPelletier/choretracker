@@ -8,7 +8,7 @@ import calendar as cal
 from typing import Iterator, List, Optional
 
 from sqlmodel import Column, Field, Session, SQLModel, select
-from sqlalchemy import JSON
+from sqlalchemy import JSON, ForeignKey, Integer
 
 
 class RecurrenceType(str, Enum):
@@ -223,7 +223,13 @@ class CalendarEntryStore:
 
 class ChoreCompletion(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    entry_id: int = Field(index=True)
+    entry_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("calendarentry.id", ondelete="CASCADE"),
+            index=True,
+        )
+    )
     recurrence_index: int
     instance_index: int
     completed_by: str
