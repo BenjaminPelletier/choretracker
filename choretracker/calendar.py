@@ -55,6 +55,12 @@ class CalendarEntry(SQLModel, table=True):
     none_before: Optional[datetime] = None
     responsible: List[str] = Field(default_factory=list, sa_column=Column(JSON))
     managers: List[str] = Field(default_factory=list, sa_column=Column(JSON))
+    previous_entry: Optional[int] = Field(
+        default=None, foreign_key="calendarentry.id"
+    )
+    next_entry: Optional[int] = Field(
+        default=None, foreign_key="calendarentry.id"
+    )
 
     @property
     def duration(self) -> timedelta:
@@ -186,6 +192,12 @@ class CalendarEntryStore:
             session.add(entry)
             session.add(new_entry)
             session.commit()
+
+            # Link entries
+            entry.next_entry = new_entry.id
+            new_entry.previous_entry = entry.id
+            session.add(entry)
+            session.add(new_entry)
 
             # Move completions
             comps = session.exec(

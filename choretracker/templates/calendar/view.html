@@ -14,6 +14,12 @@
     {% endif %}
 </h1>
 <p class="time-range">{{ time_range_summary(entry_start, entry_end) }}</p>
+{% if prev_entry %}
+<p class="time-range">Previous: <a href="{{ url_for('view_calendar_entry', entry_id=prev_entry.id) }}">{{ time_range_summary(prev_start, prev_end) }}</a></p>
+{% endif %}
+{% if next_entry %}
+<p class="time-range">Next: <a href="{{ url_for('view_calendar_entry', entry_id=next_entry.id) }}">{{ time_range_summary(next_start, next_end) }}</a></p>
+{% endif %}
 <div class="description" id="description-container">
     <div id="description-text">{{ entry.description|markdown }}</div>
     {% if can_edit %}

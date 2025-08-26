@@ -82,6 +82,28 @@ def test_description_edit_splits_entry(tmp_path, monkeypatch):
     assert {(c.recurrence_index, c.instance_index) for c in old_comps} == {(0, 0)}
     assert {(c.recurrence_index, c.instance_index) for c in new_comps} == {(0, 1)}
 
+    # new linking fields
+    assert old_entry.next_entry == new_entry.id
+    assert new_entry.previous_entry == old_entry.id
+
+    # ensure previous/next links show on pages
+    old_start, old_end = app_module.entry_time_bounds(old_entry)
+    new_start, new_end = app_module.entry_time_bounds(new_entry)
+
+    page_old = client.get(f"/calendar/entry/{old_entry.id}")
+    next_summary = app_module.time_range_summary(new_start, new_end)
+    assert (
+        f'Next: <a href="http://testserver/calendar/entry/{new_entry.id}">{next_summary}</a>'
+        in page_old.text
+    )
+
+    page_new = client.get(f"/calendar/entry/{new_entry.id}")
+    prev_summary = app_module.time_range_summary(old_start, old_end)
+    assert (
+        f'Previous: <a href="http://testserver/calendar/entry/{old_entry.id}">{prev_summary}</a>'
+        in page_new.text
+    )
+
     page = client.get(f"/calendar/entry/{new_entry.id}")
     expected_nb = fake_now.strftime("%A %Y-%m-%d %H:%M")
     assert (
