@@ -193,7 +193,12 @@ app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="sta
 
 def require_permission(request: Request, permission: str) -> None:
     username = request.session.get("user")
-    if not username or not user_store.has_permission(username, permission):
+    if not username or not user_store.get(username):
+        request.session.clear()
+        raise HTTPException(
+            status_code=303, headers={"Location": str(request.url_for("login"))}
+        )
+    if not user_store.has_permission(username, permission):
         request.session["flash"] = "You are not allowed to perform that action."
         raise HTTPException(
             status_code=303, headers={"Location": str(request.url_for("index"))}
@@ -227,11 +232,16 @@ class EnsureUserMiddleware(BaseHTTPMiddleware):
         user = session.get("user")
         now = datetime.now().timestamp()
         if user:
-            last = session.get("last_active", now)
-            if user != "Viewer" and now - last > LOGOUT_DURATION.total_seconds():
-                session["user"] = "Viewer"
-                user = "Viewer"
-            session["last_active"] = now
+            if not user_store.get(user):
+                session.clear()
+                if not (path == "/login" or path.startswith("/static")):
+                    return RedirectResponse(url="/login")
+            else:
+                last = session.get("last_active", now)
+                if user != "Viewer" and now - last > LOGOUT_DURATION.total_seconds():
+                    session["user"] = "Viewer"
+                    user = "Viewer"
+                session["last_active"] = now
         elif not (path == "/login" or path.startswith("/static")):
             return RedirectResponse(url="/login")
 
