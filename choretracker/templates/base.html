@@ -213,6 +213,7 @@
                 fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+                    credentials: 'same-origin',
                     body: 'pin=' + encodeURIComponent(pin)
                 }).then(function (resp) {
                     if (resp.ok) {
@@ -233,6 +234,7 @@
                 xhr.open('POST', url);
                 xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
                 xhr.setRequestHeader('Accept', 'application/json');
+                xhr.withCredentials = true;
                 xhr.onload = function () {
                     var data = {};
                     try {
