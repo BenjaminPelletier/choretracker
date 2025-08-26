@@ -50,3 +50,18 @@ To run or debug the server directly from PyCharm:
 
 ## Stopping the Server
 Press `Ctrl+C` in the terminal where the server is running.
+
+## Database Layout
+The application uses a SQLite database via SQLModel. Three tables are
+defined:
+
+- **User** – stores authentication credentials, permissions and optional
+  profile pictures.
+- **CalendarEntry** – holds events, chores and reminders along with
+  recurrence information.
+- **ChoreCompletion** – records completed chore instances. Each record
+  references a calendar entry and is automatically removed if its parent
+  entry is deleted.
+
+Foreign key constraints are enabled on startup to maintain referential
+integrity.
