@@ -52,6 +52,7 @@ class CalendarEntry(SQLModel, table=True):
     duration_seconds: int = Field(gt=0)
     recurrences: List[Recurrence] = Field(default_factory=list, sa_column=Column(JSON))
     none_after: Optional[datetime] = None
+    none_before: Optional[datetime] = None
     responsible: List[str] = Field(default_factory=list, sa_column=Column(JSON))
     managers: List[str] = Field(default_factory=list, sa_column=Column(JSON))
 
@@ -98,6 +99,7 @@ class CalendarEntryStore:
             entry.duration_seconds = new_data.duration_seconds
             entry.recurrences = new_data.recurrences
             entry.none_after = new_data.none_after
+            entry.none_before = new_data.none_before
             entry.responsible = new_data.responsible
             entry.managers = new_data.managers
             session.add(entry)
@@ -119,6 +121,91 @@ class CalendarEntryStore:
             if entry:
                 session.delete(entry)
                 session.commit()
+
+    def split(
+        self, entry_id: int, split_time: datetime
+    ) -> Optional[CalendarEntry]:
+        """Split a CalendarEntry at ``split_time``.
+
+        Returns the newly created CalendarEntry or ``None`` if ``entry_id``
+        does not exist.
+        """
+        with Session(self.engine) as session:
+            entry = session.get(CalendarEntry, entry_id)
+            if not entry:
+                return None
+            # Ensure Recurrence objects
+            entry.recurrences = [
+                rec if isinstance(rec, Recurrence) else Recurrence.model_validate(rec)
+                for rec in entry.recurrences
+            ]
+
+            # Copy of entry for time period calculations
+            original = CalendarEntry.model_validate(entry.model_dump())
+            original.recurrences = [
+                r if isinstance(r, Recurrence) else Recurrence.model_validate(r)
+                for r in original.recurrences
+            ]
+
+            # Create new entry as a copy
+            new_entry = CalendarEntry.model_validate(entry.model_dump())
+            new_entry.id = None
+            new_entry.none_before = split_time
+            new_entry.recurrences = [
+                Recurrence.model_validate(r.model_dump()) for r in entry.recurrences
+            ]
+
+            # Move skips and delegations
+            for idx, rec in enumerate(entry.recurrences):
+                new_rec = new_entry.recurrences[idx]
+                keep_skips: list[int] = []
+                move_skips: list[int] = []
+                for sidx in rec.skipped_instances:
+                    period = find_time_period(original, idx, sidx, include_skipped=True)
+                    if period and period.start >= split_time:
+                        move_skips.append(sidx)
+                    else:
+                        keep_skips.append(sidx)
+                rec.skipped_instances = keep_skips
+                new_rec.skipped_instances = move_skips
+
+                keep_del: list[Delegation] = []
+                move_del: list[Delegation] = []
+                for d in rec.delegations:
+                    period = find_time_period(original, idx, d.instance_index, include_skipped=True)
+                    if period and period.start >= split_time:
+                        move_del.append(d)
+                    else:
+                        keep_del.append(d)
+                rec.delegations = keep_del
+                new_rec.delegations = move_del
+
+            # Adjust boundaries
+            entry.none_after = split_time - timedelta(minutes=1)
+
+            session.add(entry)
+            session.add(new_entry)
+            session.commit()
+
+            # Move completions
+            comps = session.exec(
+                select(ChoreCompletion).where(ChoreCompletion.entry_id == entry_id)
+            ).all()
+            for comp in comps:
+                period = find_time_period(
+                    original, comp.recurrence_index, comp.instance_index, include_skipped=True
+                )
+                if period and period.start >= split_time:
+                    comp.entry_id = new_entry.id
+                    session.add(comp)
+            session.commit()
+
+            # Ensure recurrences are Recurrence objects for return
+            new_entry.recurrences = [
+                r if isinstance(r, Recurrence) else Recurrence.model_validate(r)
+                for r in new_entry.recurrences
+            ]
+            return new_entry
 
 
 class ChoreCompletion(SQLModel, table=True):
@@ -261,13 +348,17 @@ def _recurrence_generator(
     entry: CalendarEntry, rec: Recurrence, rindex: int, include_skipped: bool
 ) -> Iterator[TimePeriod]:
     none_after = entry.none_after
+    none_before = entry.none_before
     if rec.offset:
         start = _apply_offset(entry.first_start, rec.offset)
     else:
         start = _advance(entry.first_start, rec.type)
     instance = 0
     while start and (not none_after or start <= none_after):
-        if include_skipped or instance not in rec.skipped_instances:
+        if (
+            (not none_before or start >= none_before)
+            and (include_skipped or instance not in rec.skipped_instances)
+        ):
             yield TimePeriod(
                 start=start,
                 end=start + entry.duration,
@@ -282,7 +373,11 @@ def enumerate_time_periods(
     entry: CalendarEntry, include_skipped: bool = False
 ) -> Iterator[TimePeriod]:
     none_after = entry.none_after
-    if not none_after or entry.first_start <= none_after:
+    none_before = entry.none_before
+    if (
+        (not none_after or entry.first_start <= none_after)
+        and (not none_before or entry.first_start >= none_before)
+    ):
         yield TimePeriod(
             start=entry.first_start,
             end=entry.first_start + entry.duration,
