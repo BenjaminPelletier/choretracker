@@ -5,7 +5,7 @@
 {% block content %}
 <h1><a href="{{ request.url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a> instance</h1>
 <div class="time-range">
-    <span>{{ period|format_time_range }}</span>
+    <span>{{ time_range_summary(period.start, period.end) }}</span>
     {% for user in responsible %}
     <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
     {% endfor %}

@@ -168,27 +168,40 @@ def b64encode_filter(s: str) -> str:
 
 templates.env.filters["b64encode"] = b64encode_filter
 
-
-def format_time_range(period: TimePeriod) -> str:
-    start = period.start.replace(second=0, microsecond=0)
-    end = period.end.replace(second=0, microsecond=0)
-    start_str = start.strftime("%Y-%m-%d %H:%M")
+def time_range_summary(start: datetime, end: datetime | None) -> str:
+    start = start.replace(second=0, microsecond=0)
+    start_str = start.strftime("%a %Y-%m-%d %H:%M")
+    if end is None:
+        return f"From {start_str}, indefinitely"
+    end = end.replace(second=0, microsecond=0)
     if start.year != end.year:
-        end_fmt = "%Y-%m-%d %H:%M"
-    elif start.month != end.month:
-        end_fmt = "%m-%d %H:%M"
-    elif start.day != end.day:
-        end_fmt = "%d %H:%M"
-    elif start.hour != end.hour:
-        end_fmt = "%H:%M"
+        end_fmt = "%a %Y-%m-%d"
+    elif start.month != end.month or start.day != end.day:
+        end_fmt = "%a %m-%d"
     else:
-        end_fmt = "%M"
-    end_str = end.strftime(end_fmt)
-    return f"{start_str} - {end_str}"
+        end_fmt = ""
+    if start.hour != end.hour or start.minute != end.minute:
+        end_fmt = f"{end_fmt + ' ' if end_fmt else ''}%H:%M"
+    end_str = end.strftime(end_fmt).strip()
+    return f"{start_str} to {end_str}"
 
 
-templates.env.filters["format_time_range"] = format_time_range
+templates.env.globals["time_range_summary"] = time_range_summary
 app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="static")
+
+
+def entry_time_bounds(entry: CalendarEntry) -> tuple[datetime, datetime | None]:
+    periods = enumerate_time_periods(entry)
+    first = next(periods, None)
+    if not first:
+        return (entry.first_start, None)
+    start = first.start
+    end = first.end
+    if entry.recurrences and entry.none_after is None:
+        return (start, None)
+    for p in periods:
+        end = p.end
+    return (start, end)
 
 
 def require_permission(request: Request, permission: str) -> None:
@@ -575,7 +588,8 @@ async def list_calendar_entries(request: Request, entry_type: str):
     counts = Counter(e.title for e in entries)
     for entry in entries:
         if counts[entry.title] > 1:
-            entry.title = f"{entry.title} ({format_datetime(entry.first_start, include_day=True)})"
+            start, end = entry_time_bounds(entry)
+            entry.title = f"{entry.title} ({time_range_summary(start, end)})"
     current_user = request.session.get("user")
     return templates.TemplateResponse(
         "calendar/list.html",
@@ -596,6 +610,7 @@ async def view_calendar_entry(
     if not entry:
         raise HTTPException(status_code=404)
     require_entry_read_permission(request, entry.type)
+    entry_start, entry_end = entry_time_bounds(entry)
     current_user = request.session.get("user")
     comps_list = completion_store.list_for_entry(entry_id)
     comp_map = {(c.recurrence_index, c.instance_index): c for c in comps_list}
@@ -660,6 +675,8 @@ async def view_calendar_entry(
             "upcoming_entries": upcoming_entries,
             "CalendarEntryType": CalendarEntryType,
             "RecurrenceType": RecurrenceType,
+            "entry_start": entry_start,
+            "entry_end": entry_end,
         },
     )
 
