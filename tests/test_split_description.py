@@ -56,11 +56,16 @@ def test_description_edit_splits_entry(tmp_path, monkeypatch):
     app_module.completion_store.create(entry_id, 0, 0, "Admin")
     app_module.completion_store.create(entry_id, 0, 1, "Admin")
 
-    client.post(f"/calendar/{entry_id}/update", json={"description": "New"})
+    resp = client.post(
+        f"/calendar/{entry_id}/update", json={"description": "New"}
+    )
+    data = resp.json()
 
     entries = sorted(app_module.calendar_store.list_entries(), key=lambda e: e.id)
     old_entry = next(e for e in entries if e.id == entry_id)
     new_entry = next(e for e in entries if e.id != entry_id)
+
+    assert data["redirect"].endswith(f"/calendar/entry/{new_entry.id}")
 
     assert old_entry.description == "Old"
     assert new_entry.description == "New"
@@ -76,6 +81,12 @@ def test_description_edit_splits_entry(tmp_path, monkeypatch):
     new_comps = app_module.completion_store.list_for_entry(new_entry.id)
     assert {(c.recurrence_index, c.instance_index) for c in old_comps} == {(0, 0)}
     assert {(c.recurrence_index, c.instance_index) for c in new_comps} == {(0, 1)}
+
+    page = client.get(f"/calendar/entry/{new_entry.id}")
+    expected_nb = fake_now.strftime("%A %Y-%m-%d %H:%M")
+    assert (
+        f'None before: <span id="none-before-text">{expected_nb}</span>' in page.text
+    )
 
     # ensure instances split
     old_times = [p.start for p in app_module.enumerate_time_periods(old_entry)]

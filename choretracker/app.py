@@ -859,7 +859,16 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
                 raise HTTPException(status_code=404)
             new_entry.description = desc
             calendar_store.update(new_entry.id, new_entry)
-            return JSONResponse({"status": "ok"})
+            return JSONResponse(
+                {
+                    "status": "ok",
+                    "redirect": str(
+                        request.url_for(
+                            "view_calendar_entry", entry_id=new_entry.id
+                        )
+                    ),
+                }
+            )
         else:
             entry.description = desc
             calendar_store.update(entry_id, entry)
