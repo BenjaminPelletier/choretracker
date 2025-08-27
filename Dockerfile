@@ -1,5 +1,7 @@
 FROM python:3.13-slim
 
+ARG CHORETRACKER_VERSION
+ENV CHORETRACKER_VERSION=$CHORETRACKER_VERSION
 ENV UV_PROJECT_ENVIRONMENT=/app/.venv
 
 # Install system dependencies required to build packages from source
