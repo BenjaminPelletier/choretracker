@@ -6,6 +6,10 @@ The application stores information in a SQLite database. By default, the databas
 file `choretracker.db` is created in the working directory. To use a different
 location, set the `CHORETRACKER_DB` environment variable to the desired path.
 
+The server also requires a secret key for session management. Before starting
+the application, set `CHORETRACKER_SECRET_KEY` to a secure, random value and
+keep it consistent between restarts.
+
 If no existing user has the `admin` permission, a new database is automatically
 populated with an `Admin` user (password `admin`, PIN `0000`) that has the
 `admin` permission. The `admin` permission grants all actions, including those
@@ -14,16 +18,20 @@ normally requiring `iam`.
 ### Direct execution
 
 ```bash
-CHORETRACKER_DB=/path/to/choretracker.db uv run uvicorn choretracker.app:app --host 0.0.0.0 --port 8000 --reload --reload-exclude .venv
+CHORETRACKER_DB=/path/to/choretracker.db \
+CHORETRACKER_SECRET_KEY=$(openssl rand -hex 32) \
+uv run uvicorn choretracker.app:app --host 0.0.0.0 --port 8000 --reload --reload-exclude .venv
 ```
 
 ### Docker
 
-When running in Docker, pass the environment variable and mount a volume for
+When running in Docker, pass the environment variables and mount a volume for
 the database file:
 
 ```bash
-docker run -e CHORETRACKER_DB=/data/choretracker.db -v $(pwd)/data:/data -p 8000:8000 benpelletier/choretracker
+docker run -e CHORETRACKER_DB=/data/choretracker.db \
+  -e CHORETRACKER_SECRET_KEY=$(openssl rand -hex 32) \
+  -v $(pwd)/data:/data -p 8000:8000 benpelletier/choretracker
 ```
 
 _Note that older versions of Docker may require the use of `--security-opt seccomp=unconfined` to support the `clone3` system the Tokio runtime uses._
