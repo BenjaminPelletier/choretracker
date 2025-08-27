@@ -5,7 +5,9 @@ ENV CHORETRACKER_VERSION=$CHORETRACKER_VERSION
 ENV UV_PROJECT_ENVIRONMENT=/app/.venv
 
 # Install system dependencies required to build packages from source
-RUN apt-get update \
+# Remove Docker's default apt cleanup hook which fails on some architectures
+RUN rm -f /etc/apt/apt.conf.d/docker-clean \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
         cargo \
