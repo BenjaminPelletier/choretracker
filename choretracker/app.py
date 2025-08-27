@@ -14,14 +14,20 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-from sqlmodel import create_engine
+from sqlmodel import create_engine, Session, select
 from sqlalchemy import event
 from pydantic.json import pydantic_encoder
 from markdown import markdown as md
 from markupsafe import Markup
 import base64
 
-from .users import UserStore, init_db, process_profile_picture, pwd_context
+from .users import (
+    UserStore,
+    init_db,
+    process_profile_picture,
+    pwd_context,
+    is_url_safe,
+)
 from .calendar import (
     CalendarEntry,
     CalendarEntryStore,
@@ -208,6 +214,16 @@ def entry_time_bounds(entry: CalendarEntry) -> tuple[datetime, datetime | None]:
     for p in periods:
         end = p.end
     return (start, end)
+
+
+def has_past_instances(entry: CalendarEntry, now: datetime | None = None) -> bool:
+    if now is None:
+        now = datetime.now()
+    for period in enumerate_time_periods(entry, include_skipped=True):
+        if period.start < now:
+            return True
+        break
+    return False
 
 
 def require_permission(request: Request, permission: str) -> None:
@@ -516,7 +532,7 @@ async def create_calendar_entry(request: Request):
         CalendarEntryType.Chore: "chores.write",
     }
     require_permission(request, perm_map[entry_type])
-
+    current_user = request.session.get("user")
     first_start_str = form.get("first_start")
     if not first_start_str:
         raise HTTPException(status_code=400, detail="first_start required")
@@ -602,6 +618,8 @@ async def create_calendar_entry(request: Request):
         responsible=responsible,
         managers=managers,
     )
+    if not user_store.has_permission(current_user, "admin") and has_past_instances(entry):
+        raise HTTPException(status_code=400, detail="Cannot create entry in the past")
     calendar_store.create(entry)
     return RedirectResponse(url="/", status_code=303)
 
@@ -810,6 +828,7 @@ async def update_calendar_entry(request: Request, entry_id: int):
     if not existing:
         raise HTTPException(status_code=404)
     require_entry_write_permission(request, existing)
+    current_user = request.session.get("user")
 
     form = await request.form()
     title = form.get("title", "").strip()
@@ -895,6 +914,8 @@ async def update_calendar_entry(request: Request, entry_id: int):
         responsible=responsible,
         managers=managers,
     )
+    if not user_store.has_permission(current_user, "admin") and has_past_instances(new_entry):
+        raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
     for comp in completion_store.list_for_entry(entry_id):
         old_period = find_time_period(
             existing, comp.recurrence_index, comp.instance_index
@@ -929,6 +950,10 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
     if not entry:
         raise HTTPException(status_code=404)
     require_entry_write_permission(request, entry)
+    username = request.session.get("user")
+    is_admin = user_store.has_permission(username, "admin")
+    if not is_admin and has_past_instances(entry):
+        raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
     data = await request.json()
     split_fields = {
         "description",
@@ -973,6 +998,8 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
         if not managers:
             raise HTTPException(status_code=400, detail="At least one manager required")
         entry.managers = managers
+    if not is_admin and has_past_instances(entry):
+        raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
     calendar_store.update(entry_id, entry)
     resp = {"status": "ok"}
     if did_split:
@@ -988,6 +1015,10 @@ async def update_recurrence(request: Request, entry_id: int):
     if not entry:
         raise HTTPException(status_code=404)
     require_entry_write_permission(request, entry)
+    username = request.session.get("user")
+    is_admin = user_store.has_permission(username, "admin")
+    if not is_admin and has_past_instances(entry):
+        raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
     data = await request.json()
     rindex = int(data.get("recurrence_index", -1))
     if rindex < 0 or rindex >= len(entry.recurrences):
@@ -1008,6 +1039,8 @@ async def update_recurrence(request: Request, entry_id: int):
         rec.offset = None
     if "responsible" in data:
         rec.responsible = list(data["responsible"])
+    if not is_admin and has_past_instances(entry):
+        raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
     calendar_store.update(entry_id, entry)
     resp = {"status": "ok"}
     if did_split:
@@ -1023,6 +1056,10 @@ async def add_recurrence(request: Request, entry_id: int):
     if not entry:
         raise HTTPException(status_code=404)
     require_entry_write_permission(request, entry)
+    username = request.session.get("user")
+    is_admin = user_store.has_permission(username, "admin")
+    if not is_admin and has_past_instances(entry):
+        raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
     data = await request.json()
     if "type" not in data:
         raise HTTPException(status_code=400)
@@ -1036,6 +1073,8 @@ async def add_recurrence(request: Request, entry_id: int):
         offset = Offset(exact_duration_seconds=days * 86400 + hours * 3600 + minutes * 60)
     rec = Recurrence(type=rtype, offset=offset, responsible=list(data.get("responsible") or []))
     entry.recurrences.append(rec)
+    if not is_admin and has_past_instances(entry):
+        raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
     calendar_store.update(entry_id, entry)
     resp = {"status": "ok", "recurrence_index": len(entry.recurrences) - 1}
     if did_split:
@@ -1051,12 +1090,18 @@ async def delete_recurrence(request: Request, entry_id: int):
     if not entry:
         raise HTTPException(status_code=404)
     require_entry_write_permission(request, entry)
+    username = request.session.get("user")
+    is_admin = user_store.has_permission(username, "admin")
+    if not is_admin and has_past_instances(entry):
+        raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
     data = await request.json()
     rindex = int(data.get("recurrence_index", -1))
     if rindex < 0 or rindex >= len(entry.recurrences):
         raise HTTPException(status_code=400)
     entry_id, entry, did_split = split_entry_if_past(entry_id, entry)
     del entry.recurrences[rindex]
+    if not is_admin and has_past_instances(entry):
+        raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
     calendar_store.update(entry_id, entry)
     # Remove completions for this recurrence and shift higher indices
     comps = completion_store.list_for_entry(entry_id)
@@ -1272,8 +1317,23 @@ async def unskip_instance(request: Request, entry_id: int):
 @app.get("/users", response_class=HTMLResponse)
 async def list_users(request: Request):
     require_permission(request, "iam")
+    users = user_store.list_users()
+    entries = calendar_store.list_entries()
+    with Session(engine) as session:
+        completion_users = {
+            row[0] for row in session.exec(select(ChoreCompletion.completed_by)).all()
+        }
+    undeletable = {
+        u.username
+        for u in users
+        if any(
+            u.username in e.managers or u.username in e.responsible for e in entries
+        )
+        or u.username in completion_users
+    }
     return templates.TemplateResponse(
-        "users/list.html", {"request": request, "users": user_store.list_users()}
+        "users/list.html",
+        {"request": request, "users": users, "undeletable": undeletable},
     )
 
 
@@ -1299,6 +1359,11 @@ async def create_user(request: Request):
         data = await upload.read()
         if data:
             profile_picture = process_profile_picture(data)
+    if not is_url_safe(username):
+        request.session["flash"] = "Username must be URL-safe."
+        raise HTTPException(
+            status_code=303, headers={"Location": str(request.url_for("new_user"))}
+        )
     if not user_store.create(
         username, password, pin, permissions, profile_picture=profile_picture
     ):
@@ -1340,6 +1405,12 @@ async def update_user(request: Request, username: str):
     existing = user_store.get(username)
     if not existing or existing.username == "Viewer":
         raise HTTPException(status_code=404)
+    if not is_url_safe(new_username):
+        request.session["flash"] = "Username must be URL-safe."
+        raise HTTPException(
+            status_code=303,
+            headers={"Location": str(request.url_for("edit_user", username=username))},
+        )
     if user_store.has_permission(current_user, "iam"):
         permissions = {p for p in ALL_PERMISSIONS if form.get(p)}
         if form.get("admin") and user_store.has_permission(current_user, "admin"):
@@ -1382,6 +1453,15 @@ async def delete_user(request: Request, username: str):
         admins = [u for u in user_store.list_users() if "admin" in u.permissions and u.username != username]
         if not admins:
             request.session["flash"] = "Cannot delete the last admin user."
+            raise HTTPException(status_code=303, headers={"Location": str(request.url_for("list_users"))})
+    for entry in calendar_store.list_entries():
+        if username in entry.managers or username in entry.responsible:
+            request.session["flash"] = "Cannot delete user with calendar responsibilities."
+            raise HTTPException(status_code=303, headers={"Location": str(request.url_for("list_users"))})
+    with Session(engine) as session:
+        stmt = select(ChoreCompletion).where(ChoreCompletion.completed_by == username)
+        if session.exec(stmt).first():
+            request.session["flash"] = "Cannot delete user with chore completions."
             raise HTTPException(status_code=303, headers={"Location": str(request.url_for("list_users"))})
     user_store.delete(username)
     return RedirectResponse(url="/users", status_code=303)
