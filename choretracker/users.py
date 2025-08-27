@@ -195,14 +195,20 @@ def init_db(engine) -> None:
         )
 
     with Session(engine) as session:
-        admin = session.exec(select(User).where(User.username == "Admin")).first()
-        if not admin:
-            admin = User(
-                username="Admin",
-                password_hash=hash_secret("admin"),
-                pin_hash=hash_secret("0000"),
-                permissions=["admin"],
-            )
+        users = session.exec(select(User)).all()
+        if not any("admin" in u.permissions for u in users):
+            admin = next((u for u in users if u.username == "Admin"), None)
+            if admin:
+                admin.password_hash = hash_secret("admin")
+                admin.pin_hash = hash_secret("0000")
+                admin.permissions = ["admin"]
+            else:
+                admin = User(
+                    username="Admin",
+                    password_hash=hash_secret("admin"),
+                    pin_hash=hash_secret("0000"),
+                    permissions=["admin"],
+                )
             session.add(admin)
 
         viewer_perms = ["chores.read", "events.read", "reminders.read"]
