@@ -485,12 +485,13 @@ async def logout(request: Request):
 
 @app.get("/users/{username}/profile_picture")
 async def profile_picture(username: str):
+    headers = {"Cache-Control": "no-cache, no-store, max-age=0"}
     user = user_store.get(username)
     if user and user.profile_picture:
-        return Response(user.profile_picture, media_type="image/png")
+        return Response(user.profile_picture, media_type="image/png", headers=headers)
     if username == "Viewer":
-        return FileResponse(BASE_PATH / "static" / "viewer_profile.png")
-    return FileResponse(BASE_PATH / "static" / "default_profile.png")
+        return FileResponse(BASE_PATH / "static" / "viewer_profile.png", headers=headers)
+    return FileResponse(BASE_PATH / "static" / "default_profile.png", headers=headers)
 
 
 @app.get("/calendar/new/{entry_type}", response_class=HTMLResponse)

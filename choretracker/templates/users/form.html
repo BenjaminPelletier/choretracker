@@ -122,4 +122,17 @@
     {% endif %}
     <button type="submit">Save</button>
 </form>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const input = document.getElementById('profile_picture');
+    const label = document.querySelector('label.profile-picture');
+    if (input && label) {
+        input.addEventListener('change', function () {
+            if (input.files && input.files.length > 0) {
+                label.innerHTML = '<div class="pending">Will upload on save</div>';
+            }
+        });
+    }
+});
+</script>
 {% endblock %}
