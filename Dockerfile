@@ -3,16 +3,13 @@ FROM python:3.13-slim
 ARG CHORETRACKER_VERSION
 ENV CHORETRACKER_VERSION=$CHORETRACKER_VERSION
 ENV UV_PROJECT_ENVIRONMENT=/app/.venv
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies required to build packages from source
 # Remove Docker's default apt cleanup hook which fails on some architectures
 RUN rm -f /etc/apt/apt.conf.d/docker-clean \
     && apt-get update \
     && apt-get install -y --no-install-recommends \
-        build-essential \
-        cargo \
-        rustc \
-        pkg-config \
         zlib1g-dev \
         libjpeg-dev \
         libpng-dev \
@@ -35,7 +32,6 @@ COPY pyproject.toml uv.lock ./
 
 # Install dependencies without installing the project itself
 RUN uv sync --frozen --no-install-project \
-    && apt-get purge -y build-essential cargo rustc pkg-config zlib1g-dev libjpeg-dev libjpeg62-turbo-dev libpng-dev libfreetype6-dev libtiff-dev libtiff5-dev libwebp-dev libopenjp2-7-dev liblcms2-dev libffi-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy application code and migration files
