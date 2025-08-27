@@ -39,7 +39,7 @@ When running in Docker, pass the environment variable and mount a volume for
 the database file:
 
 ```bash
-docker run -e CHORETRACKER_DB=/data/choretracker.db -v $(pwd)/data:/data -p 8000:8000 benpelletier/choretracker_webserver
+docker run -e CHORETRACKER_DB=/data/choretracker.db -v $(pwd)/data:/data -p 8000:8000 benpelletier/choretracker
 ```
 
 If no existing user has the `admin` permission, a new database is automatically
@@ -63,7 +63,7 @@ migration inside the container, for example:
 
 ```bash
 docker run --rm -e CHORETRACKER_DB=/data/choretracker.db \
-  -v $(pwd)/data:/data benpelletier/choretracker_webserver \
+  -v $(pwd)/data:/data benpelletier/choretracker \
   uv run alembic upgrade head
 ```
 

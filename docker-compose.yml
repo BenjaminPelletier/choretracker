@@ -1,6 +1,6 @@
 services:
   web:
-    image: benpelletier/choretracker_webserver
+    image: benpelletier/choretracker
     build: .
     ports:
       - "8000:8000"
