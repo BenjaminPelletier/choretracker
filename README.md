@@ -1,31 +1,15 @@
 # choretracker
 
-## Docker
+## Execution
 
-The app can run inside Docker containers.
-
-### Quick start
-
-- **Start the webserver** (uses existing image):
-  ```bash
-  make docker-start
-  ```
-- **Stop the containers**:
-  ```bash
-  make docker-stop
-  ```
-- **Rebuild the webserver image and restart**:
-  ```bash
-  make docker-rebuild
-  ```
-
-The webserver listens on [http://localhost:8000](http://localhost:8000).
-
-## Database configuration
-
-The application stores users in a SQLite database. By default, the database
+The application stores information in a SQLite database. By default, the database
 file `choretracker.db` is created in the working directory. To use a different
 location, set the `CHORETRACKER_DB` environment variable to the desired path.
+
+If no existing user has the `admin` permission, a new database is automatically
+populated with an `Admin` user (password `admin`, PIN `0000`) that has the
+`admin` permission. The `admin` permission grants all actions, including those
+normally requiring `iam`.
 
 ### Direct execution
 
@@ -42,10 +26,7 @@ the database file:
 docker run -e CHORETRACKER_DB=/data/choretracker.db -v $(pwd)/data:/data -p 8000:8000 benpelletier/choretracker
 ```
 
-If no existing user has the `admin` permission, a new database is automatically
-populated with an `Admin` user (password `admin`, PIN `0000`) that has the
-`admin` permission. The `admin` permission grants all actions, including those
-normally requiring `iam`.
+_Note that older versions of Docker may require the use of `--security-opt seccomp=unconfined` to support the `clone3` system the Tokio runtime uses._
 
 ## Database migrations
 
@@ -66,6 +47,8 @@ docker run --rm -e CHORETRACKER_DB=/data/choretracker.db \
   -v $(pwd)/data:/data benpelletier/choretracker \
   uv run alembic upgrade head
 ```
+
+_Note that older versions of Docker may require the use of `--security-opt seccomp=unconfined` to support the `clone3` system the Tokio runtime uses._
 
 No further action is required; the application will operate with the updated
 schema once the migration completes.
