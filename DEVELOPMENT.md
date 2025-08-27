@@ -89,3 +89,12 @@ migration:
 
 New installations can be initialized by running `alembic upgrade head` or by
 starting the application, which will create the initial schema automatically.
+
+## Building the image from a dev machine
+
+Although the GitHub Action should build and upload a Docker image upon releases, to manually build and upload a Docker image:
+
+* `docker buildx create --use --name choretracker-builder`
+* `docker buildx inspect --bootstrap`
+* `docker login`
+* `docker buildx build --platform linux/arm/v7 --build-arg CHORETRACKER_VERSION=dev -t benpelletier/choretracker:dev --push .`
