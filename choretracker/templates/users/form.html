@@ -14,7 +14,7 @@
     <div class="field">
         <label>
             <span>Username</span>
-            <input type="text" name="username" value="{{ user.username if user else '' }}">
+            <input type="text" name="username" value="{{ user.username if user else '' }}" pattern="[A-Za-z0-9._~-]+" title="Username must be URL-safe">
         </label>
     </div>
     <div class="field">

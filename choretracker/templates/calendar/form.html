@@ -406,6 +406,12 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('At least one manager required');
             return;
         }
+        const entryType = document.querySelector('input[name="type"]').value;
+        if (entryType === 'Chore' && entryRespManager.list.querySelectorAll('li').length === 0) {
+            e.preventDefault();
+            alert('At least one responsible user required');
+            return;
+        }
     });
 });
 </script>

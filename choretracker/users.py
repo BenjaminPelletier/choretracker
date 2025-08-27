@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import List, Optional, Set
 import io
 import types
+import re
 import bcrypt
 
 # Work around older Windows wheels lacking ``_bcrypt.__about__`` by
@@ -26,6 +27,13 @@ from PIL import Image, ImageDraw
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+USERNAME_RE = re.compile(r"^[A-Za-z0-9._~-]+$")
+
+
+def is_url_safe(username: str) -> bool:
+    return bool(USERNAME_RE.fullmatch(username))
 
 
 class User(SQLModel, table=True):
@@ -92,7 +100,7 @@ class UserStore:
         permissions: Set[str],
         profile_picture: Optional[bytes] = None,
     ) -> bool:
-        if username == "Viewer":
+        if username == "Viewer" or not is_url_safe(username):
             return False
         with Session(self.engine) as session:
             if session.exec(select(User).where(User.username == username)).first():
@@ -119,7 +127,7 @@ class UserStore:
         remove_pin: bool = False,
         profile_picture: Optional[bytes] = None,
     ) -> bool:
-        if old_username == "Viewer":
+        if old_username == "Viewer" or not is_url_safe(new_username):
             return False
         with Session(self.engine) as session:
             if new_username != old_username and session.exec(

@@ -269,7 +269,15 @@ document.addEventListener('DOMContentLoaded', () => {
             label.textContent = 'Never after: ';
             const input = document.createElement('input');
             input.type = 'datetime-local';
-            if (current) input.value = current;
+            if (current) {
+                input.value = current;
+            } else {
+                const now = new Date();
+                const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+                    .toISOString()
+                    .slice(0, 16);
+                input.value = local;
+            }
             input.className = 'inline-input';
             const clearBtn = makeBtn(trashUrl, 'Clear');
             const save = makeBtn(diskUrl, 'Save');
