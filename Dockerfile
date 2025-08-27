@@ -7,7 +7,7 @@ RUN pip install --no-cache-dir uv
 
 # Install build tools required for some Python packages
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential \
+    && apt-get install -y --no-install-recommends build-essential zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -17,7 +17,7 @@ COPY pyproject.toml uv.lock ./
 
 # Install dependencies without installing the project itself
 RUN uv sync --frozen --no-install-project \
-    && apt-get purge -y --auto-remove build-essential \
+    && apt-get purge -y --auto-remove build-essential zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy application code
