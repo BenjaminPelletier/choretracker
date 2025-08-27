@@ -34,8 +34,8 @@ RUN uv sync --frozen --no-install-project \
     && apt-get purge -y build-essential cargo rustc pkg-config zlib1g-dev libjpeg-dev libjpeg62-turbo-dev libpng-dev libfreetype6-dev libtiff-dev libtiff5-dev libwebp-dev libopenjp2-7-dev liblcms2-dev libffi-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy application code
-COPY choretracker ./choretracker
+# Copy application code and migration files
+COPY choretracker alembic.ini migrations ./
 
 EXPOSE 8000
 
