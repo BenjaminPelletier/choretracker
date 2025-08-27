@@ -17,7 +17,11 @@ if hasattr(bcrypt, "_bcrypt") and not hasattr(bcrypt._bcrypt, "__about__"):
 
 from passlib.context import CryptContext
 from sqlmodel import Field, Session, SQLModel, select
-from sqlalchemy import Column, JSON, LargeBinary
+from sqlalchemy import Column, JSON, LargeBinary, text
+from sqlalchemy.exc import OperationalError
+from alembic import command
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from PIL import Image, ImageDraw
 
 
@@ -162,20 +166,51 @@ class UserStore:
 
 
 def init_db(engine) -> None:
-    """Create tables and populate a default admin user on first run."""
+    """Create tables, verify schema revision and populate default users."""
 
     db_path = Path(engine.url.database)
     first_run = not db_path.exists()
     SQLModel.metadata.create_all(engine)
+
+    cfg = Config(str(Path(__file__).resolve().parent.parent / "alembic.ini"))
+    cfg.set_main_option("sqlalchemy.url", str(engine.url))
+    if first_run:
+        command.stamp(cfg, "head")
+
+    script = ScriptDirectory.from_config(cfg)
+    head = script.get_current_head()
+    with engine.connect() as conn:
+        try:
+            row = conn.execute(text("SELECT version_num FROM alembic_version")).first()
+        except OperationalError as exc:
+            raise RuntimeError(
+                "Database schema is missing Alembic version information. "
+                "Run 'uv run alembic upgrade head' before starting the server. "
+                "See README.md under 'Database migrations'."
+            ) from exc
+    if not row or row[0] != head:
+        raise RuntimeError(
+            "Database schema is out of date. Run 'uv run alembic upgrade head' "
+            "before starting the server. See README.md under 'Database migrations'."
+        )
+
     with Session(engine) as session:
-        if first_run:
-            admin = User(
-                username="Admin",
-                password_hash=hash_secret("admin"),
-                pin_hash=hash_secret("0000"),
-                permissions=["admin"],
-            )
+        users = session.exec(select(User)).all()
+        if not any("admin" in u.permissions for u in users):
+            admin = next((u for u in users if u.username == "Admin"), None)
+            if admin:
+                admin.password_hash = hash_secret("admin")
+                admin.pin_hash = hash_secret("0000")
+                admin.permissions = ["admin"]
+            else:
+                admin = User(
+                    username="Admin",
+                    password_hash=hash_secret("admin"),
+                    pin_hash=hash_secret("0000"),
+                    permissions=["admin"],
+                )
             session.add(admin)
+
         viewer_perms = ["chores.read", "events.read", "reminders.read"]
         viewer = session.exec(select(User).where(User.username == "Viewer")).first()
         if not viewer:
