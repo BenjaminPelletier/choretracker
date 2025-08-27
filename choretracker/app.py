@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import json
 import os
+import subprocess
 from urllib.parse import urlparse
 from heapq import heappush, heappop
 from typing import Iterator
@@ -238,6 +239,24 @@ def require_permission(request: Request, permission: str) -> None:
         raise HTTPException(
             status_code=303, headers={"Location": str(request.url_for("index"))}
         )
+
+
+def server_version() -> str:
+    env_ver = os.getenv("CHORETRACKER_VERSION")
+    if env_ver:
+        return env_ver
+    try:
+        repo_root = BASE_PATH.parent
+        commit = (
+            subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=repo_root)
+            .decode()
+            .strip()
+        )
+        status = subprocess.check_output(["git", "status", "--porcelain"], cwd=repo_root).decode()
+        dirty = "-dirty" if status.strip() else ""
+        return f"Commit: {commit}{dirty}"
+    except Exception:
+        return "Unknown"
 
 
 def can_edit_entry(username: str, entry: CalendarEntry) -> bool:
@@ -481,6 +500,14 @@ async def switch_user_post(request: Request, username: str, next: str | None = N
 async def logout(request: Request):
     request.session.clear()
     return RedirectResponse(url="/login", status_code=303)
+
+
+@app.get("/system", response_class=HTMLResponse)
+async def system(request: Request):
+    require_permission(request, "admin")
+    return templates.TemplateResponse(
+        "system.html", {"request": request, "version": server_version()}
+    )
 
 
 @app.get("/users/{username}/profile_picture")

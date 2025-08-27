@@ -61,6 +61,9 @@
                     {% if user_has(current_user, 'iam') %}
                     <a href="{{ url_for('list_users') }}"><img src="{{ url_for('static', path='users.svg') }}" alt="Manage users" class="icon"></a>
                     {% endif %}
+                    {% if user_has(current_user, 'admin') %}
+                    <a href="{{ url_for('system') }}"><img src="{{ url_for('static', path='system.svg') }}" alt="System" class="icon"></a>
+                    {% endif %}
                     <a href="{{ url_for('logout') }}"><img src="{{ url_for('static', path='signout.svg') }}" alt="Sign out" class="icon"></a>
                 </div>
             </div>

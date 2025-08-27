@@ -32,3 +32,5 @@ jobs:
           tags: |
             benpelletier/choretracker:${{ github.event.release.tag_name }}
             benpelletier/choretracker:latest
+          build-args: |
+            CHORETRACKER_VERSION=${{ github.event.release.tag_name }}
