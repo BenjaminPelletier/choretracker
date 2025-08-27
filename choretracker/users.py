@@ -19,6 +19,8 @@ if hasattr(bcrypt, "_bcrypt") and not hasattr(bcrypt._bcrypt, "__about__"):
 from passlib.context import CryptContext
 from sqlmodel import Field, Session, SQLModel, select
 from sqlalchemy import Column, JSON, LargeBinary, text
+
+from .calendar import CalendarEntry, Recurrence, ChoreCompletion
 from sqlalchemy.exc import OperationalError
 from alembic import command
 from alembic.config import Config
@@ -137,6 +139,7 @@ class UserStore:
             user = session.exec(select(User).where(User.username == old_username)).first()
             if not user:
                 return False
+            username_changed = new_username != old_username
             user.username = new_username
             if remove_password:
                 user.password_hash = ""
@@ -150,6 +153,56 @@ class UserStore:
             if profile_picture is not None:
                 user.profile_picture = profile_picture
             session.add(user)
+
+            if username_changed:
+                entries = session.exec(select(CalendarEntry)).all()
+                for entry in entries:
+                    changed = False
+                    if old_username in entry.managers:
+                        entry.managers = [
+                            new_username if u == old_username else u for u in entry.managers
+                        ]
+                        changed = True
+                    if old_username in entry.responsible:
+                        entry.responsible = [
+                            new_username if u == old_username else u for u in entry.responsible
+                        ]
+                        changed = True
+                    recurrences: List[Recurrence] = []
+                    for rec in entry.recurrences:
+                        rec_obj = (
+                            rec if isinstance(rec, Recurrence) else Recurrence.model_validate(rec)
+                        )
+                        rec_changed = False
+                        if old_username in rec_obj.responsible:
+                            rec_obj.responsible = [
+                                new_username if u == old_username else u
+                                for u in rec_obj.responsible
+                            ]
+                            rec_changed = True
+                        for deleg in rec_obj.delegations:
+                            if old_username in deleg.responsible:
+                                deleg.responsible = [
+                                    new_username if u == old_username else u
+                                    for u in deleg.responsible
+                                ]
+                                rec_changed = True
+                        recurrences.append(rec_obj)
+                        if rec_changed:
+                            changed = True
+                    if changed:
+                        entry.recurrences = recurrences
+                        session.add(entry)
+
+                completions = session.exec(
+                    select(ChoreCompletion).where(
+                        ChoreCompletion.completed_by == old_username
+                    )
+                ).all()
+                for comp in completions:
+                    comp.completed_by = new_username
+                    session.add(comp)
+
             session.commit()
             return True
 

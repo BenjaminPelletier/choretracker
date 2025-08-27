@@ -1499,6 +1499,8 @@ async def update_user(request: Request, username: str):
             status_code=303,
             headers={"Location": str(request.url_for("edit_user", username=username))},
         )
+    if current_user == username:
+        request.session["user"] = new_username
     target = "/users" if current_user != username else "/"
     return RedirectResponse(url=target, status_code=303)
 
