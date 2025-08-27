@@ -1374,6 +1374,66 @@ async def create_user(request: Request):
     return RedirectResponse(url="/users", status_code=303)
 
 
+@app.get("/users/{username}", response_class=HTMLResponse)
+async def view_user(request: Request, username: str):
+    current_user = request.session.get("user")
+    if current_user != username:
+        require_permission(request, "iam")
+    user = user_store.get(username)
+    if not user or user.username == "Viewer":
+        raise HTTPException(status_code=404)
+    with Session(engine) as session:
+        stmt = (
+            select(ChoreCompletion)
+            .where(ChoreCompletion.completed_by == username)
+            .order_by(ChoreCompletion.completed_at.desc())
+        )
+        comps = session.exec(stmt).all()
+    completion_entries = []
+    for comp in comps:
+        entry = calendar_store.get(comp.entry_id)
+        if entry:
+            completion_entries.append((entry, comp))
+    entries = calendar_store.list_entries()
+    responsible_entries = [
+        CalendarEntry.model_validate(e.model_dump())
+        for e in entries
+        if (username in e.responsible)
+        or any(username in r.responsible for r in e.recurrences)
+    ]
+    managed_entries = [
+        CalendarEntry.model_validate(e.model_dump())
+        for e in entries
+        if username in e.managers
+    ]
+
+    def _prep(entries_list: list[CalendarEntry]) -> list[CalendarEntry]:
+        counts = Counter(e.title for e in entries_list)
+        start_map = {}
+        for e in entries_list:
+            start, end = entry_time_bounds(e)
+            start_map[e.id] = start
+            if counts[e.title] > 1:
+                e.title = f"{e.title} ({time_range_summary(start, end)})"
+        entries_list.sort(key=lambda e: start_map[e.id], reverse=True)
+        return entries_list
+
+    responsible_entries = _prep(responsible_entries)
+    managed_entries = _prep(managed_entries)
+
+    return templates.TemplateResponse(
+        "users/view.html",
+        {
+            "request": request,
+            "user": user,
+            "completions": completion_entries,
+            "responsible_entries": responsible_entries,
+            "managed_entries": managed_entries,
+            "current_user": current_user,
+        },
+    )
+
+
 @app.get("/users/{username}/edit", response_class=HTMLResponse)
 async def edit_user(request: Request, username: str):
     current_user = request.session.get("user")
