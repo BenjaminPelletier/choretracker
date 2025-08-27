@@ -642,8 +642,10 @@ async def list_calendar_entries(request: Request, entry_type: str):
     for entry in entries:
         start, end = entry_time_bounds(entry)
         start_map[entry.id] = start
-        can_delete_map[entry.id] = not completion_store.list_for_entry(entry.id) and not any(
-            rec.delegations for rec in entry.recurrences
+        can_delete_map[entry.id] = (
+            not completion_store.list_for_entry(entry.id)
+            and not entry.first_instance_delegates
+            and not any(rec.delegations for rec in entry.recurrences)
         )
         if counts[entry.title] > 1:
             entry.title = f"{entry.title} ({time_range_summary(start, end)})"
@@ -703,7 +705,9 @@ async def view_calendar_entry(
             current_user, "chores.override_complete"
         )
         is_skipped = False
-        if 0 <= comp.recurrence_index < len(entry.recurrences):
+        if comp.recurrence_index == -1 and comp.instance_index == -1:
+            is_skipped = entry.skip_first_instance
+        elif 0 <= comp.recurrence_index < len(entry.recurrences):
             rec = entry.recurrences[comp.recurrence_index]
             is_skipped = comp.instance_index in rec.skipped_instances
         responsible = responsible_for(
@@ -722,7 +726,9 @@ async def view_calendar_entry(
         if key in comp_map:
             continue
         is_skipped = False
-        if 0 <= period.recurrence_index < len(entry.recurrences):
+        if period.recurrence_index == -1 and period.instance_index == -1:
+            is_skipped = entry.skip_first_instance
+        elif 0 <= period.recurrence_index < len(entry.recurrences):
             rec = entry.recurrences[period.recurrence_index]
             is_skipped = period.instance_index in rec.skipped_instances
         responsible = responsible_for(
@@ -739,8 +745,10 @@ async def view_calendar_entry(
     past_instances.sort(key=lambda x: x[0].start)
     past_instances = past_instances[-past_entries:]
     upcoming.sort(key=lambda x: x[0].start)
-    can_delete = not comps_list and not any(
-        rec.delegations for rec in entry.recurrences
+    can_delete = (
+        not comps_list
+        and not entry.first_instance_delegates
+        and not any(rec.delegations for rec in entry.recurrences)
     )
     return templates.TemplateResponse(
         "calendar/view.html",
@@ -787,7 +795,9 @@ async def view_time_period(
     if entry.type == CalendarEntryType.Chore:
         completion = completion_store.get(entry_id, rindex, iindex)
     is_skipped = False
-    if rindex >= 0 and rindex < len(entry.recurrences):
+    if rindex == -1 and iindex == -1:
+        is_skipped = entry.skip_first_instance
+    elif rindex >= 0 and rindex < len(entry.recurrences):
         rec = entry.recurrences[rindex]
         is_skipped = iindex in rec.skipped_instances
     delegation = find_delegation(entry, rindex, iindex)
@@ -1209,18 +1219,24 @@ async def delegate_instance(request: Request, entry_id: int):
     responsible = form.getlist("responsible[]")
     if entry.type == CalendarEntryType.Chore and not responsible:
         raise HTTPException(status_code=400)
-    if rindex < 0 or rindex >= len(entry.recurrences):
-        raise HTTPException(status_code=400)
-    rec = entry.recurrences[rindex]
-    if not isinstance(rec, Recurrence):
-        rec = Recurrence.model_validate(rec)
-        entry.recurrences[rindex] = rec
-    existing = find_delegation(entry, rindex, iindex)
-    if existing:
-        existing.responsible = responsible
+    if rindex == -1 and iindex == -1:
+        entry.first_instance_delegates = responsible
+        calendar_store.update(entry_id, entry)
+    elif 0 <= rindex < len(entry.recurrences):
+        rec = entry.recurrences[rindex]
+        if not isinstance(rec, Recurrence):
+            rec = Recurrence.model_validate(rec)
+            entry.recurrences[rindex] = rec
+        existing = find_delegation(entry, rindex, iindex)
+        if existing:
+            existing.responsible = responsible
+        else:
+            rec.delegations.append(
+                Delegation(instance_index=iindex, responsible=responsible)
+            )
+        calendar_store.update(entry_id, entry)
     else:
-        rec.delegations.append(Delegation(instance_index=iindex, responsible=responsible))
-    calendar_store.update(entry_id, entry)
+        raise HTTPException(status_code=400)
     referer = request.headers.get(
         "referer",
         str(
@@ -1241,20 +1257,24 @@ async def remove_delegation(request: Request, entry_id: int):
     form = await request.form()
     rindex = int(form.get("recurrence_index", -1))
     iindex = int(form.get("instance_index", -1))
-    if rindex < 0 or rindex >= len(entry.recurrences):
+    if rindex == -1 and iindex == -1:
+        entry.first_instance_delegates = []
+        calendar_store.update(entry_id, entry)
+    elif 0 <= rindex < len(entry.recurrences):
+        rec = entry.recurrences[rindex]
+        if not isinstance(rec, Recurrence):
+            rec = Recurrence.model_validate(rec)
+            entry.recurrences[rindex] = rec
+        for idx, d in enumerate(rec.delegations):
+            if not isinstance(d, Delegation):
+                d = Delegation.model_validate(d)
+                rec.delegations[idx] = d
+            if d.instance_index == iindex:
+                del rec.delegations[idx]
+                break
+        calendar_store.update(entry_id, entry)
+    else:
         raise HTTPException(status_code=400)
-    rec = entry.recurrences[rindex]
-    if not isinstance(rec, Recurrence):
-        rec = Recurrence.model_validate(rec)
-        entry.recurrences[rindex] = rec
-    for idx, d in enumerate(rec.delegations):
-        if not isinstance(d, Delegation):
-            d = Delegation.model_validate(d)
-            rec.delegations[idx] = d
-        if d.instance_index == iindex:
-            del rec.delegations[idx]
-            break
-    calendar_store.update(entry_id, entry)
     referer = request.headers.get(
         "referer",
         str(
@@ -1275,19 +1295,24 @@ async def skip_instance(request: Request, entry_id: int):
     form = await request.form()
     rindex = int(form.get("recurrence_index", -1))
     iindex = int(form.get("instance_index", -1))
-    if rindex < 0 or rindex >= len(entry.recurrences):
+    if rindex == -1 and iindex == -1:
+        entry.skip_first_instance = True
+        entry.first_instance_delegates = []
+        calendar_store.update(entry_id, entry)
+    elif 0 <= rindex < len(entry.recurrences):
+        rec = entry.recurrences[rindex]
+        if iindex not in rec.skipped_instances:
+            rec.skipped_instances.append(iindex)
+        for idx, d in enumerate(rec.delegations):
+            if not isinstance(d, Delegation):
+                d = Delegation.model_validate(d)
+                rec.delegations[idx] = d
+            if d.instance_index == iindex:
+                del rec.delegations[idx]
+                break
+        calendar_store.update(entry_id, entry)
+    else:
         raise HTTPException(status_code=400)
-    rec = entry.recurrences[rindex]
-    if iindex not in rec.skipped_instances:
-        rec.skipped_instances.append(iindex)
-    for idx, d in enumerate(rec.delegations):
-        if not isinstance(d, Delegation):
-            d = Delegation.model_validate(d)
-            rec.delegations[idx] = d
-        if d.instance_index == iindex:
-            del rec.delegations[idx]
-            break
-    calendar_store.update(entry_id, entry)
     referer = request.headers.get(
         "referer",
         str(
@@ -1308,12 +1333,16 @@ async def unskip_instance(request: Request, entry_id: int):
     form = await request.form()
     rindex = int(form.get("recurrence_index", -1))
     iindex = int(form.get("instance_index", -1))
-    if rindex < 0 or rindex >= len(entry.recurrences):
+    if rindex == -1 and iindex == -1:
+        entry.skip_first_instance = False
+        calendar_store.update(entry_id, entry)
+    elif 0 <= rindex < len(entry.recurrences):
+        rec = entry.recurrences[rindex]
+        if iindex in rec.skipped_instances:
+            rec.skipped_instances.remove(iindex)
+        calendar_store.update(entry_id, entry)
+    else:
         raise HTTPException(status_code=400)
-    rec = entry.recurrences[rindex]
-    if iindex in rec.skipped_instances:
-        rec.skipped_instances.remove(iindex)
-    calendar_store.update(entry_id, entry)
     referer = request.headers.get(
         "referer",
         str(

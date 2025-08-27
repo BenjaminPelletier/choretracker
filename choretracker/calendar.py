@@ -55,6 +55,10 @@ class CalendarEntry(SQLModel, table=True):
     none_before: Optional[datetime] = None
     responsible: List[str] = Field(default_factory=list, sa_column=Column(JSON))
     managers: List[str] = Field(default_factory=list, sa_column=Column(JSON))
+    first_instance_delegates: List[str] = Field(
+        default_factory=list, sa_column=Column(JSON)
+    )
+    skip_first_instance: bool = False
     previous_entry: Optional[int] = Field(
         default=None, foreign_key="calendarentry.id"
     )
@@ -109,6 +113,8 @@ class CalendarEntryStore:
             entry.none_before = new_data.none_before
             entry.responsible = new_data.responsible
             entry.managers = new_data.managers
+            entry.first_instance_delegates = new_data.first_instance_delegates
+            entry.skip_first_instance = new_data.skip_first_instance
             session.add(entry)
             session.commit()
 
@@ -131,7 +137,9 @@ class CalendarEntryStore:
                 rec if isinstance(rec, Recurrence) else Recurrence.model_validate(rec)
                 for rec in entry.recurrences
             ]
-            has_delegations = any(rec.delegations for rec in entry.recurrences)
+            has_delegations = bool(entry.first_instance_delegates) or any(
+                rec.delegations for rec in entry.recurrences
+            )
             has_completions = (
                 session.exec(
                     select(ChoreCompletion.id).where(ChoreCompletion.entry_id == entry_id)
@@ -176,6 +184,16 @@ class CalendarEntryStore:
             new_entry.recurrences = [
                 Recurrence.model_validate(r.model_dump()) for r in entry.recurrences
             ]
+
+            # Move first instance settings
+            if split_time <= entry.first_start:
+                new_entry.first_instance_delegates = entry.first_instance_delegates
+                new_entry.skip_first_instance = entry.skip_first_instance
+                entry.first_instance_delegates = []
+                entry.skip_first_instance = False
+            else:
+                new_entry.first_instance_delegates = []
+                new_entry.skip_first_instance = False
 
             # Move skips and delegations
             for idx, rec in enumerate(entry.recurrences):
@@ -411,6 +429,7 @@ def enumerate_time_periods(
     if (
         (not none_after or entry.first_start <= none_after)
         and (not none_before or entry.first_start >= none_before)
+        and (include_skipped or not entry.skip_first_instance)
     ):
         yield TimePeriod(
             start=entry.first_start,
@@ -454,6 +473,8 @@ def find_time_period(
 def responsible_for(
     entry: CalendarEntry, recurrence_index: int, instance_index: int
 ) -> List[str]:
+    if recurrence_index == -1 and instance_index == -1:
+        return entry.first_instance_delegates or entry.responsible
     if 0 <= recurrence_index < len(entry.recurrences):
         rec = entry.recurrences[recurrence_index]
         if not isinstance(rec, Recurrence):
@@ -471,6 +492,10 @@ def responsible_for(
 def find_delegation(
     entry: CalendarEntry, recurrence_index: int, instance_index: int
 ) -> Optional[Delegation]:
+    if recurrence_index == -1 and instance_index == -1:
+        if entry.first_instance_delegates:
+            return Delegation(instance_index=-1, responsible=entry.first_instance_delegates)
+        return None
     if 0 <= recurrence_index < len(entry.recurrences):
         rec = entry.recurrences[recurrence_index]
         if not isinstance(rec, Recurrence):

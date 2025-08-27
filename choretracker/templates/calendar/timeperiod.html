@@ -29,7 +29,7 @@
     {% endif %}
 </div>
 <div class="description">{{ entry.description|markdown }}</div>
-{% if can_edit and period.recurrence_index >= 0 %}
+{% if can_edit %}
 <form method="post" action="{{ request.url_for(is_skipped and 'unskip_instance' or 'skip_instance', entry_id=entry.id) }}">
     <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
     <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
