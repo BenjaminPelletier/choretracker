@@ -67,15 +67,7 @@
             <span>Managers</span>
             <span class="help" data-help="People who can edit this entry">?</span>
         </div>
-        <div class="responsible-selector">
-            <button type="button" id="add-managers">Add</button>
-            <div class="dropdown" id="managers-dropdown">
-                {% for u in all_users() %}
-                <a href="#" data-user="{{ u.username }}">{{ u.username }}</a>
-                {% endfor %}
-            </div>
-        </div>
-        <ul id="managers-list"></ul>
+        <span id="entry-managers-container"></span>
     </div>
 
     <div class="field">
@@ -83,15 +75,7 @@
             <span>Responsible</span>
             <span class="help" data-help="People responsible for this entry">?</span>
         </div>
-        <div class="responsible-selector">
-            <button type="button" id="add-responsible">Add</button>
-            <div class="dropdown" id="responsible-dropdown">
-                {% for u in all_users() %}
-                <a href="#" data-user="{{ u.username }}">{{ u.username }}</a>
-                {% endfor %}
-            </div>
-        </div>
-        <ul id="responsible-list"></ul>
+        <span id="entry-responsible-container"></span>
     </div>
 
     <button type="submit">Save</button>
@@ -294,59 +278,76 @@ document.addEventListener('DOMContentLoaded', () => {
         setupRecurrenceEditor(li, null);
     });
 
-    function createResponsibleManager(addBtn, dropdown, list, inputName) {
-        function addUser(user) {
-            const li = document.createElement('li');
-            li.textContent = user;
-            li.dataset.user = user;
-            if (inputName) {
-                const hidden = document.createElement('input');
-                hidden.type = 'hidden';
-                hidden.name = inputName;
-                hidden.value = user;
-                li.appendChild(hidden);
-            }
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.innerHTML = '<img src="' + trashUrl + '" alt="Remove" class="icon">';
-            btn.addEventListener('click', function () { li.remove(); });
-            li.appendChild(btn);
-            list.appendChild(li);
+    function setupUserSelector(containerId, inputName, initialUsers) {
+        const container = document.getElementById(containerId);
+        const users = [...initialUsers];
+        container.innerHTML = '';
+        const userContainer = document.createElement('span');
+        const addWrap = document.createElement('span');
+        addWrap.className = 'responsible-selector';
+        const addBtn = makeBtn(plusUrl, 'Add user');
+        const dropdown = document.createElement('div');
+        dropdown.className = 'dropdown';
+        dropdown.style.display = 'none';
+
+        function refreshDropdown() {
+            dropdown.innerHTML = '';
+            allUsers.filter(u => !users.includes(u)).forEach(u => {
+                const a = document.createElement('a');
+                a.href = '#';
+                a.textContent = u;
+                a.addEventListener('click', e => {
+                    e.preventDefault();
+                    users.push(u);
+                    addUser(u);
+                    dropdown.style.display = 'none';
+                    refreshDropdown();
+                });
+                dropdown.appendChild(a);
+            });
         }
-        addBtn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            dropdown.classList.toggle('show');
+
+        function addUser(user) {
+            const wrapper = document.createElement('span');
+            const img = document.createElement('img');
+            img.src = profileUrlTemplate.replace('__user__', encodeURIComponent(user));
+            img.alt = user;
+            img.className = 'profile-icon';
+            const rm = makeBtn(trashUrl, 'Remove');
+            rm.addEventListener('click', () => {
+                wrapper.remove();
+                const idx = users.indexOf(user);
+                if (idx >= 0) users.splice(idx, 1);
+                refreshDropdown();
+            });
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = inputName;
+            hidden.value = user;
+            wrapper.appendChild(img);
+            wrapper.appendChild(rm);
+            wrapper.appendChild(hidden);
+            userContainer.appendChild(wrapper);
+        }
+
+        addBtn.addEventListener('click', () => {
+            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
         });
-        dropdown.addEventListener('click', function (e) {
-            if (e.target.dataset.user) {
-                e.preventDefault();
-                addUser(e.target.dataset.user);
-                dropdown.classList.remove('show');
-            }
-        });
-        document.addEventListener('click', function (e) {
-            if (!dropdown.contains(e.target) && e.target !== addBtn) {
-                dropdown.classList.remove('show');
-            }
-        });
-        return { addUser, list };
+
+        addWrap.appendChild(addBtn);
+        addWrap.appendChild(dropdown);
+
+        users.forEach(u => addUser(u));
+        refreshDropdown();
+
+        container.appendChild(userContainer);
+        container.appendChild(addWrap);
+
+        return { users };
     }
 
-    const entryRespManager = createResponsibleManager(
-        document.getElementById('add-responsible'),
-        document.getElementById('responsible-dropdown'),
-        document.getElementById('responsible-list'),
-        'responsible'
-    );
-    const entryManagersManager = createResponsibleManager(
-        document.getElementById('add-managers'),
-        document.getElementById('managers-dropdown'),
-        document.getElementById('managers-list'),
-        'managers'
-    );
-    {% if not entry_data %}
-    entryManagersManager.addUser('{{ current_user }}');
-    {% endif %}
+    const initialManagers = [];
+    const initialResponsible = [];
 
     {% if entry_data %}
     const data = {{ entry_data | tojson }};
@@ -374,9 +375,14 @@ document.addEventListener('DOMContentLoaded', () => {
         recList.appendChild(li);
         setupRecurrenceEditor(li, r);
     });
-    data.responsible.forEach(u => entryRespManager.addUser(u));
-    data.managers.forEach(u => entryManagersManager.addUser(u));
+    initialResponsible.push(...data.responsible);
+    initialManagers.push(...data.managers);
+    {% else %}
+    initialManagers.push('{{ current_user }}');
     {% endif %}
+
+    const entryRespSelector = setupUserSelector('entry-responsible-container', 'responsible', initialResponsible);
+    const entryManagersSelector = setupUserSelector('entry-managers-container', 'managers', initialManagers);
 
     const form = document.getElementById('entry-form');
     const durationInputs = document.querySelectorAll('.duration-inputs input');
@@ -401,13 +407,13 @@ document.addEventListener('DOMContentLoaded', () => {
             durationInputs[0].reportValidity();
             return;
         }
-        if (entryManagersManager.list.querySelectorAll('li').length === 0) {
+        if (entryManagersSelector.users.length === 0) {
             e.preventDefault();
             alert('At least one manager required');
             return;
         }
         const entryType = document.querySelector('input[name="type"]').value;
-        if (entryType === 'Chore' && entryRespManager.list.querySelectorAll('li').length === 0) {
+        if (entryType === 'Chore' && entryRespSelector.users.length === 0) {
             e.preventDefault();
             alert('At least one responsible user required');
             return;
