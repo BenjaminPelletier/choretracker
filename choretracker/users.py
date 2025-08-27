@@ -195,7 +195,8 @@ def init_db(engine) -> None:
         )
 
     with Session(engine) as session:
-        if first_run:
+        admin = session.exec(select(User).where(User.username == "Admin")).first()
+        if not admin:
             admin = User(
                 username="Admin",
                 password_hash=hash_secret("admin"),
@@ -203,6 +204,7 @@ def init_db(engine) -> None:
                 permissions=["admin"],
             )
             session.add(admin)
+
         viewer_perms = ["chores.read", "events.read", "reminders.read"]
         viewer = session.exec(select(User).where(User.username == "Viewer")).first()
         if not viewer:
