@@ -122,12 +122,27 @@ class CalendarEntryStore:
                 ]
             return entries
 
-    def delete(self, entry_id: int) -> None:
+    def delete(self, entry_id: int) -> bool:
         with Session(self.engine) as session:
             entry = session.get(CalendarEntry, entry_id)
-            if entry:
-                session.delete(entry)
-                session.commit()
+            if not entry:
+                return False
+            entry.recurrences = [
+                rec if isinstance(rec, Recurrence) else Recurrence.model_validate(rec)
+                for rec in entry.recurrences
+            ]
+            has_delegations = any(rec.delegations for rec in entry.recurrences)
+            has_completions = (
+                session.exec(
+                    select(ChoreCompletion.id).where(ChoreCompletion.entry_id == entry_id)
+                ).first()
+                is not None
+            )
+            if has_delegations or has_completions:
+                return False
+            session.delete(entry)
+            session.commit()
+            return True
 
     def split(
         self, entry_id: int, split_time: datetime

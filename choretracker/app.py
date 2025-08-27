@@ -638,9 +638,13 @@ async def list_calendar_entries(request: Request, entry_type: str):
     active_entries = []
     past_entries = []
     start_map = {}
+    can_delete_map: dict[int, bool] = {}
     for entry in entries:
         start, end = entry_time_bounds(entry)
         start_map[entry.id] = start
+        can_delete_map[entry.id] = not completion_store.list_for_entry(entry.id) and not any(
+            rec.delegations for rec in entry.recurrences
+        )
         if counts[entry.title] > 1:
             entry.title = f"{entry.title} ({time_range_summary(start, end)})"
         if end is None or end > now:
@@ -658,6 +662,7 @@ async def list_calendar_entries(request: Request, entry_type: str):
             "past_entries": past_entries,
             "entry_type": etype,
             "current_user": current_user,
+            "can_delete": can_delete_map,
         },
     )
 
@@ -734,12 +739,16 @@ async def view_calendar_entry(
     past_instances.sort(key=lambda x: x[0].start)
     past_instances = past_instances[-past_entries:]
     upcoming.sort(key=lambda x: x[0].start)
+    can_delete = not comps_list and not any(
+        rec.delegations for rec in entry.recurrences
+    )
     return templates.TemplateResponse(
         "calendar/view.html",
         {
             "request": request,
             "entry": entry,
             "can_edit": can_edit_entry(current_user, entry),
+            "can_delete": can_delete,
             "past_instances": past_instances,
             "upcoming_instances": upcoming,
             "past_entries": past_entries,
@@ -1132,7 +1141,8 @@ async def delete_calendar_entry(request: Request, entry_id: int):
     if not entry:
         raise HTTPException(status_code=404)
     require_entry_write_permission(request, entry)
-    calendar_store.delete(entry_id)
+    if not calendar_store.delete(entry_id):
+        raise HTTPException(status_code=400, detail="Entry has completions or delegations")
     return RedirectResponse(
         url=request.url_for("list_calendar_entries", entry_type=entry.type.value),
         status_code=303,
