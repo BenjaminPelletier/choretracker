@@ -37,7 +37,10 @@ RUN uv sync --frozen --no-install-project \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy application code and migration files
-COPY choretracker alembic.ini migrations ./
+# Copy each directory explicitly so Docker preserves their names
+COPY choretracker/ ./choretracker
+COPY alembic.ini ./alembic.ini
+COPY migrations/ ./migrations
 
 EXPOSE 8000
 
