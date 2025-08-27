@@ -326,7 +326,10 @@ class EnsureUserMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(EnsureUserMiddleware)
-app.add_middleware(SessionMiddleware, secret_key="change-me")
+session_secret = os.getenv("CHORETRACKER_SECRET_KEY")
+if not session_secret:
+    raise RuntimeError("CHORETRACKER_SECRET_KEY environment variable is not set")
+app.add_middleware(SessionMiddleware, secret_key=session_secret)
 
 
 @app.get("/", response_class=HTMLResponse)
