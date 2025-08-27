@@ -75,7 +75,7 @@ def test_manager_prepopulated_and_required(tmp_path, monkeypatch):
     # Form should prepopulate managers with current user
     resp = client.get("/calendar/new/Event")
     assert resp.status_code == 200
-    assert "entryManagersManager.addUser('Admin')" in resp.text
+    assert "initialManagers.push('Admin')" in resp.text
 
     # Missing managers should be rejected
     form_data = {
