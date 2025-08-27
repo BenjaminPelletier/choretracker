@@ -229,6 +229,19 @@ h1 .icon {
     border-radius: 50%;
 }
 
+.profile-picture .pending {
+    width: 4rem;
+    height: 4rem;
+    border-radius: 50%;
+    background-color: #ddd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #555;
+}
+
 .group .group {
     margin-left: 1rem;
 }
