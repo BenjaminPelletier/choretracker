@@ -2,13 +2,27 @@ FROM python:3.13-slim
 
 ENV UV_PROJECT_ENVIRONMENT=/app/.venv
 
-# Install uv
-RUN pip install --no-cache-dir uv
-
-# Install build tools required for some Python packages
+# Install system dependencies required to build packages from source
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential zlib1g-dev \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        cargo \
+        rustc \
+        pkg-config \
+        zlib1g-dev \
+        libjpeg-dev \
+        libpng-dev \
+        libfreetype6-dev \
+        libtiff-dev \
+        libwebp-dev \
+        libopenjp2-7-dev \
+        liblcms2-dev \
+        libffi-dev \
+        libssl-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Install uv after required build tools are available
+RUN pip install --no-cache-dir uv
 
 WORKDIR /app
 
@@ -17,7 +31,7 @@ COPY pyproject.toml uv.lock ./
 
 # Install dependencies without installing the project itself
 RUN uv sync --frozen --no-install-project \
-    && apt-get purge -y --auto-remove build-essential zlib1g-dev \
+    && apt-get purge -y build-essential cargo rustc pkg-config zlib1g-dev libjpeg-dev libjpeg62-turbo-dev libpng-dev libfreetype6-dev libtiff-dev libtiff5-dev libwebp-dev libopenjp2-7-dev liblcms2-dev libffi-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy application code
