@@ -8,9 +8,11 @@
     <span id="type-text">{{ entry.type.value }}</span>
     {% if can_edit %}
     <button type="button" id="edit-title-type" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
+    {% if can_delete %}
     <form method="post" action="{{ url_for('delete_calendar_entry', entry_id=entry.id) }}" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this entry?');">
         <button type="submit" class="icon-button"><img src="{{ url_for('static', path='trash.svg') }}" alt="Delete" class="icon"></button>
     </form>
+    {% endif %}
     {% endif %}
 </h1>
 <p class="time-range">{{ time_range_summary(entry_start, entry_end) }}</p>

@@ -10,7 +10,7 @@
     {% for entry in active_entries %}
     <li>
         <a href="{{ url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a>
-        {% if current_user in entry.managers or user_has(current_user, 'admin') %}
+        {% if (current_user in entry.managers or user_has(current_user, 'admin')) and can_delete[entry.id] %}
         <form method="post" action="{{ url_for('delete_calendar_entry', entry_id=entry.id) }}" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this entry?');">
             <button type="submit" class="icon-button"><img src="{{ url_for('static', path='trash.svg') }}" alt="Delete" class="icon"></button>
         </form>
@@ -26,7 +26,7 @@
     {% for entry in past_entries %}
     <li>
         <a href="{{ url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a>
-        {% if current_user in entry.managers or user_has(current_user, 'admin') %}
+        {% if (current_user in entry.managers or user_has(current_user, 'admin')) and can_delete[entry.id] %}
         <form method="post" action="{{ url_for('delete_calendar_entry', entry_id=entry.id) }}" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this entry?');">
             <button type="submit" class="icon-button"><img src="{{ url_for('static', path='trash.svg') }}" alt="Delete" class="icon"></button>
         </form>
