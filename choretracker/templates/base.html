@@ -5,6 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Chore Tracker{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
+    <script>
+    const CSRF_TOKEN = "{{ request.session['csrf_token'] }}";
+    const origFetch = window.fetch.bind(window);
+    window.fetch = function(url, options) {
+        options = options || {};
+        options.headers = options.headers || {};
+        if ((options.method || 'GET').toUpperCase() === 'POST') {
+            options.headers['X-CSRF-Token'] = CSRF_TOKEN;
+        }
+        return origFetch(url, options);
+    };
+    const origOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(method, url) {
+        this._method = method;
+        return origOpen.apply(this, arguments);
+    };
+    const origSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function(body) {
+        if ((this._method || '').toUpperCase() === 'POST') {
+            this.setRequestHeader('X-CSRF-Token', CSRF_TOKEN);
+        }
+        return origSend.apply(this, arguments);
+    };
+    </script>
 </head>
 <body>
     <nav class="navbar">

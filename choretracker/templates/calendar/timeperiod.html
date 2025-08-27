@@ -33,6 +33,7 @@
 <form method="post" action="{{ request.url_for(is_skipped and 'unskip_instance' or 'skip_instance', entry_id=entry.id) }}">
     <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
     <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
+    <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
     <button type="submit" class="skip-button">{{ 'Do not skip this instance' if is_skipped else 'Skip this instance' }}</button>
 </form>
 {% if not is_skipped %}
@@ -41,6 +42,7 @@
     <form id="delegation-update-form" method="post" action="{{ request.url_for('delegate_instance', entry_id=entry.id) }}">
         <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
         <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
+        <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
     </form>
     <ul class="responsible-list delegation-responsible-list" id="delegation-responsible-list">
         {% for u in delegation.responsible %}
@@ -69,6 +71,7 @@
     <form method="post" action="{{ request.url_for('remove_delegation', entry_id=entry.id) }}">
         <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
         <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
+        <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
         <button type="submit" class="skip-button">Remove delegation</button>
     </form>
 {% else %}
@@ -78,6 +81,7 @@
         {% for u in responsible %}
         <input type="hidden" name="responsible[]" value="{{ u }}" />
         {% endfor %}
+        <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
         <button type="submit" class="skip-button">Delegate this instance</button>
     </form>
 {% endif %}

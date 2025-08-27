@@ -8,6 +8,7 @@ from heapq import heappush, heappop
 from typing import Iterator
 from itertools import count
 from collections import Counter
+import secrets
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse, JSONResponse
@@ -325,7 +326,29 @@ class EnsureUserMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class CSRFMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        session = request.session
+        token = session.get("csrf_token")
+        if not token:
+            token = secrets.token_urlsafe(32)
+            session["csrf_token"] = token
+        if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+            content_type = request.headers.get("content-type", "")
+            csrf_token = None
+            if content_type.startswith("application/x-www-form-urlencoded") or content_type.startswith("multipart/form-data"):
+                form = await request.form()
+                csrf_token = form.get("csrf_token")
+            else:
+                csrf_token = request.headers.get("x-csrf-token") or request.query_params.get("csrf_token")
+            if not csrf_token or csrf_token != session.get("csrf_token"):
+                raise HTTPException(status_code=400, detail="Invalid CSRF token")
+        response = await call_next(request)
+        return response
+
+
 app.add_middleware(EnsureUserMiddleware)
+app.add_middleware(CSRFMiddleware)
 session_secret = os.getenv("CHORETRACKER_SECRET_KEY")
 if not session_secret:
     raise RuntimeError("CHORETRACKER_SECRET_KEY environment variable is not set")
