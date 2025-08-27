@@ -65,3 +65,27 @@ defined:
 
 Foreign key constraints are enabled on startup to maintain referential
 integrity.
+
+## Database Migrations
+
+Schema changes are managed with [Alembic](https://alembic.sqlalchemy.org/).
+When you modify any of the SQLModel table definitions, create and apply a
+migration:
+
+1. Generate a migration script after editing the models:
+
+   ```bash
+   uv run alembic revision --autogenerate -m "describe change"
+   ```
+
+2. Apply the migration to your local database:
+
+   ```bash
+   uv run alembic upgrade head
+   ```
+
+3. Commit the generated file under `migrations/versions` along with your
+   code changes.
+
+New installations can be initialized by running `alembic upgrade head` or by
+starting the application, which will create the initial schema automatically.
