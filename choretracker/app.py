@@ -1100,6 +1100,8 @@ async def update_calendar_entry(request: Request, entry_id: int):
 
     none_after_str = form.get("none_after")
     none_after = datetime.fromisoformat(none_after_str) if none_after_str else None
+    none_before_str = form.get("none_before")
+    none_before = datetime.fromisoformat(none_before_str) if none_before_str else None
 
     responsible = form.getlist("responsible")
     managers = form.getlist("managers")
