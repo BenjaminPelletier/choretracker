@@ -12,6 +12,7 @@ import secrets
 import logging
 
 from fastapi import FastAPI, HTTPException, Request
+from starlette.requests import Request as StarletteRequest
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse, JSONResponse
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.staticfiles import StaticFiles
@@ -340,13 +341,37 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             token = secrets.token_urlsafe(32)
             session["csrf_token"] = token
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+            body = await request.body()
             content_type = request.headers.get("content-type", "")
-            csrf_token = None
-            if content_type.startswith("application/x-www-form-urlencoded") or content_type.startswith("multipart/form-data"):
-                form = await request.form()
+            csrf_token = request.headers.get("x-csrf-token") or request.query_params.get(
+                "csrf_token"
+            )
+            def make_receive():
+                sent = False
+
+                async def receive():
+                    nonlocal sent
+                    if sent:
+                        return {"type": "http.request", "body": b"", "more_body": False}
+                    sent = True
+                    return {
+                        "type": "http.request",
+                        "body": body,
+                        "more_body": False,
+                    }
+
+                return receive
+
+            if not csrf_token and (
+                content_type.startswith("application/x-www-form-urlencoded")
+                or content_type.startswith("multipart/form-data")
+            ):
+                form_request = StarletteRequest(request.scope, make_receive())
+                form = await form_request.form()
                 csrf_token = form.get("csrf_token")
-            else:
-                csrf_token = request.headers.get("x-csrf-token") or request.query_params.get("csrf_token")
+
+            request._receive = make_receive()
+
             if not csrf_token or csrf_token != session.get("csrf_token"):
                 logger.warning(
                     "Invalid CSRF token for %s %s", request.method, request.url.path
