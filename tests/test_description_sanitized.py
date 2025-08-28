@@ -1,0 +1,38 @@
+import importlib
+import sys
+from pathlib import Path
+from datetime import datetime
+
+from fastapi.testclient import TestClient
+import re
+
+# Ensure project root is on path
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
+from choretracker.calendar import CalendarEntry, CalendarEntryType
+
+
+def test_description_sanitized(tmp_path, monkeypatch):
+    db_file = tmp_path / "test.db"
+    monkeypatch.setenv("CHORETRACKER_DB", str(db_file))
+    app_module = importlib.import_module("choretracker.app")
+    client = TestClient(app_module.app)
+
+    client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
+
+    entry = CalendarEntry(
+        title="Sanitize",
+        description="<script>alert('x')</script>",
+        type=CalendarEntryType.Event,
+        first_start=datetime(2025, 1, 1, 0, 0, 0),
+        duration_seconds=60,
+        managers=["Admin"],
+    )
+    app_module.calendar_store.create(entry)
+    entry_id = app_module.calendar_store.list_entries()[-1].id
+
+    response = client.get(f"/calendar/entry/{entry_id}")
+    match = re.search(r'<div id="description-text">(.*?)</div>', response.text, re.DOTALL | re.IGNORECASE)
+    assert match is not None
+    snippet = match.group(1).lower()
+    assert "<script" not in snippet
