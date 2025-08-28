@@ -83,6 +83,8 @@
         <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
         <button type="submit" class="icon-button"><img src="{{ url_for('static', path='trash.svg') }}" alt="Delete" class="icon"></button>
     </form>
+    {% elif can_edit %}
+    <button type="button" id="delegate-this-instance" class="icon-button"><img src="{{ url_for('static', path='plus.svg') }}" alt="Add" class="icon"></button>
     {% endif %}
 </h2>
 {% if delegation %}
@@ -91,8 +93,6 @@
     <li data-user="{{ u }}">{{ u }}</li>
     {% endfor %}
 </ul>
-{% elif can_edit %}
-<button type="button" id="delegate-this-instance" class="skip-button">Delegate this instance</button>
 {% endif %}
 {% if can_edit %}
 <div id="delegation-editor" style="display:none"></div>
