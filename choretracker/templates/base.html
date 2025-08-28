@@ -234,8 +234,9 @@
                 }
             });
         });
+        var switchTemplate = "{{ url_for('switch_user', username='__USER__') }}";
         function performSwitch(username, next, pin) {
-            var url = '/switch/' + encodeURIComponent(username) + '?next=' + encodeURIComponent(next);
+            var url = switchTemplate.replace('__USER__', encodeURIComponent(username)) + '?next=' + encodeURIComponent(next);
             if (window.fetch) {
                 fetch(url, {
                     method: 'POST',

@@ -32,7 +32,7 @@
 <dl>
     <dt>Managers: <span id="entry-managers-container" data-managers='{{ entry.managers|tojson }}'>
         {% for user in entry.managers %}
-        <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+        <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
         {% if can_edit %}
         <button type="button" id="edit-managers" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
@@ -55,7 +55,7 @@
     </span></dt>
     <dt>Responsible: <span id="entry-responsible-container" data-responsible='{{ entry.responsible|tojson }}'>
         {% for user in entry.responsible %}
-        <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+        <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
         {% if can_edit %}
         <button type="button" id="edit-responsible" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
@@ -69,7 +69,7 @@
             <li class="recurrence-item" data-rindex="{{ loop.index0 }}" data-type="{{ rec.type.value }}" data-offset-seconds="{{ rec.offset.exact_duration_seconds if rec.offset and rec.offset.exact_duration_seconds else 0 }}" data-responsible='{{ rec.responsible|tojson }}'>
                 <span class="recurrence-text">{{ rec.type.value }}{% if rec.offset %} (offset: {{ rec.offset|format_offset }}){% endif %}</span>
                 {% for user in rec.responsible %}
-                <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+                <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
                 {% endfor %}
                 {% if can_edit %}
                 <button type="button" class="icon-button edit-recurrence"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
@@ -104,11 +104,11 @@
         <li>
             <a href="{{ url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ time_range_summary(period.start, period.end) }}</a>
             {% for user in responsible %}
-            <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+            <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
             {% endfor %}
             {% if completion %}
             <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ completion.recurrence_index }}" data-iindex="{{ completion.instance_index }}" {% if can_remove %}data-action="remove"{% endif %} />
-            <img src="{{ request.url_for('profile_picture', username=completion.completed_by) }}" alt="{{ completion.completed_by }}" class="profile-icon" />
+            <img src="{{ url_for('profile_picture', username=completion.completed_by) }}" alt="{{ completion.completed_by }}" class="profile-icon" />
             {{ completion.completed_at|format_completion_time(period.end) }}
             {% endif %}
             {% if is_skipped %} (skipped){% endif %}
@@ -123,7 +123,7 @@
         <li>
             <a href="{{ url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ time_range_summary(period.start, period.end) }}</a>
             {% for user in responsible %}
-            <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+            <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
             {% endfor %}
             {% if is_skipped %} (skipped){% endif %}
         </li>
@@ -154,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const xUrl = "{{ url_for('static', path='x.svg') }}";
     const trashUrl = "{{ url_for('static', path='trash.svg') }}";
     const plusUrl = "{{ url_for('static', path='plus.svg') }}";
-    const profileUrlTemplate = "{{ request.url_for('profile_picture', username='__user__') }}";
+    const profileUrlTemplate = "{{ url_for('profile_picture', username='__user__') }}";
     const allUsers = {{ all_users()|selectattr('username','ne','Viewer')|map(attribute='username')|list|tojson }};
     const recurrenceTypes = {{ RecurrenceType|map(attribute='value')|list|tojson }};
 

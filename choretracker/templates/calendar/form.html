@@ -4,7 +4,7 @@
 
 {% block content %}
 <h1>{% if entry %}Edit{% else %}New{% endif %} {{ entry_type }}</h1>
-<form id="entry-form" class="form" method="post" action="{% if entry %}{{ url_for('update_calendar_entry', entry_id=entry.id) }}{% else %}/calendar/new{% endif %}">
+<form id="entry-form" class="form" method="post" action="{% if entry %}{{ url_for('update_calendar_entry', entry_id=entry.id) }}{% else %}{{ url_for('create_calendar_entry') }}{% endif %}">
     <input type="hidden" name="type" value="{{ entry_type }}">
     <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}">
 
@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const trashUrl = "{{ url_for('static', path='trash.svg') }}";
     const plusUrl = "{{ url_for('static', path='plus.svg') }}";
     const xUrl = "{{ url_for('static', path='x.svg') }}";
-    const profileUrlTemplate = "{{ request.url_for('profile_picture', username='__user__') }}";
+    const profileUrlTemplate = "{{ url_for('profile_picture', username='__user__') }}";
     const allUsers = {{ all_users()|selectattr('username','ne','Viewer')|map(attribute='username')|list|tojson }};
     const recurrenceTypes = {{ RecurrenceType|map(attribute='value')|list|tojson }};
 

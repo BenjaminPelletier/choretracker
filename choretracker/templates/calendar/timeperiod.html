@@ -3,11 +3,11 @@
 {% block title %}{{ entry.title }} instance - Chore Tracker{% endblock %}
 
 {% block content %}
-<h1><a href="{{ request.url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a> instance</h1>
+<h1><a href="{{ url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a> instance</h1>
 <div class="time-range">
     <span>{{ time_range_summary(period.start, period.end) }}</span>
     {% for user in responsible %}
-    <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+    <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
     {% endfor %}
     {% if entry.type == CalendarEntryType.Chore %}
         {% if period.end <= now %}
@@ -30,7 +30,7 @@
 </div>
 <div class="description">{{ entry.description|markdown }}</div>
 {% if can_edit %}
-<form method="post" action="{{ request.url_for(is_skipped and 'unskip_instance' or 'skip_instance', entry_id=entry.id) }}">
+<form method="post" action="{{ url_for(is_skipped and 'unskip_instance' or 'skip_instance', entry_id=entry.id) }}">
     <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
     <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
     <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
@@ -39,7 +39,7 @@
 {% if not is_skipped %}
 <h2>Delegation</h2>
 {% if delegation %}
-    <form id="delegation-update-form" method="post" action="{{ request.url_for('delegate_instance', entry_id=entry.id) }}">
+    <form id="delegation-update-form" method="post" action="{{ url_for('delegate_instance', entry_id=entry.id) }}">
         <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
         <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
         <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
@@ -68,14 +68,14 @@
         </div>
     </div>
     {% endif %}
-    <form method="post" action="{{ request.url_for('remove_delegation', entry_id=entry.id) }}">
+    <form method="post" action="{{ url_for('remove_delegation', entry_id=entry.id) }}">
         <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
         <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
         <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
         <button type="submit" class="skip-button">Remove delegation</button>
     </form>
 {% else %}
-    <form method="post" action="{{ request.url_for('delegate_instance', entry_id=entry.id) }}">
+    <form method="post" action="{{ url_for('delegate_instance', entry_id=entry.id) }}">
         <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
         <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
         {% for u in responsible %}

@@ -55,23 +55,23 @@ def test_instances_past_and_upcoming(tmp_path, monkeypatch):
     assert "Past" in text and "Upcoming" in text
     # early completion should show under Past and be linked
     assert (
-        f'<a href="http://testserver/calendar/entry/{entry_id}/period/0/2">Sat 2000-01-22 00:00 to 01:00</a>' in text
+        f'<a href="./{entry_id}/period/0/2">Sat 2000-01-22 00:00 to 01:00</a>' in text
     )
     # skipped past instance is listed with annotation and responsible profile
     assert (
-        f'<a href="http://testserver/calendar/entry/{entry_id}/period/0/1">Sat 2000-01-15 00:00 to 01:00</a>' in text
+        f'<a href="./{entry_id}/period/0/1">Sat 2000-01-15 00:00 to 01:00</a>' in text
     )
     assert "(skipped)" in text
     # first upcoming instance is linked
     assert (
-        f'<a href="http://testserver/calendar/entry/{entry_id}/period/0/3">Sat 2000-01-29 00:00 to 01:00</a>' in text
+        f'<a href="./{entry_id}/period/0/3">Sat 2000-01-29 00:00 to 01:00</a>' in text
     )
     # profile icons for completed and responsible users displayed
     assert "/users/Admin/profile_picture" in text
     assert "/users/Bob/profile_picture" in text
     # Responsible icon should appear before completion details
     line = re.search(
-        rf'<a href="http://testserver/calendar/entry/{entry_id}/period/0/2">Sat 2000-01-22 00:00 to 01:00</a>(.*?)</li>',
+        rf'<a href="./{entry_id}/period/0/2">Sat 2000-01-22 00:00 to 01:00</a>(.*?)</li>',
         text,
         re.DOTALL,
     ).group(1)
