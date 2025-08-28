@@ -34,6 +34,14 @@
 
     <div class="field">
         <div class="label-row">
+            <label for="none_before">None before</label>
+            <span class="help" data-help="No instances start before this time">?</span>
+        </div>
+        <input type="datetime-local" id="none_before" name="none_before">
+    </div>
+
+    <div class="field">
+        <div class="label-row">
             <span>Duration<span class="required">*</span></span>
             <span class="help" data-help="Length of each instance">?</span>
         </div>
@@ -362,6 +370,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelector('input[name="duration_days"]').value = days || '';
     document.querySelector('input[name="duration_hours"]').value = hours || '';
     document.querySelector('input[name="duration_minutes"]').value = minutes || '';
+    if (data.none_before) {
+        document.getElementById('none_before').value = data.none_before.slice(0,16);
+    }
     if (data.none_after) {
         document.getElementById('none_after').value = data.none_after.slice(0,16);
     }
