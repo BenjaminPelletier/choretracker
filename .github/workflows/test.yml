@@ -1,0 +1,20 @@
+name: Run tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          python-version: '3.13'
+      - name: Run tests
+        env:
+          CHORETRACKER_SECRET_KEY: test
+          CHORETRACKER_DISABLE_CSRF: '1'
+        run: uv run --with pytest --with httpx -m pytest
