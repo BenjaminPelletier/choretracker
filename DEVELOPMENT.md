@@ -30,6 +30,27 @@ These instructions describe how to set up a development environment for the Chor
       - Choose **New environment** and set the location to the project root.
       - Ensure **Python** is set to **3.13** and click **OK**. PyCharm will run `uv sync` automatically.
 
+## Adding Dependencies
+
+When adding a new package to `pyproject.toml`, regenerate the lockfile so
+`uv.lock` stays in sync:
+
+```bash
+uv lock
+```
+
+The test suite checks for lockfile synchronization and will fail if this
+command is not run.
+
+## Running Tests
+
+Run all tests with the required environment variables so the application
+initializes correctly:
+
+```bash
+CHORETRACKER_SECRET_KEY=test CHORETRACKER_DISABLE_CSRF=1 uv run pytest
+```
+
 ## Running the Development Server
 From the PyCharm terminal or a system shell, start the server with:
 ```bash
