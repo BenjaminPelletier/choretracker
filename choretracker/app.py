@@ -351,9 +351,14 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                 logger.warning(
                     "Invalid CSRF token for %s %s", request.method, request.url.path
                 )
-                raise HTTPException(status_code=400, detail="Invalid CSRF token")
-        response = await call_next(request)
-        return response
+                if request.url.path == "/login":
+                    return templates.TemplateResponse(
+                        "login.html",
+                        {"request": request, "error": "Invalid CSRF token"},
+                        status_code=400,
+                    )
+                return JSONResponse({"error": "Invalid CSRF token"}, status_code=400)
+        return await call_next(request)
 
 
 app.add_middleware(EnsureUserMiddleware)
