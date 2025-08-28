@@ -121,10 +121,11 @@ def _make_relative(current_path: str, target_path: str) -> str:
     cur_dir = current_path if current_path.endswith("/") else current_path.rsplit("/", 1)[0] + "/"
     rel_path = posixpath.relpath(target_path, start=cur_dir)
     if rel_path == ".":
-        # Special case: target is the current directory/root. Return an absolute
-        # path so that callers expecting "\/" (e.g. tests checking redirect
-        # locations) continue to work.
-        return "/"
+        # ``posixpath.relpath`` collapses paths like ``/calendar/new`` relative to
+        # ``/calendar/new/Chore`` to ``.``. Returning ``/`` would incorrectly point
+        # to the site root; instead return the absolute target path so forms post
+        # to the intended endpoint.
+        return target_path
     if not rel_path.startswith("."):
         rel_path = "./" + rel_path
     return rel_path
