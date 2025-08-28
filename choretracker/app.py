@@ -332,6 +332,8 @@ class EnsureUserMiddleware(BaseHTTPMiddleware):
 
 class CSRFMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        if os.getenv("CHORETRACKER_DISABLE_CSRF") == "1":
+            return await call_next(request)
         session = request.session
         token = session.get("csrf_token")
         if not token:
@@ -483,8 +485,9 @@ async def login(request: Request):
     username = form.get("username", "")
     password = form.get("password", "")
 
-    if user_store.verify(username, password):
-        request.session["user"] = username
+    user = user_store.verify(username, password)
+    if user:
+        request.session["user"] = user.username
         request.session["last_active"] = datetime.now().timestamp()
         return RedirectResponse(url="/", status_code=303)
 
