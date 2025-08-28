@@ -18,7 +18,7 @@ if hasattr(bcrypt, "_bcrypt") and not hasattr(bcrypt._bcrypt, "__about__"):
 
 from passlib.context import CryptContext
 from sqlmodel import Field, Session, SQLModel, select
-from sqlalchemy import Column, JSON, LargeBinary, text
+from sqlalchemy import Column, JSON, LargeBinary, text, func
 
 from .calendar import CalendarEntry, Recurrence, ChoreCompletion
 from sqlalchemy.exc import OperationalError
@@ -93,6 +93,12 @@ class UserStore:
     def get(self, username: str) -> Optional[User]:
         with Session(self.engine) as session:
             return session.exec(select(User).where(User.username == username)).first()
+
+    def get_case_insensitive(self, username: str) -> Optional[User]:
+        with Session(self.engine) as session:
+            return session.exec(
+                select(User).where(func.lower(User.username) == username.lower())
+            ).first()
 
     def create(
         self,
@@ -219,11 +225,13 @@ class UserStore:
         user = self.get(username)
         return bool(user) and ("admin" in user.permissions or permission in user.permissions)
 
-    def verify(self, username: str, password: str) -> bool:
-        user = self.get(username)
+    def verify(self, username: str, password: str) -> Optional[User]:
+        user = self.get_case_insensitive(username)
         if not user or not user.password_hash:
-            return False
-        return pwd_context.verify(password, user.password_hash)
+            return None
+        if pwd_context.verify(password, user.password_hash):
+            return user
+        return None
 
 
 def init_db(engine) -> None:

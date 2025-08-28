@@ -11,6 +11,7 @@
 {% block content %}
 <h1>{{ page_title }}</h1>
 <form method="post" class="form" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}">
     <div class="field">
         <label>
             <span>Username</span>

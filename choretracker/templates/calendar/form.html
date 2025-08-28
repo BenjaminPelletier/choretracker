@@ -6,6 +6,7 @@
 <h1>{% if entry %}Edit{% else %}New{% endif %} {{ entry_type }}</h1>
 <form id="entry-form" class="form" method="post" action="{% if entry %}{{ url_for('update_calendar_entry', entry_id=entry.id) }}{% else %}{{ url_for('create_calendar_entry') }}{% endif %}">
     <input type="hidden" name="type" value="{{ entry_type }}">
+    <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}">
 
     <div class="field">
         <div class="label-row">

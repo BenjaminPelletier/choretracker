@@ -8,9 +8,13 @@ from heapq import heappush, heappop
 from typing import Iterator
 from itertools import count
 from collections import Counter
+import secrets
+import logging
 
 from fastapi import FastAPI, HTTPException, Request
+from starlette.requests import Request as StarletteRequest
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse, JSONResponse
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -93,6 +97,8 @@ WRITE_PERMS = {
 }
 
 app = FastAPI()
+
+logger = logging.getLogger(__name__)
 
 BASE_PATH = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_PATH / "templates"))
@@ -350,7 +356,63 @@ class EnsureUserMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class CSRFMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if os.getenv("CHORETRACKER_DISABLE_CSRF") == "1":
+            return await call_next(request)
+        session = request.session
+        token = session.get("csrf_token")
+        if not token:
+            token = secrets.token_urlsafe(32)
+            session["csrf_token"] = token
+        if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+            body = await request.body()
+            content_type = request.headers.get("content-type", "")
+            csrf_token = request.headers.get("x-csrf-token") or request.query_params.get(
+                "csrf_token"
+            )
+            def make_receive():
+                sent = False
+
+                async def receive():
+                    nonlocal sent
+                    if sent:
+                        return {"type": "http.request", "body": b"", "more_body": False}
+                    sent = True
+                    return {
+                        "type": "http.request",
+                        "body": body,
+                        "more_body": False,
+                    }
+
+                return receive
+
+            if not csrf_token and (
+                content_type.startswith("application/x-www-form-urlencoded")
+                or content_type.startswith("multipart/form-data")
+            ):
+                form_request = StarletteRequest(request.scope, make_receive())
+                form = await form_request.form()
+                csrf_token = form.get("csrf_token")
+
+            request._receive = make_receive()
+
+            if not csrf_token or csrf_token != session.get("csrf_token"):
+                logger.warning(
+                    "Invalid CSRF token for %s %s", request.method, request.url.path
+                )
+                if request.url.path == "/login":
+                    return templates.TemplateResponse(
+                        "login.html",
+                        {"request": request, "error": "Invalid CSRF token"},
+                        status_code=400,
+                    )
+                return JSONResponse({"error": "Invalid CSRF token"}, status_code=400)
+        return await call_next(request)
+
+
 app.add_middleware(EnsureUserMiddleware)
+app.add_middleware(CSRFMiddleware)
 session_secret = os.getenv("CHORETRACKER_SECRET_KEY")
 if not session_secret:
     raise RuntimeError("CHORETRACKER_SECRET_KEY environment variable is not set")
@@ -478,14 +540,24 @@ async def login(request: Request):
     username = form.get("username", "")
     password = form.get("password", "")
 
-    if user_store.verify(username, password):
-        request.session["user"] = username
+    user = user_store.verify(username, password)
+    if user:
+        request.session["user"] = user.username
         request.session["last_active"] = datetime.now().timestamp()
         return RedirectResponse(url=relative_url_for(request, "index"), status_code=303)
 
     return templates.TemplateResponse(
         "login.html", {"request": request, "error": "Invalid credentials"}, status_code=400
     )
+
+
+@app.exception_handler(HTTPException)
+async def handle_http_exception(request: Request, exc: HTTPException):
+    if exc.status_code == 400 and request.url.path == "/login":
+        return templates.TemplateResponse(
+            "login.html", {"request": request, "error": exc.detail}, status_code=400
+        )
+    return await http_exception_handler(request, exc)
 
 
 def _switch_target(request: Request, next: str | None) -> str:
