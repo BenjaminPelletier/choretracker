@@ -9,9 +9,11 @@ from typing import Iterator
 from itertools import count
 from collections import Counter
 import secrets
+import logging
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse, JSONResponse
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -92,6 +94,8 @@ WRITE_PERMS = {
 }
 
 app = FastAPI()
+
+logger = logging.getLogger(__name__)
 
 BASE_PATH = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_PATH / "templates"))
@@ -342,6 +346,9 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             else:
                 csrf_token = request.headers.get("x-csrf-token") or request.query_params.get("csrf_token")
             if not csrf_token or csrf_token != session.get("csrf_token"):
+                logger.warning(
+                    "Invalid CSRF token for %s %s", request.method, request.url.path
+                )
                 raise HTTPException(status_code=400, detail="Invalid CSRF token")
         response = await call_next(request)
         return response
@@ -484,6 +491,15 @@ async def login(request: Request):
     return templates.TemplateResponse(
         "login.html", {"request": request, "error": "Invalid credentials"}, status_code=400
     )
+
+
+@app.exception_handler(HTTPException)
+async def handle_http_exception(request: Request, exc: HTTPException):
+    if exc.status_code == 400 and request.url.path == "/login":
+        return templates.TemplateResponse(
+            "login.html", {"request": request, "error": exc.detail}, status_code=400
+        )
+    return await http_exception_handler(request, exc)
 
 
 def _switch_target(next: str | None) -> str:
