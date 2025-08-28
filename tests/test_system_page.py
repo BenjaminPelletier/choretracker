@@ -35,3 +35,35 @@ def test_system_page_requires_admin(tmp_path, monkeypatch):
     resp = client.get("/system", follow_redirects=False)
     assert resp.status_code == 303
     assert resp.headers["location"] == "/"
+
+
+def test_logout_duration_setting(tmp_path, monkeypatch):
+    app_module = _load_app(tmp_path, monkeypatch)
+    client = TestClient(app_module.app)
+    client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
+
+    page = client.get("/system")
+    assert "View-only after" in page.text
+    assert 'id="logout-duration-text">1<' in page.text
+
+    resp = client.post("/system/logout_duration", json={"minutes": 5})
+    assert resp.status_code == 200
+    page = client.get("/system")
+    assert 'id="logout-duration-text">5<' in page.text
+
+    resp = client.post("/system/logout_duration", json={"minutes": 0})
+    assert resp.status_code == 400
+    page = client.get("/system")
+    assert 'id="logout-duration-text">5<' in page.text
+
+    resp = client.post("/system/logout_duration", json={"minutes": 16})
+    assert resp.status_code == 400
+
+
+def test_logout_duration_requires_admin(tmp_path, monkeypatch):
+    app_module = _load_app(tmp_path, monkeypatch)
+    app_module.user_store.create("User", "pw", None, set())
+    client = TestClient(app_module.app)
+    client.post("/login", data={"username": "User", "password": "pw"}, follow_redirects=False)
+    resp = client.post("/system/logout_duration", json={"minutes": 5}, follow_redirects=False)
+    assert resp.status_code == 303

@@ -5,4 +5,67 @@
 {% block content %}
 <h1>choretracker</h1>
 <p>{{ version }}</p>
+<p>View-only after <span id="logout-duration-container">
+    <span id="logout-duration-text">{{ logout_minutes }}</span>
+    {% if user_has(request.session.get('user'), 'admin') %}
+    <button type="button" id="edit-logout-duration" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
+    {% endif %}
+    </span> minutes</p>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const editBtn = document.getElementById('edit-logout-duration');
+    if (!editBtn) return;
+    const diskUrl = "{{ url_for('static', path='disk.svg') }}";
+    const xUrl = "{{ url_for('static', path='x.svg') }}";
+
+    function makeBtn(url, alt) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'icon-button';
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = alt;
+        img.className = 'icon';
+        b.appendChild(img);
+        return b;
+    }
+
+    editBtn.addEventListener('click', () => {
+        const container = document.getElementById('logout-duration-container');
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.min = '1';
+        input.max = '15';
+        input.value = '{{ logout_minutes }}';
+        input.className = 'inline-input';
+        const save = makeBtn(diskUrl, 'Save');
+        const cancel = makeBtn(xUrl, 'Cancel');
+        container.innerHTML = '';
+        container.appendChild(input);
+        container.appendChild(save);
+        container.appendChild(cancel);
+        save.addEventListener('click', async () => {
+            const minutes = parseInt(input.value, 10);
+            if (isNaN(minutes) || minutes < 1 || minutes > 15) {
+                alert('Invalid value');
+                return;
+            }
+            const resp = await fetch('/system/logout_duration', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify({minutes})
+            });
+            if (resp.ok) {
+                location.reload();
+            } else {
+                alert('Invalid value');
+            }
+        });
+        cancel.addEventListener('click', () => {
+            location.reload();
+        });
+    });
+});
+</script>
 {% endblock %}

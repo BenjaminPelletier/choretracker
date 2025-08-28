@@ -52,6 +52,7 @@ from .calendar import (
     find_delegation,
     responsible_for,
 )
+from .settings import SettingsStore
 
 
 LOGOUT_DURATION = timedelta(minutes=1)
@@ -72,6 +73,8 @@ init_db(engine)
 user_store = UserStore(engine)
 calendar_store = CalendarEntryStore(engine)
 completion_store = ChoreCompletionStore(engine)
+settings_store = SettingsStore(engine)
+LOGOUT_DURATION = timedelta(minutes=settings_store.get_logout_duration())
 ALL_PERMISSIONS = [
     "chores.read",
     "chores.write",
@@ -640,8 +643,27 @@ async def logout(request: Request):
 async def system(request: Request):
     require_permission(request, "admin")
     return templates.TemplateResponse(
-        "system.html", {"request": request, "version": server_version()}
+        "system.html",
+        {
+            "request": request,
+            "version": server_version(),
+            "logout_minutes": int(LOGOUT_DURATION.total_seconds() // 60),
+        },
     )
+
+
+@app.post("/system/logout_duration")
+async def update_logout_duration(request: Request):
+    require_permission(request, "admin")
+    data = await request.json()
+    minutes = data.get("minutes")
+    if not isinstance(minutes, int) or minutes < 1 or minutes > 15:
+        return JSONResponse({"error": "Invalid value"}, status_code=400)
+    settings_store.set_logout_duration(minutes)
+    global LOGOUT_DURATION
+    LOGOUT_DURATION = timedelta(minutes=minutes)
+    templates.env.globals["LOGOUT_DURATION"] = LOGOUT_DURATION
+    return JSONResponse({"ok": True})
 
 
 @app.get("/users/{username}/profile_picture")
