@@ -14,7 +14,4 @@ jobs:
         with:
           python-version: '3.13'
       - name: Run tests
-        env:
-          CHORETRACKER_SECRET_KEY: test
-          CHORETRACKER_DISABLE_CSRF: '1'
-        run: uv run --with pytest --with httpx -m pytest
+        run: make test
