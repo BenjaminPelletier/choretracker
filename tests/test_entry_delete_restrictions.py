@@ -116,5 +116,5 @@ def test_list_hides_delete_for_undeletable(tmp_path, monkeypatch):
     app_module.completion_store.create(comp_id, 0, 0, "Admin")
     resp = client.get("/calendar/list/Chore")
     text = resp.text
-    assert f"/calendar/{comp_id}/delete" not in text
-    assert f"/calendar/{del_id}/delete" in text
+    assert f"../{comp_id}/delete" not in text
+    assert f"../{del_id}/delete" in text
