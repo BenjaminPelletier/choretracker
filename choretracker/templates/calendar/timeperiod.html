@@ -37,53 +37,29 @@
     <button type="submit" class="skip-button">{{ 'Do not skip this instance' if is_skipped else 'Skip this instance' }}</button>
 </form>
 {% if not is_skipped %}
-<h2>Delegation</h2>
-{% if delegation %}
-    <form id="delegation-update-form" method="post" action="{{ url_for('delegate_instance', entry_id=entry.id) }}">
+<h2>
+    Delegation
+    {% if delegation and can_edit %}
+    <button type="button" id="edit-delegation" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
+    <form method="post" action="{{ url_for('remove_delegation', entry_id=entry.id) }}" style="display:inline">
         <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
         <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
         <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
+        <button type="submit" class="icon-button"><img src="{{ url_for('static', path='trash.svg') }}" alt="Delete" class="icon"></button>
     </form>
-    <ul class="responsible-list delegation-responsible-list" id="delegation-responsible-list">
-        {% for u in delegation.responsible %}
-        <li data-user="{{ u }}">
-            {{ u }}
-            <button type="button" class="remove-user"><img src="{{ url_for('static', path='trash.svg') }}" alt="Remove" class="icon"></button>
-        </li>
-        {% endfor %}
-    </ul>
-    {% set ns = namespace(options=[]) %}
-    {% for u in all_users() %}
-        {% if u.username != 'Viewer' and u.username not in delegation.responsible %}
-            {% set ns.options = ns.options + [u.username] %}
-        {% endif %}
-    {% endfor %}
-    {% if ns.options %}
-    <div class="responsible-selector">
-        <button type="button" id="add-delegation-responsible" class="skip-button">Add</button>
-        <div class="dropdown" id="delegation-dropdown">
-            {% for name in ns.options %}
-            <a href="#" data-user="{{ name }}">{{ name }}</a>
-            {% endfor %}
-        </div>
-    </div>
     {% endif %}
-    <form method="post" action="{{ url_for('remove_delegation', entry_id=entry.id) }}">
-        <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
-        <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
-        <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
-        <button type="submit" class="skip-button">Remove delegation</button>
-    </form>
-{% else %}
-    <form method="post" action="{{ url_for('delegate_instance', entry_id=entry.id) }}">
-        <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
-        <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
-        {% for u in responsible %}
-        <input type="hidden" name="responsible[]" value="{{ u }}" />
-        {% endfor %}
-        <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
-        <button type="submit" class="skip-button">Delegate this instance</button>
-    </form>
+</h2>
+{% if delegation %}
+<ul class="responsible-list" id="delegation-display-list">
+    {% for u in delegation.responsible %}
+    <li data-user="{{ u }}">{{ u }}</li>
+    {% endfor %}
+</ul>
+{% elif can_edit %}
+<button type="button" id="delegate-this-instance" class="skip-button">Delegate this instance</button>
+{% endif %}
+{% if can_edit %}
+<div id="delegation-editor" style="display:none"></div>
 {% endif %}
 {% endif %}
 {% endif %}
@@ -103,59 +79,135 @@ document.querySelectorAll('.checkbox-icon[data-action]').forEach(el => {
         location.reload();
     });
 });
-document.addEventListener('DOMContentLoaded', function () {
-    const list = document.getElementById('delegation-responsible-list');
-    if (!list) return;
-    const form = document.getElementById('delegation-update-form');
+document.addEventListener('DOMContentLoaded', () => {
+    const entryId = {{ entry.id }};
+    const rindex = {{ period.recurrence_index }};
+    const iindex = {{ period.instance_index }};
+    const csrfToken = {{ request.session.get('csrf_token', '')|tojson }};
+    const allUsers = {{ all_users()|selectattr('username','ne','Viewer')|map(attribute='username')|list|tojson }};
+    const diskUrl = "{{ url_for('static', path='disk.svg') }}";
+    const xUrl = "{{ url_for('static', path='x.svg') }}";
+    const plusUrl = "{{ url_for('static', path='plus.svg') }}";
     const trashUrl = "{{ url_for('static', path='trash.svg') }}";
-    function submitDelegation() {
-        form.querySelectorAll('input[name="responsible[]"]').forEach(e => e.remove());
-        list.querySelectorAll('li').forEach(li => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = 'responsible[]';
-            input.value = li.dataset.user;
-            form.appendChild(input);
-        });
-        fetch(form.action, { method: 'POST', credentials: 'same-origin', body: new FormData(form) }).then(() => location.reload());
+
+    function makeBtn(url, alt) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'icon-button';
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = alt;
+        img.className = 'icon';
+        b.appendChild(img);
+        return b;
     }
-    list.addEventListener('click', e => {
-        if (e.target.closest('.remove-user')) {
-            e.preventDefault();
-            e.target.closest('li').remove();
-            submitDelegation();
+
+    function startDelegationEdit(initial) {
+        const editor = document.getElementById('delegation-editor');
+        editor.innerHTML = '';
+        editor.style.display = 'block';
+        const display = document.getElementById('delegation-display-list');
+        if (display) display.style.display = 'none';
+        const button = document.getElementById('delegate-this-instance');
+        if (button) button.style.display = 'none';
+
+        const list = document.createElement('ul');
+        list.className = 'responsible-list';
+        editor.appendChild(list);
+
+        const addWrap = document.createElement('span');
+        addWrap.className = 'responsible-selector';
+        const addBtn = makeBtn(plusUrl, 'Add user');
+        const dropdown = document.createElement('div');
+        dropdown.className = 'dropdown';
+        dropdown.style.display = 'none';
+        addWrap.appendChild(addBtn);
+        addWrap.appendChild(dropdown);
+        editor.appendChild(addWrap);
+
+        const delegates = [...initial];
+
+        function refreshList() {
+            list.innerHTML = '';
+            delegates.forEach(u => {
+                const li = document.createElement('li');
+                li.textContent = u;
+                const rm = makeBtn(trashUrl, 'Remove');
+                rm.addEventListener('click', () => {
+                    const idx = delegates.indexOf(u);
+                    if (idx >= 0) delegates.splice(idx, 1);
+                    refreshList();
+                    refreshDropdown();
+                });
+                li.appendChild(rm);
+                list.appendChild(li);
+            });
         }
-    });
-    const addBtn = document.getElementById('add-delegation-responsible');
-    const dropdown = document.getElementById('delegation-dropdown');
-    if (addBtn) {
+
+        function refreshDropdown() {
+            dropdown.innerHTML = '';
+            allUsers.filter(u => !delegates.includes(u)).forEach(u => {
+                const a = document.createElement('a');
+                a.href = '#';
+                a.textContent = u;
+                a.addEventListener('click', e => {
+                    e.preventDefault();
+                    delegates.push(u);
+                    refreshList();
+                    dropdown.style.display = 'none';
+                    refreshDropdown();
+                });
+                dropdown.appendChild(a);
+            });
+        }
+
         addBtn.addEventListener('click', e => {
             e.stopPropagation();
-            dropdown.classList.toggle('show');
-        });
-        dropdown.addEventListener('click', e => {
-            const user = e.target.dataset.user;
-            if (user) {
-                e.preventDefault();
-                const li = document.createElement('li');
-                li.dataset.user = user;
-                li.textContent = user;
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'remove-user';
-                btn.innerHTML = '<img src="' + trashUrl + '" alt="Remove" class="icon">';
-                li.appendChild(btn);
-                list.appendChild(li);
-                dropdown.classList.remove('show');
-                submitDelegation();
-            }
+            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
         });
         document.addEventListener('click', e => {
             if (!dropdown.contains(e.target) && e.target !== addBtn) {
-                dropdown.classList.remove('show');
+                dropdown.style.display = 'none';
             }
         });
+
+        const save = makeBtn(diskUrl, 'Save');
+        const cancel = makeBtn(xUrl, 'Cancel');
+        editor.appendChild(save);
+        editor.appendChild(cancel);
+
+        refreshList();
+        refreshDropdown();
+
+        save.addEventListener('click', () => {
+            if (delegates.length === 0) {
+                alert('Delegation must include at least one user');
+                return;
+            }
+            const form = new FormData();
+            form.append('recurrence_index', rindex);
+            form.append('instance_index', iindex);
+            form.append('csrf_token', csrfToken);
+            delegates.forEach(u => form.append('responsible[]', u));
+            fetch(`/calendar/${entryId}/delegation`, { method: 'POST', credentials: 'same-origin', body: form }).then(resp => {
+                if (resp.ok) {
+                    location.reload();
+                } else {
+                    alert('Failed to save delegation');
+                }
+            });
+        });
+        cancel.addEventListener('click', () => location.reload());
     }
+
+    const delegateBtn = document.getElementById('delegate-this-instance');
+    if (delegateBtn) delegateBtn.addEventListener('click', () => startDelegationEdit([]));
+
+    const editBtn = document.getElementById('edit-delegation');
+    if (editBtn) editBtn.addEventListener('click', () => {
+        const current = Array.from(document.querySelectorAll('#delegation-display-list li')).map(li => li.dataset.user || li.textContent.trim());
+        startDelegationEdit(current);
+    });
 });
 </script>
 {% endblock %}

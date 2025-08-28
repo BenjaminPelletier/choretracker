@@ -47,7 +47,8 @@ def test_delegate_instance(tmp_path, monkeypatch):
     assert responsible_for(entry, 0, 0) == ["Bob"]
 
     page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
-    assert "Remove delegation" in page.text
+    assert "trash.svg" in page.text
+    assert "pen.svg" in page.text
 
     resp = client.post(
         f"/calendar/{entry_id}/delegation/remove",
@@ -78,7 +79,8 @@ def test_delegate_instance(tmp_path, monkeypatch):
     entry = app_module.calendar_store.get(entry_id)
     assert entry.recurrences[0].delegations == []
     page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
-    assert "<h2>Delegation</h2>" not in page.text
+    assert 'id="delegate-this-instance"' not in page.text
+    assert 'id="edit-delegation"' not in page.text
 
     client.post(
         f"/calendar/{entry_id}/skip/remove",
@@ -87,3 +89,34 @@ def test_delegate_instance(tmp_path, monkeypatch):
     )
     page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
     assert "Delegate this instance" in page.text
+
+
+def test_delegate_instance_requires_user(tmp_path, monkeypatch):
+    db_file = tmp_path / "test.db"
+    monkeypatch.setenv("CHORETRACKER_DB", str(db_file))
+    if "choretracker.app" in sys.modules:
+        del sys.modules["choretracker.app"]
+    app_module = importlib.import_module("choretracker.app")
+    client = TestClient(app_module.app)
+
+    client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
+
+    entry = CalendarEntry(
+        title="Laundry",
+        description="",
+        type=CalendarEntryType.Chore,
+        first_start=datetime(2000, 1, 1, 8, 0, 0),
+        duration_seconds=60,
+        recurrences=[Recurrence(type=RecurrenceType.Weekly)],
+        responsible=["Admin"],
+        managers=["Admin"],
+    )
+    app_module.calendar_store.create(entry)
+    entry_id = app_module.calendar_store.list_entries()[0].id
+
+    resp = client.post(
+        f"/calendar/{entry_id}/delegation",
+        data={"recurrence_index": 0, "instance_index": 0},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 400

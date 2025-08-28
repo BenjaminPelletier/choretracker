@@ -47,7 +47,8 @@ def test_delegate_first_instance(tmp_path, monkeypatch):
     assert responsible_for(entry, -1, -1) == ["Bob"]
 
     page = client.get(f"/calendar/entry/{entry_id}/period/-1/-1")
-    assert "Remove delegation" in page.text
+    assert "trash.svg" in page.text
+    assert "pen.svg" in page.text
 
     resp = client.post(
         f"/calendar/{entry_id}/delegation/remove",
@@ -79,7 +80,8 @@ def test_delegate_first_instance(tmp_path, monkeypatch):
     assert entry.first_instance_delegates == []
     assert entry.skip_first_instance is True
     page = client.get(f"/calendar/entry/{entry_id}/period/-1/-1")
-    assert "<h2>Delegation</h2>" not in page.text
+    assert 'id="delegate-this-instance"' not in page.text
+    assert 'id="edit-delegation"' not in page.text
 
     client.post(
         f"/calendar/{entry_id}/skip/remove",
