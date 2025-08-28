@@ -239,11 +239,11 @@ def init_db(engine) -> None:
 
     db_path = Path(engine.url.database)
     first_run = not db_path.exists()
-    SQLModel.metadata.create_all(engine)
 
     cfg = Config(str(Path(__file__).resolve().parent.parent / "alembic.ini"))
     cfg.set_main_option("sqlalchemy.url", str(engine.url))
     if first_run:
+        SQLModel.metadata.create_all(engine)
         command.stamp(cfg, "head")
 
     script = ScriptDirectory.from_config(cfg)
