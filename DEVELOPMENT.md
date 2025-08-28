@@ -46,8 +46,14 @@ command is not run.
 
 Run all tests with the required environment variables so the application
 initializes correctly. The test suite depends on `pytest` and `httpx`,
-which are not included in the default project dependencies, so include
-them with `uv run` and execute `pytest` as a module:
+which are not included in the default project dependencies. The simplest
+way to run the suite is via the provided make target:
+
+```bash
+make test
+```
+
+Under the hood this executes:
 
 ```bash
 CHORETRACKER_SECRET_KEY=test CHORETRACKER_DISABLE_CSRF=1 \
