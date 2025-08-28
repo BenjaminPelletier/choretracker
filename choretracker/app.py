@@ -1408,7 +1408,7 @@ async def delegate_instance(request: Request, entry_id: int):
     rindex = int(form.get("recurrence_index", -1))
     iindex = int(form.get("instance_index", -1))
     responsible = form.getlist("responsible[]")
-    if entry.type == CalendarEntryType.Chore and not responsible:
+    if not responsible:
         raise HTTPException(status_code=400)
     if rindex == -1 and iindex == -1:
         entry.first_instance_delegates = responsible
