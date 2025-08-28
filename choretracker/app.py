@@ -21,6 +21,8 @@ from pydantic.json import pydantic_encoder
 from markdown import markdown as md
 from markupsafe import Markup
 import base64
+import posixpath
+from jinja2 import pass_context
 
 from .users import (
     UserStore,
@@ -102,6 +104,29 @@ templates.env.globals["user_has"] = user_store.has_permission
 templates.env.globals["WRITE_PERMS"] = WRITE_PERMS
 templates.env.globals["timedelta"] = timedelta
 templates.env.globals["LOGOUT_DURATION"] = LOGOUT_DURATION
+
+
+def _make_relative(current_path: str, target_path: str) -> str:
+    """Return ``target_path`` relative to ``current_path``."""
+    cur_dir = current_path if current_path.endswith("/") else current_path.rsplit("/", 1)[0] + "/"
+    rel_path = posixpath.relpath(target_path, start=cur_dir)
+    if not rel_path.startswith("."):
+        rel_path = "./" + rel_path
+    return rel_path
+
+
+def relative_url_for(request: Request, name: str, /, **path_params: str) -> str:
+    target = str(request.app.url_path_for(name, **path_params))
+    return _make_relative(request.url.path, target)
+
+
+@pass_context
+def _jinja_url_for(context, name: str, /, **path_params: str) -> str:  # type: ignore[override]
+    request: Request = context["request"]
+    return relative_url_for(request, name, **path_params)
+
+
+templates.env.globals["url_for"] = _jinja_url_for
 def format_datetime(dt: datetime | None, include_day: bool = False) -> str:
     if not dt:
         return ""
@@ -232,12 +257,12 @@ def require_permission(request: Request, permission: str) -> None:
     if not username or not user_store.get(username):
         request.session.clear()
         raise HTTPException(
-            status_code=303, headers={"Location": str(request.url_for("login"))}
+            status_code=303, headers={"Location": relative_url_for(request, "login")}
         )
     if not user_store.has_permission(username, permission):
         request.session["flash"] = "You are not allowed to perform that action."
         raise HTTPException(
-            status_code=303, headers={"Location": str(request.url_for("index"))}
+            status_code=303, headers={"Location": relative_url_for(request, "index")}
         )
 
 
@@ -297,7 +322,7 @@ def require_entry_write_permission(request: Request, entry: CalendarEntry) -> No
     username = request.session.get("user")
     if not can_edit_entry(username, entry):
         request.session["flash"] = "You are not allowed to perform that action."
-        raise HTTPException(status_code=303, headers={"Location": str(request.url_for("index"))})
+        raise HTTPException(status_code=303, headers={"Location": relative_url_for(request, "index")})
 
 
 class EnsureUserMiddleware(BaseHTTPMiddleware):
@@ -311,7 +336,7 @@ class EnsureUserMiddleware(BaseHTTPMiddleware):
             if not user_store.get(user):
                 session.clear()
                 if not (path == "/login" or path.startswith("/static")):
-                    return RedirectResponse(url="/login")
+                    return RedirectResponse(url=relative_url_for(request, "login"))
             else:
                 last = session.get("last_active", now)
                 if user != "Viewer" and now - last > LOGOUT_DURATION.total_seconds():
@@ -319,7 +344,7 @@ class EnsureUserMiddleware(BaseHTTPMiddleware):
                     user = "Viewer"
                 session["last_active"] = now
         elif not (path == "/login" or path.startswith("/static")):
-            return RedirectResponse(url="/login")
+            return RedirectResponse(url=relative_url_for(request, "login"))
 
         response = await call_next(request)
         return response
@@ -443,7 +468,7 @@ async def index(request: Request):
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     if request.session.get("user"):
-        return RedirectResponse(url="/", status_code=303)
+        return RedirectResponse(url=relative_url_for(request, "index"), status_code=303)
     return templates.TemplateResponse("login.html", {"request": request})
 
 
@@ -456,15 +481,15 @@ async def login(request: Request):
     if user_store.verify(username, password):
         request.session["user"] = username
         request.session["last_active"] = datetime.now().timestamp()
-        return RedirectResponse(url="/", status_code=303)
+        return RedirectResponse(url=relative_url_for(request, "index"), status_code=303)
 
     return templates.TemplateResponse(
         "login.html", {"request": request, "error": "Invalid credentials"}, status_code=400
     )
 
 
-def _switch_target(next: str | None) -> str:
-    target = "/"
+def _switch_target(request: Request, next: str | None) -> str:
+    target = relative_url_for(request, "index")
     if next:
         parsed = urlparse(next)
         if not parsed.scheme and not parsed.netloc:
@@ -480,9 +505,10 @@ async def switch_user(request: Request, username: str, next: str | None = None, 
     if user and (not user.pin_hash or (pin and pwd_context.verify(pin, user.pin_hash))):
         request.session["user"] = username
         request.session["last_active"] = datetime.now().timestamp()
-        return RedirectResponse(url=_switch_target(next), status_code=303)
+        return RedirectResponse(url=_switch_target(request, next), status_code=303)
     request.session["flash"] = "Invalid PIN"
-    return RedirectResponse(url=str(request.headers.get("referer", "/")), status_code=303)
+    referer = request.headers.get("referer") or relative_url_for(request, "index")
+    return RedirectResponse(url=referer, status_code=303)
 
 
 @app.post("/switch/{username}")
@@ -496,13 +522,13 @@ async def switch_user_post(request: Request, username: str, next: str | None = N
         return JSONResponse({"error": "Invalid PIN"}, status_code=400)
     request.session["user"] = username
     request.session["last_active"] = datetime.now().timestamp()
-    return JSONResponse({"redirect": _switch_target(next)})
+    return JSONResponse({"redirect": _switch_target(request, next)})
 
 
 @app.get("/logout")
 async def logout(request: Request):
     request.session.clear()
-    return RedirectResponse(url="/login", status_code=303)
+    return RedirectResponse(url=relative_url_for(request, "login"), status_code=303)
 
 
 @app.get("/system", response_class=HTMLResponse)
@@ -652,7 +678,7 @@ async def create_calendar_entry(request: Request):
     if not user_store.has_permission(current_user, "admin") and has_past_instances(entry):
         raise HTTPException(status_code=400, detail="Cannot create entry in the past")
     calendar_store.create(entry)
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url=relative_url_for(request, "index"), status_code=303)
 
 
 @app.get("/calendar/list/{entry_type}", response_class=HTMLResponse)
@@ -984,13 +1010,13 @@ async def update_calendar_entry(request: Request, entry_id: int):
                 status_code=303,
                 headers={
                     "Location": str(
-                        request.url_for("edit_calendar_entry", entry_id=entry_id)
+                        relative_url_for(request, "edit_calendar_entry", entry_id=entry_id)
                     )
                 },
             )
     calendar_store.update(entry_id, new_entry)
     return RedirectResponse(
-        url=request.url_for("view_calendar_entry", entry_id=entry_id), status_code=303
+        url=relative_url_for(request, "view_calendar_entry", entry_id=entry_id), status_code=303
     )
 
 
@@ -1054,7 +1080,7 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
     resp = {"status": "ok"}
     if did_split:
         resp["redirect"] = str(
-            request.url_for("view_calendar_entry", entry_id=entry.id)
+            relative_url_for(request, "view_calendar_entry", entry_id=entry.id)
         )
     return JSONResponse(resp)
 
@@ -1095,7 +1121,7 @@ async def update_recurrence(request: Request, entry_id: int):
     resp = {"status": "ok"}
     if did_split:
         resp["redirect"] = str(
-            request.url_for("view_calendar_entry", entry_id=entry.id)
+            relative_url_for(request, "view_calendar_entry", entry_id=entry.id)
         )
     return JSONResponse(resp)
 
@@ -1129,7 +1155,7 @@ async def add_recurrence(request: Request, entry_id: int):
     resp = {"status": "ok", "recurrence_index": len(entry.recurrences) - 1}
     if did_split:
         resp["redirect"] = str(
-            request.url_for("view_calendar_entry", entry_id=entry.id)
+            relative_url_for(request, "view_calendar_entry", entry_id=entry.id)
         )
     return JSONResponse(resp)
 
@@ -1170,7 +1196,7 @@ async def delete_recurrence(request: Request, entry_id: int):
     resp = {"status": "ok"}
     if did_split:
         resp["redirect"] = str(
-            request.url_for("view_calendar_entry", entry_id=entry.id)
+            relative_url_for(request, "view_calendar_entry", entry_id=entry.id)
         )
     return JSONResponse(resp)
 
@@ -1184,7 +1210,7 @@ async def delete_calendar_entry(request: Request, entry_id: int):
     if not calendar_store.delete(entry_id):
         raise HTTPException(status_code=400, detail="Entry has completions or delegations")
     return RedirectResponse(
-        url=request.url_for("list_calendar_entries", entry_type=entry.type.value),
+        url=relative_url_for(request, "list_calendar_entries", entry_type=entry.type.value),
         status_code=303,
     )
 
@@ -1270,8 +1296,12 @@ async def delegate_instance(request: Request, entry_id: int):
     referer = request.headers.get(
         "referer",
         str(
-            request.url_for(
-                "view_time_period", entry_id=entry_id, rindex=rindex, iindex=iindex
+            relative_url_for(
+                request,
+                "view_time_period",
+                entry_id=entry_id,
+                rindex=rindex,
+                iindex=iindex,
             )
         ),
     )
@@ -1308,8 +1338,12 @@ async def remove_delegation(request: Request, entry_id: int):
     referer = request.headers.get(
         "referer",
         str(
-            request.url_for(
-                "view_time_period", entry_id=entry_id, rindex=rindex, iindex=iindex
+            relative_url_for(
+                request,
+                "view_time_period",
+                entry_id=entry_id,
+                rindex=rindex,
+                iindex=iindex,
             )
         ),
     )
@@ -1346,8 +1380,12 @@ async def skip_instance(request: Request, entry_id: int):
     referer = request.headers.get(
         "referer",
         str(
-            request.url_for(
-                "view_time_period", entry_id=entry_id, rindex=rindex, iindex=iindex
+            relative_url_for(
+                request,
+                "view_time_period",
+                entry_id=entry_id,
+                rindex=rindex,
+                iindex=iindex,
             )
         ),
     )
@@ -1376,8 +1414,12 @@ async def unskip_instance(request: Request, entry_id: int):
     referer = request.headers.get(
         "referer",
         str(
-            request.url_for(
-                "view_time_period", entry_id=entry_id, rindex=rindex, iindex=iindex
+            relative_url_for(
+                request,
+                "view_time_period",
+                entry_id=entry_id,
+                rindex=rindex,
+                iindex=iindex,
             )
         ),
     )
@@ -1432,16 +1474,16 @@ async def create_user(request: Request):
     if not is_url_safe(username):
         request.session["flash"] = "Username must be URL-safe."
         raise HTTPException(
-            status_code=303, headers={"Location": str(request.url_for("new_user"))}
+            status_code=303, headers={"Location": relative_url_for(request, "new_user")}
         )
     if not user_store.create(
         username, password, pin, permissions, profile_picture=profile_picture
     ):
         request.session["flash"] = "User with that name already exists."
         raise HTTPException(
-            status_code=303, headers={"Location": str(request.url_for("new_user"))}
+            status_code=303, headers={"Location": relative_url_for(request, "new_user")}
         )
-    return RedirectResponse(url="/users", status_code=303)
+    return RedirectResponse(url=relative_url_for(request, "list_users"), status_code=303)
 
 
 @app.get("/users/{username}", response_class=HTMLResponse)
@@ -1539,7 +1581,7 @@ async def update_user(request: Request, username: str):
         request.session["flash"] = "Username must be URL-safe."
         raise HTTPException(
             status_code=303,
-            headers={"Location": str(request.url_for("edit_user", username=username))},
+            headers={"Location": relative_url_for(request, "edit_user", username=username)},
         )
     if user_store.has_permission(current_user, "iam"):
         permissions = {p for p in ALL_PERMISSIONS if form.get(p)}
@@ -1551,7 +1593,10 @@ async def update_user(request: Request, username: str):
             admins = [u for u in user_store.list_users() if "admin" in u.permissions and u.username != username]
             if not admins:
                 request.session["flash"] = "Cannot remove the last admin user."
-                raise HTTPException(status_code=303, headers={"Location": str(request.url_for("edit_user", username=username))})
+                raise HTTPException(
+                    status_code=303,
+                    headers={"Location": relative_url_for(request, "edit_user", username=username)},
+                )
     else:
         permissions = set(existing.permissions)
     if not user_store.update(
@@ -1567,11 +1612,15 @@ async def update_user(request: Request, username: str):
         request.session["flash"] = "User with that name already exists."
         raise HTTPException(
             status_code=303,
-            headers={"Location": str(request.url_for("edit_user", username=username))},
+            headers={"Location": relative_url_for(request, "edit_user", username=username)},
         )
     if current_user == username:
         request.session["user"] = new_username
-    target = "/users" if current_user != username else "/"
+    target = (
+        relative_url_for(request, "list_users")
+        if current_user != username
+        else relative_url_for(request, "index")
+    )
     return RedirectResponse(url=target, status_code=303)
 
 
@@ -1585,16 +1634,16 @@ async def delete_user(request: Request, username: str):
         admins = [u for u in user_store.list_users() if "admin" in u.permissions and u.username != username]
         if not admins:
             request.session["flash"] = "Cannot delete the last admin user."
-            raise HTTPException(status_code=303, headers={"Location": str(request.url_for("list_users"))})
+            raise HTTPException(status_code=303, headers={"Location": relative_url_for(request, "list_users")})
     for entry in calendar_store.list_entries():
         if username in entry.managers or username in entry.responsible:
             request.session["flash"] = "Cannot delete user with calendar responsibilities."
-            raise HTTPException(status_code=303, headers={"Location": str(request.url_for("list_users"))})
+            raise HTTPException(status_code=303, headers={"Location": relative_url_for(request, "list_users")})
     with Session(engine) as session:
         stmt = select(ChoreCompletion).where(ChoreCompletion.completed_by == username)
         if session.exec(stmt).first():
             request.session["flash"] = "Cannot delete user with chore completions."
-            raise HTTPException(status_code=303, headers={"Location": str(request.url_for("list_users"))})
+            raise HTTPException(status_code=303, headers={"Location": relative_url_for(request, "list_users")})
     user_store.delete(username)
-    return RedirectResponse(url="/users", status_code=303)
+    return RedirectResponse(url=relative_url_for(request, "list_users"), status_code=303)
 

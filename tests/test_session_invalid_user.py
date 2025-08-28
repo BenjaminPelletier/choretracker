@@ -33,7 +33,7 @@ def test_deleted_user_logs_out(tmp_path, monkeypatch):
     # Access a protected endpoint; should redirect to login and clear session
     resp = client.get("/users", follow_redirects=False)
     assert resp.status_code in (303, 307)
-    assert resp.headers["location"] == "/login"
+    assert resp.headers["location"] == "./login"
 
     # Session should be cleared; login page should not redirect
     resp = client.get("/login", follow_redirects=False)

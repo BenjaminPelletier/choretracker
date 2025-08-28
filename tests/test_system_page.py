@@ -34,4 +34,4 @@ def test_system_page_requires_admin(tmp_path, monkeypatch):
     client.post("/login", data={"username": "User", "password": "pw"}, follow_redirects=False)
     resp = client.get("/system", follow_redirects=False)
     assert resp.status_code == 303
-    assert resp.headers["location"].endswith("/")
+    assert resp.headers["location"] == "."

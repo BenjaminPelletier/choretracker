@@ -65,7 +65,7 @@ def test_description_edit_splits_entry(tmp_path, monkeypatch):
     old_entry = next(e for e in entries if e.id == entry_id)
     new_entry = next(e for e in entries if e.id != entry_id)
 
-    assert data["redirect"].endswith(f"/calendar/entry/{new_entry.id}")
+    assert data["redirect"] == f"../entry/{new_entry.id}"
 
     assert old_entry.description == "Old"
     assert new_entry.description == "New"
@@ -93,14 +93,14 @@ def test_description_edit_splits_entry(tmp_path, monkeypatch):
     page_old = client.get(f"/calendar/entry/{old_entry.id}")
     next_summary = app_module.time_range_summary(new_start, new_end)
     assert (
-        f'Next: <a href="http://testserver/calendar/entry/{new_entry.id}">{next_summary}</a>'
+        f'Next: <a href="./{new_entry.id}">{next_summary}</a>'
         in page_old.text
     )
 
     page_new = client.get(f"/calendar/entry/{new_entry.id}")
     prev_summary = app_module.time_range_summary(old_start, old_end)
     assert (
-        f'Previous: <a href="http://testserver/calendar/entry/{old_entry.id}">{prev_summary}</a>'
+        f'Previous: <a href="./{old_entry.id}">{prev_summary}</a>'
         in page_new.text
     )
 

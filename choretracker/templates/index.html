@@ -9,9 +9,9 @@
     {% for entry, period, responsible in overdue %}
     <li>
         {% for user in responsible %}
-        <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+        <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
-        <a href="{{ request.url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ entry.title }}</a>
+        <a href="{{ url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ entry.title }}</a>
         <span class="time-suffix" data-kind="due-ago" data-end="{{ period.end.timestamp() }}"></span>
         {% if user_has(request.session.get('user'), 'chores.complete_overdue') %}
         <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ period.recurrence_index }}" data-iindex="{{ period.instance_index }}" data-action="add" />
@@ -27,9 +27,9 @@
     {% for entry, period, completion, responsible in now_periods %}
     <li>
         {% for user in responsible %}
-        <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+        <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
-        <a href="{{ request.url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ entry.title }}</a>
+        <a href="{{ url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ entry.title }}</a>
         {% if entry.type == CalendarEntryType.Chore %}
         {% if not completion %}
         <span class="time-suffix" data-kind="due-in" data-end="{{ period.end.timestamp() }}"></span>
@@ -51,9 +51,9 @@
     {% for entry, period, responsible in upcoming %}
     <li>
         {% for user in responsible %}
-        <img src="{{ request.url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
+        <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
-        <a href="{{ request.url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ entry.title }}</a>
+        <a href="{{ url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ entry.title }}</a>
         <span class="time-suffix" data-kind="starts-in" data-start="{{ period.start.timestamp() }}"></span>
     </li>
     {% endfor %}
