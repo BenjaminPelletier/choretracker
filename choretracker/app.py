@@ -436,8 +436,9 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                 )
                 if request.url.path == "/login":
                     return templates.TemplateResponse(
+                        request,
                         "login.html",
-                        {"request": request, "error": "Invalid CSRF token"},
+                        {"error": "Invalid CSRF token"},
                         status_code=400,
                     )
                 return JSONResponse({"error": "Invalid CSRF token"}, status_code=400)
@@ -548,9 +549,9 @@ async def index(request: Request):
     current.sort(key=lambda x: x[1].end)
 
     return templates.TemplateResponse(
+        request,
         "index.html",
         {
-            "request": request,
             "overdue": overdue,
             "now_periods": current,
             "upcoming": upcoming,
@@ -564,7 +565,7 @@ async def index(request: Request):
 async def login_page(request: Request):
     if request.session.get("user"):
         return RedirectResponse(url=relative_url_for(request, "index"), status_code=303)
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse(request, "login.html")
 
 
 @app.post("/login")
@@ -580,7 +581,10 @@ async def login(request: Request):
         return RedirectResponse(url=relative_url_for(request, "index"), status_code=303)
 
     return templates.TemplateResponse(
-        "login.html", {"request": request, "error": "Invalid credentials"}, status_code=400
+        request,
+        "login.html",
+        {"error": "Invalid credentials"},
+        status_code=400,
     )
 
 
@@ -588,7 +592,10 @@ async def login(request: Request):
 async def handle_http_exception(request: Request, exc: HTTPException):
     if exc.status_code == 400 and request.url.path == "/login":
         return templates.TemplateResponse(
-            "login.html", {"request": request, "error": exc.detail}, status_code=400
+            request,
+            "login.html",
+            {"error": exc.detail},
+            status_code=400,
         )
     return await http_exception_handler(request, exc)
 
@@ -644,9 +651,9 @@ async def logout(request: Request):
 async def system(request: Request):
     require_permission(request, "admin")
     return templates.TemplateResponse(
+        request,
         "system.html",
         {
-            "request": request,
             "version": server_version(),
             "logout_minutes": int(LOGOUT_DURATION.total_seconds() // 60),
         },
@@ -690,9 +697,9 @@ async def new_calendar_entry(request: Request, entry_type: str):
     require_permission(request, perm_map[entry_type])
     current_user = request.session.get("user")
     return templates.TemplateResponse(
+        request,
         "calendar/form.html",
         {
-            "request": request,
             "entry_type": entry_type,
             "entry": None,
             "current_user": current_user,
@@ -841,9 +848,9 @@ async def list_calendar_entries(request: Request, entry_type: str):
     past_entries.sort(key=lambda e: start_map[e.id], reverse=True)
     current_user = request.session.get("user")
     return templates.TemplateResponse(
+        request,
         "calendar/list.html",
         {
-            "request": request,
             "active_entries": active_entries,
             "past_entries": past_entries,
             "entry_type": etype,
@@ -935,9 +942,9 @@ async def view_calendar_entry(
         and not any(rec.delegations for rec in entry.recurrences)
     )
     return templates.TemplateResponse(
+        request,
         "calendar/view.html",
         {
-            "request": request,
             "entry": entry,
             "can_edit": can_edit_entry(current_user, entry),
             "can_delete": can_delete,
@@ -987,9 +994,9 @@ async def view_time_period(
     delegation = find_delegation(entry, rindex, iindex)
     current_user = request.session.get("user")
     return templates.TemplateResponse(
+        request,
         "calendar/timeperiod.html",
         {
-            "request": request,
             "entry": entry,
             "period": period,
             "completion": completion,
@@ -1014,9 +1021,9 @@ async def edit_calendar_entry(request: Request, entry_id: int):
     )
     current_user = request.session.get("user")
     return templates.TemplateResponse(
+        request,
         "calendar/form.html",
         {
-            "request": request,
             "entry_type": entry.type.value,
             "entry": entry,
             "entry_data": entry_data,
@@ -1572,15 +1579,16 @@ async def list_users(request: Request):
         or u.username in completion_users
     }
     return templates.TemplateResponse(
+        request,
         "users/list.html",
-        {"request": request, "users": users, "undeletable": undeletable},
+        {"users": users, "undeletable": undeletable},
     )
 
 
 @app.get("/users/new", response_class=HTMLResponse)
 async def new_user(request: Request):
     require_permission(request, "iam")
-    return templates.TemplateResponse("users/form.html", {"request": request, "user": None})
+    return templates.TemplateResponse(request, "users/form.html", {"user": None})
 
 
 @app.post("/users/new")
@@ -1662,9 +1670,9 @@ async def view_user(request: Request, username: str):
     managed_entries = _prep(managed_entries)
 
     return templates.TemplateResponse(
+        request,
         "users/view.html",
         {
-            "request": request,
             "user": user,
             "completions": completion_entries,
             "responsible_entries": responsible_entries,
@@ -1682,7 +1690,7 @@ async def edit_user(request: Request, username: str):
     user = user_store.get(username)
     if not user or user.username == "Viewer":
         raise HTTPException(status_code=404)
-    return templates.TemplateResponse("users/form.html", {"request": request, "user": user})
+    return templates.TemplateResponse(request, "users/form.html", {"user": user})
 
 
 @app.post("/users/{username}/edit")
