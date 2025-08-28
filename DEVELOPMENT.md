@@ -45,10 +45,13 @@ command is not run.
 ## Running Tests
 
 Run all tests with the required environment variables so the application
-initializes correctly:
+initializes correctly. The test suite depends on `pytest` and `httpx`,
+which are not included in the default project dependencies, so include
+them with `uv run` and execute `pytest` as a module:
 
 ```bash
-CHORETRACKER_SECRET_KEY=test CHORETRACKER_DISABLE_CSRF=1 uv run pytest
+CHORETRACKER_SECRET_KEY=test CHORETRACKER_DISABLE_CSRF=1 \
+uv run --with pytest --with httpx -m pytest
 ```
 
 ## Running the Development Server
