@@ -363,6 +363,11 @@ h1 .icon {
     padding: 0.25rem 0.5rem;
 }
 
+.note-marker {
+    color: #b91c1c;
+    margin-left: 0.2rem;
+}
+
 .pin-modal {
     position: fixed;
     top: 0;
@@ -418,5 +423,8 @@ h1 .icon {
 }
 
 h1 .icon-button {
+    margin-left: 0.25rem;
+}
+h2 .icon-button {
     margin-left: 0.25rem;
 }
