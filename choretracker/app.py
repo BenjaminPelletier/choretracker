@@ -43,6 +43,7 @@ from .calendar import (
     ChoreCompletion,
     ChoreCompletionStore,
     Delegation,
+    InstanceNote,
     Offset,
     Recurrence,
     RecurrenceType,
@@ -50,6 +51,7 @@ from .calendar import (
     enumerate_time_periods,
     find_time_period,
     find_delegation,
+    find_instance_note,
     responsible_for,
 )
 from .settings import SettingsStore
@@ -456,8 +458,10 @@ app.add_middleware(SessionMiddleware, secret_key=session_secret)
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     now = datetime.now()
-    overdue: list[tuple[CalendarEntry, TimePeriod]] = []
-    current: list[tuple[CalendarEntry, TimePeriod, ChoreCompletion | None]] = []
+    overdue: list[tuple[CalendarEntry, TimePeriod, list[str], bool]] = []
+    current: list[
+        tuple[CalendarEntry, TimePeriod, ChoreCompletion | None, list[str], bool]
+    ] = []
     upcoming_heap: list[tuple[datetime, int, CalendarEntry, TimePeriod, Iterator[TimePeriod]]] = []
     counter = count()
 
@@ -483,6 +487,13 @@ async def index(request: Request):
                                     period.recurrence_index,
                                     period.instance_index,
                                 ),
+                                bool(
+                                    find_instance_note(
+                                        entry,
+                                        period.recurrence_index,
+                                        period.instance_index,
+                                    )
+                                ),
                             )
                         )
                         nxt = next(gen, None)
@@ -505,6 +516,13 @@ async def index(request: Request):
                                 period.recurrence_index,
                                 period.instance_index,
                             ),
+                            bool(
+                                find_instance_note(
+                                    entry,
+                                    period.recurrence_index,
+                                    period.instance_index,
+                                )
+                            ),
                         )
                     )
             elif period.start <= now:
@@ -517,6 +535,13 @@ async def index(request: Request):
                             entry,
                             period.recurrence_index,
                             period.instance_index,
+                        ),
+                        bool(
+                            find_instance_note(
+                                entry,
+                                period.recurrence_index,
+                                period.instance_index,
+                            )
                         ),
                     )
                 )
@@ -531,7 +556,7 @@ async def index(request: Request):
                 )
                 break
 
-    upcoming: list[tuple[CalendarEntry, TimePeriod, list[str]]] = []
+    upcoming: list[tuple[CalendarEntry, TimePeriod, list[str], bool]] = []
     while upcoming_heap and len(upcoming) < MAX_UPCOMING:
         _, _, entry, period, gen = heappop(upcoming_heap)
         upcoming.append(
@@ -539,6 +564,11 @@ async def index(request: Request):
                 entry,
                 period,
                 responsible_for(entry, period.recurrence_index, period.instance_index),
+                bool(
+                    find_instance_note(
+                        entry, period.recurrence_index, period.instance_index
+                    )
+                ),
             )
         )
         nxt = next(gen, None)
@@ -882,7 +912,7 @@ async def view_calendar_entry(
     comps_list = completion_store.list_for_entry(entry_id)
     comp_map = {(c.recurrence_index, c.instance_index): c for c in comps_list}
     completion_periods: list[
-        tuple[TimePeriod, ChoreCompletion, bool, bool, list[str]]
+        tuple[TimePeriod, ChoreCompletion, bool, bool, list[str], bool]
     ] = []
     for comp in comps_list:
         period = find_time_period(
@@ -902,13 +932,18 @@ async def view_calendar_entry(
         responsible = responsible_for(
             entry, comp.recurrence_index, comp.instance_index
         )
-        completion_periods.append((period, comp, can_remove, is_skipped, responsible))
+        has_note = bool(
+            find_instance_note(entry, comp.recurrence_index, comp.instance_index)
+        )
+        completion_periods.append(
+            (period, comp, can_remove, is_skipped, responsible, has_note)
+        )
     now = datetime.now()
     past_noncompleted: list[
-        tuple[TimePeriod, ChoreCompletion | None, bool, bool, list[str]]
+        tuple[TimePeriod, ChoreCompletion | None, bool, bool, list[str], bool]
     ] = []
     upcoming: list[
-        tuple[TimePeriod, ChoreCompletion | None, bool, bool, list[str]]
+        tuple[TimePeriod, ChoreCompletion | None, bool, bool, list[str], bool]
     ] = []
     for period in enumerate_time_periods(entry, include_skipped=True):
         key = (period.recurrence_index, period.instance_index)
@@ -923,11 +958,18 @@ async def view_calendar_entry(
         responsible = responsible_for(
             entry, period.recurrence_index, period.instance_index
         )
+        has_note = bool(
+            find_instance_note(entry, period.recurrence_index, period.instance_index)
+        )
         if period.end < now:
-            past_noncompleted.append((period, None, False, is_skipped, responsible))
+            past_noncompleted.append(
+                (period, None, False, is_skipped, responsible, has_note)
+            )
         else:
             if len(upcoming) < upcoming_entries:
-                upcoming.append((period, None, False, is_skipped, responsible))
+                upcoming.append(
+                    (period, None, False, is_skipped, responsible, has_note)
+                )
             else:
                 break
     past_instances = past_noncompleted + completion_periods
@@ -990,6 +1032,8 @@ async def view_time_period(
         rec = entry.recurrences[rindex]
         is_skipped = iindex in rec.skipped_instances
     delegation = find_delegation(entry, rindex, iindex)
+    note_obj = find_instance_note(entry, rindex, iindex)
+    note = note_obj.note if note_obj else None
     current_user = request.session.get("user")
     return templates.TemplateResponse(
         request,
@@ -1004,6 +1048,7 @@ async def view_time_period(
             "CalendarEntryType": CalendarEntryType,
             "responsible": responsible_for(entry, rindex, iindex),
             "delegation": delegation,
+            "note": note,
         },
     )
 
@@ -1485,6 +1530,91 @@ async def remove_delegation(request: Request, entry_id: int):
     return RedirectResponse(url=referer, status_code=303)
 
 
+@app.post("/calendar/{entry_id}/note")
+async def add_instance_note(request: Request, entry_id: int):
+    entry = calendar_store.get(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404)
+    require_entry_write_permission(request, entry)
+    form = await request.form()
+    rindex = int(form.get("recurrence_index", -1))
+    iindex = int(form.get("instance_index", -1))
+    note = (form.get("note", "").strip())
+    if not note:
+        raise HTTPException(status_code=400)
+    if rindex == -1 and iindex == -1:
+        entry.first_instance_note = note
+        calendar_store.update(entry_id, entry)
+    elif 0 <= rindex < len(entry.recurrences):
+        rec = entry.recurrences[rindex]
+        if not isinstance(rec, Recurrence):
+            rec = Recurrence.model_validate(rec)
+            entry.recurrences[rindex] = rec
+        existing = find_instance_note(entry, rindex, iindex)
+        if existing:
+            existing.note = note
+        else:
+            rec.notes.append(InstanceNote(instance_index=iindex, note=note))
+        calendar_store.update(entry_id, entry)
+    else:
+        raise HTTPException(status_code=400)
+    referer = request.headers.get(
+        "referer",
+        str(
+            relative_url_for(
+                request,
+                "view_time_period",
+                entry_id=entry_id,
+                rindex=rindex,
+                iindex=iindex,
+            )
+        ),
+    )
+    return RedirectResponse(url=referer, status_code=303)
+
+
+@app.post("/calendar/{entry_id}/note/remove")
+async def remove_instance_note(request: Request, entry_id: int):
+    entry = calendar_store.get(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404)
+    require_entry_write_permission(request, entry)
+    form = await request.form()
+    rindex = int(form.get("recurrence_index", -1))
+    iindex = int(form.get("instance_index", -1))
+    if rindex == -1 and iindex == -1:
+        entry.first_instance_note = None
+        calendar_store.update(entry_id, entry)
+    elif 0 <= rindex < len(entry.recurrences):
+        rec = entry.recurrences[rindex]
+        if not isinstance(rec, Recurrence):
+            rec = Recurrence.model_validate(rec)
+            entry.recurrences[rindex] = rec
+        for idx, n in enumerate(rec.notes):
+            if not isinstance(n, InstanceNote):
+                n = InstanceNote.model_validate(n)
+                rec.notes[idx] = n
+            if n.instance_index == iindex:
+                del rec.notes[idx]
+                break
+        calendar_store.update(entry_id, entry)
+    else:
+        raise HTTPException(status_code=400)
+    referer = request.headers.get(
+        "referer",
+        str(
+            relative_url_for(
+                request,
+                "view_time_period",
+                entry_id=entry_id,
+                rindex=rindex,
+                iindex=iindex,
+            )
+        ),
+    )
+    return RedirectResponse(url=referer, status_code=303)
+
+
 @app.post("/calendar/{entry_id}/skip")
 async def skip_instance(request: Request, entry_id: int):
     entry = calendar_store.get(entry_id)
@@ -1497,6 +1627,7 @@ async def skip_instance(request: Request, entry_id: int):
     if rindex == -1 and iindex == -1:
         entry.skip_first_instance = True
         entry.first_instance_delegates = []
+        entry.first_instance_note = None
         calendar_store.update(entry_id, entry)
     elif 0 <= rindex < len(entry.recurrences):
         rec = entry.recurrences[rindex]
@@ -1508,6 +1639,13 @@ async def skip_instance(request: Request, entry_id: int):
                 rec.delegations[idx] = d
             if d.instance_index == iindex:
                 del rec.delegations[idx]
+                break
+        for idx, n in enumerate(rec.notes):
+            if not isinstance(n, InstanceNote):
+                n = InstanceNote.model_validate(n)
+                rec.notes[idx] = n
+            if n.instance_index == iindex:
+                del rec.notes[idx]
                 break
         calendar_store.update(entry_id, entry)
     else:
@@ -1641,7 +1779,10 @@ async def view_user(request: Request, username: str):
     for comp in comps:
         entry = calendar_store.get(comp.entry_id)
         if entry:
-            completion_entries.append((entry, comp))
+            has_note = bool(
+                find_instance_note(entry, comp.recurrence_index, comp.instance_index)
+            )
+            completion_entries.append((entry, comp, has_note))
     entries = calendar_store.list_entries()
     responsible_entries = [
         CalendarEntry.model_validate(e.model_dump())

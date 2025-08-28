@@ -35,12 +35,18 @@ class Delegation(SQLModel):
     responsible: List[str] = Field(default_factory=list)
 
 
+class InstanceNote(SQLModel):
+    instance_index: int
+    note: str
+
+
 class Recurrence(SQLModel):
     type: RecurrenceType
     offset: Optional[Offset] = None
     skipped_instances: List[int] = Field(default_factory=list)
     responsible: List[str] = Field(default_factory=list)
     delegations: List[Delegation] = Field(default_factory=list)
+    notes: List[InstanceNote] = Field(default_factory=list)
 
 
 class CalendarEntry(SQLModel, table=True):
@@ -58,6 +64,7 @@ class CalendarEntry(SQLModel, table=True):
     first_instance_delegates: List[str] = Field(
         default_factory=list, sa_column=Column(JSON)
     )
+    first_instance_note: Optional[str] = None
     skip_first_instance: bool = False
     previous_entry: Optional[int] = Field(
         default=None, foreign_key="calendarentry.id"
@@ -114,6 +121,7 @@ class CalendarEntryStore:
             entry.responsible = new_data.responsible
             entry.managers = new_data.managers
             entry.first_instance_delegates = new_data.first_instance_delegates
+            entry.first_instance_note = new_data.first_instance_note
             entry.skip_first_instance = new_data.skip_first_instance
             session.add(entry)
             session.commit()
@@ -188,11 +196,14 @@ class CalendarEntryStore:
             # Move first instance settings
             if split_time <= entry.first_start:
                 new_entry.first_instance_delegates = entry.first_instance_delegates
+                new_entry.first_instance_note = entry.first_instance_note
                 new_entry.skip_first_instance = entry.skip_first_instance
                 entry.first_instance_delegates = []
+                entry.first_instance_note = None
                 entry.skip_first_instance = False
             else:
                 new_entry.first_instance_delegates = []
+                new_entry.first_instance_note = None
                 new_entry.skip_first_instance = False
 
             # Move skips and delegations
@@ -219,6 +230,17 @@ class CalendarEntryStore:
                         keep_del.append(d)
                 rec.delegations = keep_del
                 new_rec.delegations = move_del
+
+                keep_notes: list[InstanceNote] = []
+                move_notes: list[InstanceNote] = []
+                for n in rec.notes:
+                    period = find_time_period(original, idx, n.instance_index, include_skipped=True)
+                    if period and period.start >= split_time:
+                        move_notes.append(n)
+                    else:
+                        keep_notes.append(n)
+                rec.notes = keep_notes
+                new_rec.notes = move_notes
 
             # Adjust boundaries
             entry.none_after = split_time - timedelta(minutes=1)
@@ -505,5 +527,24 @@ def find_delegation(
                 d = Delegation.model_validate(d)
             if d.instance_index == instance_index:
                 return d
+    return None
+
+
+def find_instance_note(
+    entry: CalendarEntry, recurrence_index: int, instance_index: int
+) -> Optional[InstanceNote]:
+    if recurrence_index == -1 and instance_index == -1:
+        if entry.first_instance_note:
+            return InstanceNote(instance_index=-1, note=entry.first_instance_note)
+        return None
+    if 0 <= recurrence_index < len(entry.recurrences):
+        rec = entry.recurrences[recurrence_index]
+        if not isinstance(rec, Recurrence):
+            rec = Recurrence.model_validate(rec)
+        for n in rec.notes:
+            if not isinstance(n, InstanceNote):
+                n = InstanceNote.model_validate(n)
+            if n.instance_index == instance_index:
+                return n
     return None
 
