@@ -493,9 +493,13 @@ def _switch_target(request: Request, next: str | None) -> str:
     if next:
         parsed = urlparse(next)
         if not parsed.scheme and not parsed.netloc:
-            target = parsed.path
-            if parsed.query:
-                target += f"?{parsed.query}"
+            path = posixpath.normpath(parsed.path)
+            if not path.startswith("//"):
+                norm_parsed = urlparse(path)
+                if not norm_parsed.scheme and not norm_parsed.netloc:
+                    target = path
+                    if parsed.query:
+                        target += f"?{parsed.query}"
     return target
 
 
