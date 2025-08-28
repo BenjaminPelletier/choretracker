@@ -60,7 +60,7 @@ def test_delegate_instance(tmp_path, monkeypatch):
     entry = app_module.calendar_store.get(entry_id)
     assert entry.recurrences[0].delegations == []
     page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
-    assert "Delegate this instance" in page.text
+    assert 'id="delegate-this-instance"' in page.text
 
     resp = client.post(
         f"/calendar/{entry_id}/delegation",
@@ -88,7 +88,7 @@ def test_delegate_instance(tmp_path, monkeypatch):
         follow_redirects=False,
     )
     page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
-    assert "Delegate this instance" in page.text
+    assert 'id="delegate-this-instance"' in page.text
 
 
 def test_delegate_instance_requires_user(tmp_path, monkeypatch):
