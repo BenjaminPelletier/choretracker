@@ -44,6 +44,7 @@ from .calendar import (
     ChoreCompletion,
     ChoreCompletionStore,
     Delegation,
+    InstanceDuration,
     InstanceNote,
     Offset,
     Recurrence,
@@ -52,6 +53,7 @@ from .calendar import (
     enumerate_time_periods,
     find_time_period,
     find_delegation,
+    find_instance_duration,
     find_instance_note,
     responsible_for,
 )
@@ -1035,6 +1037,10 @@ async def view_time_period(
     delegation = find_delegation(entry, rindex, iindex)
     note_obj = find_instance_note(entry, rindex, iindex)
     note = note_obj.note if note_obj else None
+    dur_obj = find_instance_duration(entry, rindex, iindex)
+    dur_override = (
+        timedelta(seconds=dur_obj.duration_seconds) if dur_obj else None
+    )
     current_user = request.session.get("user")
     return templates.TemplateResponse(
         request,
@@ -1050,6 +1056,7 @@ async def view_time_period(
             "responsible": responsible_for(entry, rindex, iindex),
             "delegation": delegation,
             "note": note,
+            "duration_override": dur_override,
         },
     )
 
@@ -1512,6 +1519,104 @@ async def remove_delegation(request: Request, entry_id: int):
                 rec.delegations[idx] = d
             if d.instance_index == iindex:
                 del rec.delegations[idx]
+                break
+        calendar_store.update(entry_id, entry)
+    else:
+        raise HTTPException(status_code=400)
+    referer = request.headers.get(
+        "referer",
+        str(
+            relative_url_for(
+                request,
+                "view_time_period",
+                entry_id=entry_id,
+                rindex=rindex,
+                iindex=iindex,
+            )
+        ),
+    )
+    return RedirectResponse(url=referer, status_code=303)
+
+
+@app.post("/calendar/{entry_id}/duration")
+async def set_instance_duration(request: Request, entry_id: int):
+    entry = calendar_store.get(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404)
+    require_entry_write_permission(request, entry)
+    form = await request.form()
+    rindex = int(form.get("recurrence_index", -1))
+    iindex = int(form.get("instance_index", -1))
+
+    def to_int(value: str | None) -> int:
+        try:
+            return int(value) if value is not None and value != "" else 0
+        except ValueError:
+            return 0
+
+    days = to_int(form.get("duration_days"))
+    hours = to_int(form.get("duration_hours"))
+    minutes = to_int(form.get("duration_minutes"))
+    duration = timedelta(days=days, hours=hours, minutes=minutes)
+    if duration <= timedelta(0):
+        raise HTTPException(status_code=400)
+    seconds = int(duration.total_seconds())
+    if rindex == -1 and iindex == -1:
+        entry.first_instance_duration_seconds = seconds
+        calendar_store.update(entry_id, entry)
+    elif 0 <= rindex < len(entry.recurrences):
+        rec = entry.recurrences[rindex]
+        if not isinstance(rec, Recurrence):
+            rec = Recurrence.model_validate(rec)
+            entry.recurrences[rindex] = rec
+        existing = find_instance_duration(entry, rindex, iindex)
+        if existing:
+            existing.duration_seconds = seconds
+        else:
+            rec.duration_overrides.append(
+                InstanceDuration(instance_index=iindex, duration_seconds=seconds)
+            )
+        calendar_store.update(entry_id, entry)
+    else:
+        raise HTTPException(status_code=400)
+    referer = request.headers.get(
+        "referer",
+        str(
+            relative_url_for(
+                request,
+                "view_time_period",
+                entry_id=entry_id,
+                rindex=rindex,
+                iindex=iindex,
+            )
+        ),
+    )
+    return RedirectResponse(url=referer, status_code=303)
+
+
+@app.post("/calendar/{entry_id}/duration/remove")
+async def remove_instance_duration(request: Request, entry_id: int):
+    entry = calendar_store.get(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404)
+    require_entry_write_permission(request, entry)
+    form = await request.form()
+    rindex = int(form.get("recurrence_index", -1))
+    iindex = int(form.get("instance_index", -1))
+    if rindex == -1 and iindex == -1:
+        entry.first_instance_duration_seconds = None
+        calendar_store.update(entry_id, entry)
+    elif 0 <= rindex < len(entry.recurrences):
+        rec = entry.recurrences[rindex]
+        if not isinstance(rec, Recurrence):
+            rec = Recurrence.model_validate(rec)
+            entry.recurrences[rindex] = rec
+        for idx, d in enumerate(rec.duration_overrides):
+            if not isinstance(d, InstanceDuration):
+                d = InstanceDuration.model_validate(d)
+                rec.duration_overrides[idx] = d
+            if d.instance_index == iindex:
+                del rec.duration_overrides[idx]
                 break
         calendar_store.update(entry_id, entry)
     else:

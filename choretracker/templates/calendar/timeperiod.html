@@ -37,6 +37,41 @@
     <button type="submit" class="skip-button">{{ 'Do not skip this instance' if is_skipped else 'Skip this instance' }}</button>
 </form>
 {% endif %}
+{% if can_edit %}
+<div class="duration-section">
+    <h2>
+        Duration
+        {% if duration_override %}
+            <button type="button" id="edit-duration" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
+            <form method="post" action="{{ url_for('remove_instance_duration', entry_id=entry.id) }}" style="display:inline" id="delete-duration-form">
+                <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
+                <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
+                <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
+                <button type="submit" class="icon-button"><img src="{{ url_for('static', path='trash.svg') }}" alt="Delete" class="icon"></button>
+            </form>
+        {% else %}
+            <button type="button" id="add-duration" class="icon-button"><img src="{{ url_for('static', path='plus.svg') }}" alt="Add" class="icon"></button>
+        {% endif %}
+    </h2>
+    {% if duration_override %}
+    <div id="duration-display" class="duration-display" data-duration-seconds="{{ duration_override.total_seconds()|int }}">{{ duration_override|format_duration }}</div>
+    {% endif %}
+    <form method="post" action="{{ url_for('set_instance_duration', entry_id=entry.id) }}" id="duration-editor" style="display:none">
+        <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
+        <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
+        <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
+        <div class="duration-inputs">
+            <input type="number" class="inline-input" name="duration_days" placeholder="Days" min="0">
+            <input type="number" class="inline-input" name="duration_hours" placeholder="Hours" min="0">
+            <input type="number" class="inline-input" name="duration_minutes" placeholder="Minutes" min="0" max="59">
+        </div>
+        <div>
+            <button type="submit" class="icon-button"><img src="{{ url_for('static', path='disk.svg') }}" alt="Save" class="icon"></button>
+            <button type="button" id="cancel-duration" class="icon-button"><img src="{{ url_for('static', path='x.svg') }}" alt="Cancel" class="icon"></button>
+        </div>
+    </form>
+</div>
+{% endif %}
 {% if can_edit or note %}
 <div class="additional-notes-section">
     <h2>
@@ -132,6 +167,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const noteDisplay = document.getElementById('note-display');
     const cancelNoteBtn = document.getElementById('cancel-note');
 
+    const durationExists = {{ 'true' if duration_override else 'false' }};
+    const addDurationBtn = document.getElementById('add-duration');
+    const editDurationBtn = document.getElementById('edit-duration');
+    const deleteDurationForm = document.getElementById('delete-duration-form');
+    const durationEditor = document.getElementById('duration-editor');
+    const durationDisplay = document.getElementById('duration-display');
+    const cancelDurationBtn = document.getElementById('cancel-duration');
+
     function openNoteEditor() {
         if (noteEditor) noteEditor.style.display = 'block';
         if (noteDisplay) noteDisplay.style.display = 'none';
@@ -149,6 +192,38 @@ document.addEventListener('DOMContentLoaded', () => {
             if (deleteNoteForm) deleteNoteForm.style.display = 'inline';
         } else if (addNoteBtn) {
             addNoteBtn.style.display = '';
+        }
+    });
+
+    function openDurationEditor(initial) {
+        if (durationEditor) durationEditor.style.display = 'block';
+        if (durationDisplay) durationDisplay.style.display = 'none';
+        if (addDurationBtn) addDurationBtn.style.display = 'none';
+        if (editDurationBtn) editDurationBtn.style.display = 'none';
+        if (deleteDurationForm) deleteDurationForm.style.display = 'none';
+        const dayInput = durationEditor.querySelector('input[name="duration_days"]');
+        const hourInput = durationEditor.querySelector('input[name="duration_hours"]');
+        const minuteInput = durationEditor.querySelector('input[name="duration_minutes"]');
+        const days = Math.floor(initial / 86400);
+        const hours = Math.floor((initial % 86400) / 3600);
+        const minutes = Math.floor((initial % 3600) / 60);
+        dayInput.value = days || '';
+        hourInput.value = hours || '';
+        minuteInput.value = minutes || '';
+    }
+    if (addDurationBtn) addDurationBtn.addEventListener('click', () => openDurationEditor(0));
+    if (editDurationBtn) editDurationBtn.addEventListener('click', () => {
+        const secs = parseInt(durationDisplay.dataset.durationSeconds || '0');
+        openDurationEditor(secs);
+    });
+    if (cancelDurationBtn) cancelDurationBtn.addEventListener('click', () => {
+        if (durationEditor) durationEditor.style.display = 'none';
+        if (durationDisplay) durationDisplay.style.display = '';
+        if (durationExists) {
+            if (editDurationBtn) editDurationBtn.style.display = '';
+            if (deleteDurationForm) deleteDurationForm.style.display = 'inline';
+        } else if (addDurationBtn) {
+            addDurationBtn.style.display = '';
         }
     });
 

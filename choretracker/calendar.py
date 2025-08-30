@@ -42,6 +42,11 @@ class InstanceNote(SQLModel):
     note: str
 
 
+class InstanceDuration(SQLModel):
+    instance_index: int
+    duration_seconds: int = Field(gt=0)
+
+
 class Recurrence(SQLModel):
     type: RecurrenceType
     offset: Optional[Offset] = None
@@ -49,6 +54,7 @@ class Recurrence(SQLModel):
     responsible: List[str] = Field(default_factory=list)
     delegations: List[Delegation] = Field(default_factory=list)
     notes: List[InstanceNote] = Field(default_factory=list)
+    duration_overrides: List[InstanceDuration] = Field(default_factory=list)
 
 
 class CalendarEntry(SQLModel, table=True):
@@ -67,6 +73,7 @@ class CalendarEntry(SQLModel, table=True):
         default_factory=list, sa_column=Column(JSON)
     )
     first_instance_note: Optional[str] = None
+    first_instance_duration_seconds: Optional[int] = None
     skip_first_instance: bool = False
     previous_entry: Optional[int] = Field(
         default=None, foreign_key="calendarentry.id"
@@ -127,6 +134,7 @@ class CalendarEntryStore:
             entry.managers = new_data.managers
             entry.first_instance_delegates = new_data.first_instance_delegates
             entry.first_instance_note = new_data.first_instance_note
+            entry.first_instance_duration_seconds = new_data.first_instance_duration_seconds
             entry.skip_first_instance = new_data.skip_first_instance
             session.add(entry)
             session.commit()
@@ -208,13 +216,18 @@ class CalendarEntryStore:
             if split_time <= entry.first_start:
                 new_entry.first_instance_delegates = entry.first_instance_delegates
                 new_entry.first_instance_note = entry.first_instance_note
+                new_entry.first_instance_duration_seconds = (
+                    entry.first_instance_duration_seconds
+                )
                 new_entry.skip_first_instance = entry.skip_first_instance
                 entry.first_instance_delegates = []
                 entry.first_instance_note = None
+                entry.first_instance_duration_seconds = None
                 entry.skip_first_instance = False
             else:
                 new_entry.first_instance_delegates = []
                 new_entry.first_instance_note = None
+                new_entry.first_instance_duration_seconds = None
                 new_entry.skip_first_instance = False
 
             # Move skips and delegations
@@ -245,13 +258,28 @@ class CalendarEntryStore:
                 keep_notes: list[InstanceNote] = []
                 move_notes: list[InstanceNote] = []
                 for n in rec.notes:
-                    period = find_time_period(original, idx, n.instance_index, include_skipped=True)
+                    period = find_time_period(
+                        original, idx, n.instance_index, include_skipped=True
+                    )
                     if period and period.start >= split_time:
                         move_notes.append(n)
                     else:
                         keep_notes.append(n)
                 rec.notes = keep_notes
                 new_rec.notes = move_notes
+
+                keep_dur: list[InstanceDuration] = []
+                move_dur: list[InstanceDuration] = []
+                for d in rec.duration_overrides:
+                    period = find_time_period(
+                        original, idx, d.instance_index, include_skipped=True
+                    )
+                    if period and period.start >= split_time:
+                        move_dur.append(d)
+                    else:
+                        keep_dur.append(d)
+                rec.duration_overrides = keep_dur
+                new_rec.duration_overrides = move_dur
 
             # Adjust boundaries
             entry.none_after = split_time - timedelta(minutes=1)
@@ -450,9 +478,10 @@ def _recurrence_generator(
             (not none_before or start >= none_before)
             and (include_skipped or instance not in rec.skipped_instances)
         ):
+            dur = duration_for(entry, rindex, instance)
             yield TimePeriod(
                 start=start,
-                end=start + entry.duration,
+                end=start + dur,
                 recurrence_index=rindex,
                 instance_index=instance,
             )
@@ -470,9 +499,10 @@ def enumerate_time_periods(
         and (not none_before or entry.first_start >= none_before)
         and (include_skipped or not entry.skip_first_instance)
     ):
+        dur = duration_for(entry, -1, -1)
         yield TimePeriod(
             start=entry.first_start,
-            end=entry.first_start + entry.duration,
+            end=entry.first_start + dur,
             recurrence_index=-1,
             instance_index=-1,
         )
@@ -564,4 +594,34 @@ def find_instance_note(
             if n.instance_index == instance_index:
                 return n
     return None
+
+
+def find_instance_duration(
+    entry: CalendarEntry, recurrence_index: int, instance_index: int
+) -> Optional[InstanceDuration]:
+    if recurrence_index == -1 and instance_index == -1:
+        if entry.first_instance_duration_seconds is not None:
+            return InstanceDuration(
+                instance_index=-1, duration_seconds=entry.first_instance_duration_seconds
+            )
+        return None
+    if 0 <= recurrence_index < len(entry.recurrences):
+        rec = entry.recurrences[recurrence_index]
+        if not isinstance(rec, Recurrence):
+            rec = Recurrence.model_validate(rec)
+        for d in rec.duration_overrides:
+            if not isinstance(d, InstanceDuration):
+                d = InstanceDuration.model_validate(d)
+            if d.instance_index == instance_index:
+                return d
+    return None
+
+
+def duration_for(
+    entry: CalendarEntry, recurrence_index: int, instance_index: int
+) -> timedelta:
+    override = find_instance_duration(entry, recurrence_index, instance_index)
+    if override:
+        return timedelta(seconds=override.duration_seconds)
+    return entry.duration
 
