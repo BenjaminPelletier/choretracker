@@ -1,7 +1,8 @@
 import importlib
 import sys
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import timedelta
+from choretracker.time_utils import get_now
 
 from fastapi.testclient import TestClient
 
@@ -19,7 +20,7 @@ def test_list_active_and_past(tmp_path, monkeypatch):
 
     client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
 
-    now = datetime.now()
+    now = get_now()
     active_newer = CalendarEntry(
         title="Future 2",
         description="",

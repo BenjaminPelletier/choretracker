@@ -1,7 +1,8 @@
 import importlib
 import sys
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import timedelta
+from choretracker.time_utils import get_now
 
 from fastapi.testclient import TestClient
 
@@ -23,7 +24,7 @@ def test_due_not_shown_when_completed(tmp_path, monkeypatch):
     # login as Admin user
     client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
 
-    now = datetime.now()
+    now = get_now()
     entry = CalendarEntry(
         title="Laundry",
         description="",

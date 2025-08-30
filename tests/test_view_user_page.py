@@ -1,7 +1,8 @@
 import importlib
 import sys
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import timedelta
+from choretracker.time_utils import get_now
 
 from fastapi.testclient import TestClient
 
@@ -21,7 +22,7 @@ def test_view_user_page(tmp_path, monkeypatch):
     # create user Bob
     app_module.user_store.create("Bob", "bob", None, set())
 
-    now = datetime.now()
+    now = get_now()
 
     # entry where Bob responsible and completion
     entry1 = CalendarEntry(

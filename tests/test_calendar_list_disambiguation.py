@@ -2,6 +2,7 @@ import importlib
 import sys
 from pathlib import Path
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
 
@@ -23,7 +24,7 @@ def test_duplicate_titles_disambiguated(tmp_path, monkeypatch):
         title="Guinea salad",
         description="",
         type=CalendarEntryType.Event,
-        first_start=datetime(2025, 8, 22, 8, 0, 0),
+        first_start=datetime(2025, 8, 22, 8, 0, 0, tzinfo=ZoneInfo("UTC")),
         duration_seconds=60,
         managers=["Admin"],
     )
@@ -31,7 +32,7 @@ def test_duplicate_titles_disambiguated(tmp_path, monkeypatch):
         title="Guinea salad",
         description="",
         type=CalendarEntryType.Event,
-        first_start=datetime(2025, 8, 23, 8, 0, 0),
+        first_start=datetime(2025, 8, 23, 8, 0, 0, tzinfo=ZoneInfo("UTC")),
         duration_seconds=60,
         managers=["Admin"],
     )

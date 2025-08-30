@@ -10,6 +10,11 @@ The server also requires a secret key for session management. Before starting
 the application, set `CHORETRACKER_SECRET_KEY` to a secure, random value and
 keep it consistent between restarts.
 
+Time-based operations use the `CHORETRACKER_TZ` environment variable to set
+the application's timezone. If unspecified, the default timezone is the
+system's timezone. For example, to run the application in Los Angeles time,
+set `CHORETRACKER_TZ=America/Los_Angeles`.
+
 If no existing user has the `admin` permission, a new database is automatically
 populated with an `Admin` user (password `admin`, PIN `0000`) that has the
 `admin` permission. The `admin` permission grants all actions, including those

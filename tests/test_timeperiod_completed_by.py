@@ -2,6 +2,7 @@ import importlib
 import sys
 from pathlib import Path
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
 
@@ -31,7 +32,7 @@ def test_completed_by_username_shown(tmp_path, monkeypatch):
         title="Dishes",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=datetime(2000, 1, 1, 8, 0, 0),
+        first_start=datetime(2000, 1, 1, 8, 0, 0, tzinfo=ZoneInfo("UTC")),
         duration_seconds=60,
         recurrences=[Recurrence(type=RecurrenceType.Weekly)],
         managers=["Admin"],

@@ -1,4 +1,4 @@
-from datetime import datetime
+from choretracker.time_utils import get_now
 
 import sys
 from pathlib import Path
@@ -20,7 +20,7 @@ def test_responsible_hierarchy():
         title="Test",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=datetime.now(),
+        first_start=get_now(),
         duration_seconds=60,
         recurrences=[
             Recurrence(

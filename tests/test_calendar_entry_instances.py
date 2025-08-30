@@ -2,6 +2,8 @@ import importlib
 import sys
 from pathlib import Path
 from datetime import datetime
+from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo
 import re
 
 from fastapi.testclient import TestClient
@@ -19,14 +21,10 @@ def test_instances_past_and_upcoming(tmp_path, monkeypatch):
         del sys.modules["choretracker.app"]
     app_module = importlib.import_module("choretracker.app")
 
-    class FixedDatetime(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return datetime(2000, 1, 22, 0, 0, 0)
-
-    monkeypatch.setattr(app_module, "datetime", FixedDatetime)
+    fake_now = datetime(2000, 1, 22, 0, 0, 0, tzinfo=ZoneInfo("UTC"))
+    monkeypatch.setattr(app_module, "get_now", lambda: fake_now)
     import choretracker.calendar as calendar_module
-    monkeypatch.setattr(calendar_module, "datetime", FixedDatetime)
+    monkeypatch.setattr(calendar_module, "get_now", lambda: fake_now)
 
     client = TestClient(app_module.app)
     client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
@@ -35,7 +33,7 @@ def test_instances_past_and_upcoming(tmp_path, monkeypatch):
         title="Dishes",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=datetime(2000, 1, 1, 0, 0, 0),
+        first_start=datetime(2000, 1, 1, 0, 0, 0, tzinfo=ZoneInfo("UTC")),
         duration_seconds=3600,
         recurrences=[
             Recurrence(type=RecurrenceType.Weekly, skipped_instances=[1])

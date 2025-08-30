@@ -1,7 +1,7 @@
 import importlib
 import sys
 from pathlib import Path
-from datetime import datetime
+from choretracker.time_utils import get_now
 
 from fastapi.testclient import TestClient
 
@@ -23,7 +23,7 @@ def test_entry_not_deleted_with_completion(tmp_path, monkeypatch):
     if "choretracker.app" in sys.modules:
         del sys.modules["choretracker.app"]
     app_module = importlib.import_module("choretracker.app")
-    now = datetime.now()
+    now = get_now()
     entry = CalendarEntry(
         title="Chore",
         description="",
@@ -47,7 +47,7 @@ def test_entry_not_deleted_with_delegation(tmp_path, monkeypatch):
     if "choretracker.app" in sys.modules:
         del sys.modules["choretracker.app"]
     app_module = importlib.import_module("choretracker.app")
-    now = datetime.now()
+    now = get_now()
     entry = CalendarEntry(
         title="Delegated",
         description="",
@@ -74,7 +74,7 @@ def test_entry_not_deleted_with_first_instance_delegation(tmp_path, monkeypatch)
     if "choretracker.app" in sys.modules:
         del sys.modules["choretracker.app"]
     app_module = importlib.import_module("choretracker.app")
-    now = datetime.now()
+    now = get_now()
     entry = CalendarEntry(
         title="DelegatedFirst",
         description="",
@@ -98,7 +98,7 @@ def test_list_hides_delete_for_undeletable(tmp_path, monkeypatch):
     app_module = importlib.import_module("choretracker.app")
     client = TestClient(app_module.app)
     client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
-    now = datetime.now()
+    now = get_now()
     with_completion = CalendarEntry(
         title="With", description="", type=CalendarEntryType.Chore,
         first_start=now, duration_seconds=60, managers=["Admin"]
