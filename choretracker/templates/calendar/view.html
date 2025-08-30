@@ -154,6 +154,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const xUrl = "{{ url_for('static', path='x.svg') }}";
     const trashUrl = "{{ url_for('static', path='trash.svg') }}";
     const plusUrl = "{{ url_for('static', path='plus.svg') }}";
+    const endtimeUrl = "{{ url_for('static', path='endtime.svg') }}";
+    const durationUrl = "{{ url_for('static', path='duration.svg') }}";
     const profileUrlTemplate = "{{ url_for('profile_picture', username='__user__') }}";
     const allUsers = {{ all_users()|selectattr('username','ne','Viewer')|map(attribute='username')|list|tojson }};
     const recurrenceTypes = {{ RecurrenceType|map(attribute='value')|list|tojson }};
@@ -207,23 +209,18 @@ document.addEventListener('DOMContentLoaded', () => {
         durEdit.addEventListener('click', () => {
             const container = document.getElementById('duration-container');
             const total = parseInt(container.dataset.durationSeconds || '0');
-            const days = Math.floor(total / 86400);
-            const hours = Math.floor((total % 86400) / 3600);
-            const minutes = Math.floor((total % 3600) / 60);
             container.innerHTML = '';
             const dayInput = document.createElement('input');
             dayInput.type = 'number';
             dayInput.placeholder = 'Days';
             dayInput.min = '0';
             dayInput.className = 'inline-input';
-            if (days) dayInput.value = days;
             dayInput.style.width = '4ch';
             const hourInput = document.createElement('input');
             hourInput.type = 'number';
             hourInput.placeholder = 'Hours';
             hourInput.min = '0';
             hourInput.className = 'inline-input';
-            if (hours) hourInput.value = hours;
             hourInput.style.width = '4ch';
             const minuteInput = document.createElement('input');
             minuteInput.type = 'number';
@@ -231,24 +228,90 @@ document.addEventListener('DOMContentLoaded', () => {
             minuteInput.min = '0';
             minuteInput.max = '59';
             minuteInput.className = 'inline-input';
-            if (minutes) minuteInput.value = minutes;
             minuteInput.style.width = '4ch';
+            const endInput = document.createElement('input');
+            endInput.type = 'datetime-local';
+            endInput.className = 'inline-input';
+            endInput.style.display = 'none';
+            const modeBtn = makeBtn(endtimeUrl, 'Use end time');
+            const modeImg = modeBtn.querySelector('img');
             const save = makeBtn(diskUrl, 'Save');
             const cancel = makeBtn(xUrl, 'Cancel');
+            container.appendChild(modeBtn);
             container.appendChild(dayInput);
             container.appendChild(hourInput);
             container.appendChild(minuteInput);
+            container.appendChild(endInput);
             container.appendChild(save);
             container.appendChild(cancel);
+
+            const firstStart = new Date("{{ entry.first_start.strftime('%Y-%m-%dT%H:%M') }}");
+            const days = Math.floor(total / 86400);
+            const hours = Math.floor((total % 86400) / 3600);
+            const minutes = Math.floor((total % 3600) / 60);
+            if (days) dayInput.value = days;
+            if (hours) hourInput.value = hours;
+            if (minutes) minuteInput.value = minutes;
+
+            let useEndTime = false;
+            function updateEndFromInputs() {
+                const d = parseInt(dayInput.value || '0');
+                const h = parseInt(hourInput.value || '0');
+                const m = parseInt(minuteInput.value || '0');
+                const end = new Date(firstStart.getTime() + (d * 86400 + h * 3600 + m * 60) * 1000);
+                const local = new Date(end.getTime() - end.getTimezoneOffset() * 60000)
+                    .toISOString()
+                    .slice(0, 16);
+                endInput.value = local;
+            }
+            function updateInputsFromEnd() {
+                const end = new Date(endInput.value);
+                const diff = end - firstStart;
+                const d = Math.floor(diff / 86400000);
+                const h = Math.floor((diff % 86400000) / 3600000);
+                const m = Math.floor((diff % 3600000) / 60000);
+                dayInput.value = d || '';
+                hourInput.value = h || '';
+                minuteInput.value = m || '';
+            }
+            modeBtn.addEventListener('click', () => {
+                useEndTime = !useEndTime;
+                if (useEndTime) {
+                    modeImg.src = durationUrl;
+                    dayInput.style.display = 'none';
+                    hourInput.style.display = 'none';
+                    minuteInput.style.display = 'none';
+                    endInput.style.display = '';
+                    updateEndFromInputs();
+                } else {
+                    modeImg.src = endtimeUrl;
+                    endInput.style.display = 'none';
+                    dayInput.style.display = '';
+                    hourInput.style.display = '';
+                    minuteInput.style.display = '';
+                    updateInputsFromEnd();
+                }
+            });
+
             save.addEventListener('click', async () => {
+                if (useEndTime) {
+                    updateInputsFromEnd();
+                }
+                const d = parseInt(dayInput.value || '0');
+                const h = parseInt(hourInput.value || '0');
+                const m = parseInt(minuteInput.value || '0');
+                if (d * 86400 + h * 3600 + m * 60 <= 0) {
+                    alert('Duration must be greater than 0');
+                    return;
+                }
                 const resp = await fetch(`/calendar/${entryId}/update`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     credentials: 'same-origin',
                     body: JSON.stringify({
-                        duration_days: parseInt(dayInput.value || '0'),
-                        duration_hours: parseInt(hourInput.value || '0'),
-                        duration_minutes: parseInt(minuteInput.value || '0')
+                        duration_days: d,
+                        duration_hours: h,
+                        duration_minutes: m
                     })
                 });
                 const data = await resp.json();
