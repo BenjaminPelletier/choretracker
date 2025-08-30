@@ -68,10 +68,14 @@
 const formatDuration = (seconds) => {
     const abs = Math.floor(Math.abs(seconds));
     const minute = 60, hour = 3600, day = 86400, week = 604800;
-    if (abs < hour) return Math.floor(abs / minute) + 'm';
-    if (abs < day) return Math.floor(abs / hour) + 'h';
-    if (abs < week) return Math.floor(abs / day) + 'd';
-    return Math.floor(abs / week) + 'w';
+    const weeks = Math.floor(abs / week);
+    const days = Math.floor((abs % week) / day);
+    const hours = Math.floor((abs % day) / hour);
+    const minutes = Math.floor((abs % hour) / minute);
+    if (weeks > 0) return weeks + 'w' + (days > 0 ? days + 'd' : '');
+    if (days > 0) return days + 'd' + (hours > 0 ? hours + 'h' : '');
+    if (hours > 0) return hours + 'h' + (minutes > 0 ? minutes + 'm' : '');
+    return minutes + 'm';
 };
 
 const serverNow = {{ now_ts|float }} * 1000;
