@@ -2,6 +2,7 @@ import importlib
 import sys
 from pathlib import Path
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
 
@@ -28,7 +29,7 @@ def test_edit_permissions(tmp_path, monkeypatch):
         title="Test",
         description="",
         type=CalendarEntryType.Event,
-        first_start=datetime(2000, 1, 1, 0, 0),
+        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
         duration_seconds=60,
         managers=["Manager"],
     )
@@ -98,7 +99,7 @@ def test_update_rejects_empty_managers(tmp_path, monkeypatch):
         title="Test",
         description="",
         type=CalendarEntryType.Event,
-        first_start=datetime(2000, 1, 1, 0, 0),
+        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
         duration_seconds=60,
         managers=["Admin"],
     )

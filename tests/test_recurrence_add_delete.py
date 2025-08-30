@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import importlib
 import sys
 
@@ -32,7 +33,7 @@ def test_add_recurrence(tmp_path, monkeypatch):
         title="AddRec",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=datetime(2000, 1, 1, 0, 0),
+        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
         duration_seconds=60,
         recurrences=[],
         managers=["Admin"],
@@ -70,7 +71,7 @@ def test_delete_recurrence(tmp_path, monkeypatch):
         title="DelRec",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=datetime(2000, 1, 1, 0, 0),
+        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
         duration_seconds=60,
         recurrences=[
             Recurrence(type=RecurrenceType.Weekly),

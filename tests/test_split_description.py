@@ -2,6 +2,7 @@ import importlib
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
 
@@ -19,16 +20,11 @@ def test_description_edit_splits_entry(tmp_path, monkeypatch):
         del sys.modules["choretracker.app"]
     app_module = importlib.import_module("choretracker.app")
 
-    fake_now = datetime(2025, 1, 15, 0, 0)
+    fake_now = datetime(2025, 1, 15, 0, 0, tzinfo=ZoneInfo("UTC"))
 
-    class FixedDateTime(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return fake_now if tz is None else fake_now.astimezone(tz)
-
-    monkeypatch.setattr(app_module, "datetime", FixedDateTime)
+    monkeypatch.setattr(app_module, "get_now", lambda: fake_now)
     import choretracker.calendar as cal_mod
-    monkeypatch.setattr(cal_mod, "datetime", FixedDateTime)
+    monkeypatch.setattr(cal_mod, "get_now", lambda: fake_now)
 
     client = TestClient(app_module.app)
     client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)

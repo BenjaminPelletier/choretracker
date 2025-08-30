@@ -2,6 +2,7 @@ import importlib
 import sys
 from pathlib import Path
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
 
@@ -26,7 +27,7 @@ def test_delegate_instance(tmp_path, monkeypatch):
         title="Laundry",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=datetime(2000, 1, 1, 8, 0, 0),
+        first_start=datetime(2000, 1, 1, 8, 0, 0, tzinfo=ZoneInfo("UTC")),
         duration_seconds=60,
         recurrences=[Recurrence(type=RecurrenceType.Weekly)],
         responsible=["Admin"],
@@ -105,7 +106,7 @@ def test_delegate_instance_requires_user(tmp_path, monkeypatch):
         title="Laundry",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=datetime(2000, 1, 1, 8, 0, 0),
+        first_start=datetime(2000, 1, 1, 8, 0, 0, tzinfo=ZoneInfo("UTC")),
         duration_seconds=60,
         recurrences=[Recurrence(type=RecurrenceType.Weekly)],
         responsible=["Admin"],

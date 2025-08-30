@@ -2,6 +2,7 @@ import importlib
 import sys
 from pathlib import Path
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
 import re
@@ -24,7 +25,7 @@ def test_description_sanitized(tmp_path, monkeypatch):
         title="Sanitize",
         description="<script>alert('x')</script>",
         type=CalendarEntryType.Event,
-        first_start=datetime(2025, 1, 1, 0, 0, 0),
+        first_start=datetime(2025, 1, 1, 0, 0, 0, tzinfo=ZoneInfo("UTC")),
         duration_seconds=60,
         managers=["Admin"],
     )

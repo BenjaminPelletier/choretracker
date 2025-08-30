@@ -2,6 +2,7 @@ import importlib
 import sys
 from pathlib import Path
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
 
@@ -29,7 +30,7 @@ def test_inline_update(tmp_path, monkeypatch):
         title="Old",
         description="Old desc",
         type=CalendarEntryType.Event,
-        first_start=datetime(2000, 1, 1, 0, 0),
+        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
         duration_seconds=60,
         managers=["Admin"],
     )
@@ -68,7 +69,7 @@ def test_title_edit_redirects_after_split(tmp_path, monkeypatch):
         title="Old",
         description="",
         type=CalendarEntryType.Event,
-        first_start=datetime(2000, 1, 1, 0, 0),
+        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
         duration_seconds=60,
         managers=["Admin"],
     )
@@ -98,7 +99,7 @@ def test_type_edit_redirects_after_split(tmp_path, monkeypatch):
         title="Foo",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=datetime(2000, 1, 1, 0, 0),
+        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
         duration_seconds=60,
         recurrences=[],
         managers=["Admin"],

@@ -1,7 +1,8 @@
 import importlib
 import sys
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import timedelta
+from choretracker.time_utils import get_now
 
 from fastapi.testclient import TestClient
 
@@ -22,7 +23,7 @@ def test_user_deletion_restricted(tmp_path, monkeypatch):
         title="Test",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=datetime.now() + timedelta(days=1),
+        first_start=get_now() + timedelta(days=1),
         duration_seconds=60,
         responsible=["Bob"],
         managers=["Bob"],

@@ -1,7 +1,8 @@
 import importlib
 import sys
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import timedelta
+from choretracker.time_utils import get_now
 
 from fastapi.testclient import TestClient
 
@@ -20,7 +21,7 @@ def test_non_admin_cannot_create_or_edit_past_entries(tmp_path, monkeypatch):
     client = TestClient(app_module.app)
     client.post("/login", data={"username": "User", "password": "user"}, follow_redirects=False)
 
-    past = (datetime.now() - timedelta(days=1)).isoformat()
+    past = (get_now() - timedelta(days=1)).isoformat()
     resp = client.post(
         "/calendar/new",
         data={
@@ -35,7 +36,7 @@ def test_non_admin_cannot_create_or_edit_past_entries(tmp_path, monkeypatch):
     assert resp.status_code == 400
     assert app_module.calendar_store.list_entries() == []
 
-    future = (datetime.now() + timedelta(days=1)).isoformat(timespec="minutes")
+    future = (get_now() + timedelta(days=1)).isoformat(timespec="minutes")
     resp = client.post(
         "/calendar/new",
         data={
@@ -50,7 +51,7 @@ def test_non_admin_cannot_create_or_edit_past_entries(tmp_path, monkeypatch):
     assert resp.status_code == 303
     entry_id = app_module.calendar_store.list_entries()[0].id
 
-    past2 = (datetime.now() - timedelta(days=2)).isoformat()
+    past2 = (get_now() - timedelta(days=2)).isoformat()
     resp = client.post(
         f"/calendar/{entry_id}/update",
         json={"first_start": past2},

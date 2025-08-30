@@ -1,6 +1,7 @@
 import importlib
 import sys
-from datetime import datetime, timedelta
+from datetime import timedelta
+from choretracker.time_utils import get_now
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -28,7 +29,7 @@ def test_username_change_updates_references(tmp_path, monkeypatch):
         title="Test",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=datetime.now() + timedelta(days=1),
+        first_start=get_now() + timedelta(days=1),
         duration_seconds=60,
         responsible=["Bob"],
         managers=["Bob"],

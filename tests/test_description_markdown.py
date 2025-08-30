@@ -2,6 +2,7 @@ import importlib
 import sys
 from pathlib import Path
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
 
@@ -23,7 +24,7 @@ def test_description_rendered_as_markdown(tmp_path, monkeypatch):
         title="Markdown",
         description="**bold**",
         type=CalendarEntryType.Event,
-        first_start=datetime(2025, 1, 1, 0, 0, 0),
+        first_start=datetime(2025, 1, 1, 0, 0, 0, tzinfo=ZoneInfo("UTC")),
         duration_seconds=60,
         managers=["Admin"],
     )

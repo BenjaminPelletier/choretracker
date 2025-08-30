@@ -10,6 +10,8 @@ from typing import Iterator, List, Optional
 from sqlmodel import Column, Field, Session, SQLModel, select
 from sqlalchemy import JSON, ForeignKey, Integer
 
+from .time_utils import get_now, ensure_tz
+
 
 class RecurrenceType(str, Enum):
     Weekly = "Weekly"
@@ -101,6 +103,9 @@ class CalendarEntryStore:
                     rec if isinstance(rec, Recurrence) else Recurrence.model_validate(rec)
                     for rec in entry.recurrences
                 ]
+                entry.first_start = ensure_tz(entry.first_start)
+                entry.none_after = ensure_tz(entry.none_after)
+                entry.none_before = ensure_tz(entry.none_before)
             return entry
 
     def update(self, entry_id: int, new_data: CalendarEntry) -> None:
@@ -134,6 +139,9 @@ class CalendarEntryStore:
                     rec if isinstance(rec, Recurrence) else Recurrence.model_validate(rec)
                     for rec in entry.recurrences
                 ]
+                entry.first_start = ensure_tz(entry.first_start)
+                entry.none_after = ensure_tz(entry.none_after)
+                entry.none_before = ensure_tz(entry.none_before)
             return entries
 
     def delete(self, entry_id: int) -> bool:
@@ -177,6 +185,9 @@ class CalendarEntryStore:
                 rec if isinstance(rec, Recurrence) else Recurrence.model_validate(rec)
                 for rec in entry.recurrences
             ]
+            entry.first_start = ensure_tz(entry.first_start)
+            entry.none_after = ensure_tz(entry.none_after)
+            entry.none_before = ensure_tz(entry.none_before)
 
             # Copy of entry for time period calculations
             original = CalendarEntry.model_validate(entry.model_dump())
@@ -288,7 +299,7 @@ class ChoreCompletion(SQLModel, table=True):
     recurrence_index: int
     instance_index: int
     completed_by: str
-    completed_at: datetime = Field(default_factory=datetime.now)
+    completed_at: datetime = Field(default_factory=get_now)
 
 
 class ChoreCompletionStore:
@@ -304,7 +315,10 @@ class ChoreCompletionStore:
                 & (ChoreCompletion.recurrence_index == recurrence_index)
                 & (ChoreCompletion.instance_index == instance_index)
             )
-            return session.exec(stmt).first()
+            comp = session.exec(stmt).first()
+            if comp:
+                comp.completed_at = ensure_tz(comp.completed_at)
+            return comp
 
     def create(
         self,
@@ -319,7 +333,7 @@ class ChoreCompletionStore:
             recurrence_index=recurrence_index,
             instance_index=instance_index,
             completed_by=user,
-            completed_at=completed_at or datetime.now(),
+            completed_at=completed_at or get_now(),
         )
         with Session(self.engine) as session:
             session.add(completion)
@@ -340,7 +354,10 @@ class ChoreCompletionStore:
     def list_for_entry(self, entry_id: int) -> List[ChoreCompletion]:
         with Session(self.engine) as session:
             stmt = select(ChoreCompletion).where(ChoreCompletion.entry_id == entry_id)
-            return session.exec(stmt).all()
+            comps = session.exec(stmt).all()
+            for comp in comps:
+                comp.completed_at = ensure_tz(comp.completed_at)
+            return comps
 
 
 @dataclass

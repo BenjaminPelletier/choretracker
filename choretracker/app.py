@@ -29,6 +29,7 @@ import base64
 import posixpath
 from jinja2 import pass_context
 
+from .time_utils import get_now, parse_datetime
 from .users import (
     UserStore,
     init_db,
@@ -285,7 +286,7 @@ def entry_time_bounds(entry: CalendarEntry) -> tuple[datetime, datetime | None]:
 
 def has_past_instances(entry: CalendarEntry, now: datetime | None = None) -> bool:
     if now is None:
-        now = datetime.now()
+        now = get_now()
     for period in enumerate_time_periods(entry, include_skipped=True):
         if period.start < now:
             return True
@@ -340,7 +341,7 @@ def split_entry_if_past(entry_id: int, entry: CalendarEntry, now: datetime | Non
     original entry if no split occurred or the new entry if it did.
     """
     if now is None:
-        now = datetime.now()
+        now = get_now()
     has_past = False
     for period in enumerate_time_periods(entry):
         if period.start < now:
@@ -372,7 +373,7 @@ class EnsureUserMiddleware(BaseHTTPMiddleware):
         path = request.url.path
 
         user = session.get("user")
-        now = datetime.now().timestamp()
+        now = get_now().timestamp()
         if user:
             if not user_store.get(user):
                 session.clear()
@@ -457,7 +458,7 @@ app.add_middleware(SessionMiddleware, secret_key=session_secret)
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    now = datetime.now()
+    now = get_now()
     overdue: list[tuple[CalendarEntry, TimePeriod, list[str], bool]] = []
     current: list[
         tuple[CalendarEntry, TimePeriod, ChoreCompletion | None, list[str], bool]
@@ -607,7 +608,7 @@ async def login(request: Request):
     user = user_store.verify(username, password)
     if user:
         request.session["user"] = user.username
-        request.session["last_active"] = datetime.now().timestamp()
+        request.session["last_active"] = get_now().timestamp()
         return RedirectResponse(url=relative_url_for(request, "index"), status_code=303)
 
     return templates.TemplateResponse(
@@ -650,7 +651,7 @@ async def switch_user(request: Request, username: str, next: str | None = None, 
     user = user_store.get(username)
     if user and (not user.pin_hash or (pin and pwd_context.verify(pin, user.pin_hash))):
         request.session["user"] = username
-        request.session["last_active"] = datetime.now().timestamp()
+        request.session["last_active"] = get_now().timestamp()
         return RedirectResponse(url=_switch_target(request, next), status_code=303)
     request.session["flash"] = "Invalid PIN"
     referer = request.headers.get("referer") or relative_url_for(request, "index")
@@ -667,7 +668,7 @@ async def switch_user_post(request: Request, username: str, next: str | None = N
     if user.pin_hash and not (pin and pwd_context.verify(pin, user.pin_hash)):
         return JSONResponse({"error": "Invalid PIN"}, status_code=400)
     request.session["user"] = username
-    request.session["last_active"] = datetime.now().timestamp()
+    request.session["last_active"] = get_now().timestamp()
     return JSONResponse({"redirect": _switch_target(request, next)})
 
 
@@ -758,7 +759,7 @@ async def create_calendar_entry(request: Request):
     first_start_str = form.get("first_start")
     if not first_start_str:
         raise HTTPException(status_code=400, detail="first_start required")
-    first_start = datetime.fromisoformat(first_start_str)
+    first_start = parse_datetime(first_start_str)
 
     duration = timedelta(
         days=int(form.get("duration_days") or 0),
@@ -810,9 +811,9 @@ async def create_calendar_entry(request: Request):
         )
 
     none_after_str = form.get("none_after")
-    none_after = datetime.fromisoformat(none_after_str) if none_after_str else None
+    none_after = parse_datetime(none_after_str) if none_after_str else None
     none_before_str = form.get("none_before")
-    none_before = datetime.fromisoformat(none_before_str) if none_before_str else None
+    none_before = parse_datetime(none_before_str) if none_before_str else None
 
     responsible = form.getlist("responsible")
     managers = form.getlist("managers")
@@ -853,7 +854,7 @@ async def list_calendar_entries(request: Request, entry_type: str):
     require_entry_read_permission(request, etype)
     entries = [e for e in calendar_store.list_entries() if e.type == etype]
     counts = Counter(e.title for e in entries)
-    now = datetime.now()
+    now = get_now()
     active_entries = []
     past_entries = []
     start_map = {}
@@ -938,7 +939,7 @@ async def view_calendar_entry(
         completion_periods.append(
             (period, comp, can_remove, is_skipped, responsible, has_note)
         )
-    now = datetime.now()
+    now = get_now()
     past_noncompleted: list[
         tuple[TimePeriod, ChoreCompletion | None, bool, bool, list[str], bool]
     ] = []
@@ -1044,7 +1045,7 @@ async def view_time_period(
             "completion": completion,
             "is_skipped": is_skipped,
             "can_edit": can_edit_entry(current_user, entry),
-            "now": datetime.now(),
+            "now": get_now(),
             "CalendarEntryType": CalendarEntryType,
             "responsible": responsible_for(entry, rindex, iindex),
             "delegation": delegation,
@@ -1092,7 +1093,7 @@ async def update_calendar_entry(request: Request, entry_id: int):
     first_start_str = form.get("first_start")
     if not first_start_str:
         raise HTTPException(status_code=400, detail="first_start required")
-    first_start = datetime.fromisoformat(first_start_str)
+    first_start = parse_datetime(first_start_str)
 
     duration = timedelta(
         days=int(form.get("duration_days") or 0),
@@ -1144,9 +1145,9 @@ async def update_calendar_entry(request: Request, entry_id: int):
         )
 
     none_after_str = form.get("none_after")
-    none_after = datetime.fromisoformat(none_after_str) if none_after_str else None
+    none_after = parse_datetime(none_after_str) if none_after_str else None
     none_before_str = form.get("none_before")
-    none_before = datetime.fromisoformat(none_before_str) if none_before_str else None
+    none_before = parse_datetime(none_before_str) if none_before_str else None
 
     responsible = form.getlist("responsible")
     managers = form.getlist("managers")
@@ -1225,7 +1226,7 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
         entry_id, entry, did_split = split_entry_if_past(entry_id, entry)
 
     if "first_start" in data:
-        entry.first_start = datetime.fromisoformat(data["first_start"])
+        entry.first_start = parse_datetime(data["first_start"])
     if "description" in data:
         entry.description = data["description"].strip()
     if "title" in data:
@@ -1243,10 +1244,10 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
         entry.duration = timedelta(days=days, hours=hours, minutes=minutes)
     if "none_after" in data:
         na = data["none_after"]
-        entry.none_after = datetime.fromisoformat(na) if na else None
+        entry.none_after = parse_datetime(na) if na else None
     if "none_before" in data:
         nb = data["none_before"]
-        entry.none_before = datetime.fromisoformat(nb) if nb else None
+        entry.none_before = parse_datetime(nb) if nb else None
     if "responsible" in data:
         entry.responsible = data["responsible"]
     if "managers" in data:
@@ -1406,7 +1407,7 @@ async def complete_chore(request: Request, entry_id: int):
     period = find_time_period(entry, rindex, iindex)
     if not period:
         raise HTTPException(status_code=400)
-    now = datetime.now()
+    now = get_now()
     if period.start <= now <= period.end:
         perm = "chores.complete_on_time"
     elif period.end <= now:
