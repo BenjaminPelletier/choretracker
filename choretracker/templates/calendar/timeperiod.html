@@ -61,9 +61,15 @@
         <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
         <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
         <div class="duration-inputs">
-            <input type="number" class="inline-input" name="duration_days" placeholder="Days" min="0">
-            <input type="number" class="inline-input" name="duration_hours" placeholder="Hours" min="0">
-            <input type="number" class="inline-input" name="duration_minutes" placeholder="Minutes" min="0" max="59">
+            <button type="button" id="toggle-duration-mode" class="icon-button">
+                <img id="duration-mode-icon" src="{{ url_for('static', path='endtime.svg') }}" alt="Use end time" class="icon">
+            </button>
+            <span id="duration-fields">
+                <input type="number" class="inline-input" name="duration_days" placeholder="Days" min="0">
+                <input type="number" class="inline-input" name="duration_hours" placeholder="Hours" min="0">
+                <input type="number" class="inline-input" name="duration_minutes" placeholder="Minutes" min="0" max="59">
+            </span>
+            <input type="datetime-local" name="end_time" id="end_time" class="inline-input" style="display:none">
         </div>
         <div>
             <button type="submit" class="icon-button"><img src="{{ url_for('static', path='disk.svg') }}" alt="Save" class="icon"></button>
@@ -159,6 +165,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const xUrl = "{{ url_for('static', path='x.svg') }}";
     const plusUrl = "{{ url_for('static', path='plus.svg') }}";
     const trashUrl = "{{ url_for('static', path='trash.svg') }}";
+    const endtimeUrl = "{{ url_for('static', path='endtime.svg') }}";
+    const durationUrl = "{{ url_for('static', path='duration.svg') }}";
     const noteExists = {{ 'true' if note else 'false' }};
     const addNoteBtn = document.getElementById('add-note');
     const editNoteBtn = document.getElementById('edit-note');
@@ -195,21 +203,69 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    if (durationEditor) {
+    const toggleMode = document.getElementById('toggle-duration-mode');
+    const modeIcon = document.getElementById('duration-mode-icon');
+    const durationFields = document.getElementById('duration-fields');
+    const endTimeInput = document.getElementById('end_time');
+    const dayInput = durationEditor.querySelector('input[name="duration_days"]');
+    const hourInput = durationEditor.querySelector('input[name="duration_hours"]');
+    const minuteInput = durationEditor.querySelector('input[name="duration_minutes"]');
+    let useEndTime = false;
+    const periodStart = new Date("{{ period.start.strftime('%Y-%m-%dT%H:%M') }}");
+
+    function updateEndFromInputs() {
+        const d = parseInt(dayInput.value || '0');
+        const h = parseInt(hourInput.value || '0');
+        const m = parseInt(minuteInput.value || '0');
+        const end = new Date(periodStart.getTime() + (d * 86400 + h * 3600 + m * 60) * 1000);
+        const local = new Date(end.getTime() - end.getTimezoneOffset() * 60000)
+            .toISOString()
+            .slice(0, 16);
+        endTimeInput.value = local;
+    }
+    function updateInputsFromEnd() {
+        const end = new Date(endTimeInput.value);
+        const diff = end - periodStart;
+        const d = Math.floor(diff / 86400000);
+        const h = Math.floor((diff % 86400000) / 3600000);
+        const m = Math.floor((diff % 3600000) / 60000);
+        dayInput.value = d || '';
+        hourInput.value = h || '';
+        minuteInput.value = m || '';
+    }
+    toggleMode.addEventListener('click', () => {
+        useEndTime = !useEndTime;
+        if (useEndTime) {
+            modeIcon.src = durationUrl;
+            durationFields.style.display = 'none';
+            endTimeInput.style.display = '';
+            updateEndFromInputs();
+        } else {
+            modeIcon.src = endtimeUrl;
+            durationFields.style.display = '';
+            endTimeInput.style.display = 'none';
+            updateInputsFromEnd();
+        }
+    });
+
     function openDurationEditor(initial) {
         if (durationEditor) durationEditor.style.display = 'block';
         if (durationDisplay) durationDisplay.style.display = 'none';
         if (addDurationBtn) addDurationBtn.style.display = 'none';
         if (editDurationBtn) editDurationBtn.style.display = 'none';
         if (deleteDurationForm) deleteDurationForm.style.display = 'none';
-        const dayInput = durationEditor.querySelector('input[name="duration_days"]');
-        const hourInput = durationEditor.querySelector('input[name="duration_hours"]');
-        const minuteInput = durationEditor.querySelector('input[name="duration_minutes"]');
         const days = Math.floor(initial / 86400);
         const hours = Math.floor((initial % 86400) / 3600);
         const minutes = Math.floor((initial % 3600) / 60);
         dayInput.value = days || '';
         hourInput.value = hours || '';
         minuteInput.value = minutes || '';
+        updateEndFromInputs();
+        useEndTime = false;
+        modeIcon.src = endtimeUrl;
+        durationFields.style.display = '';
+        endTimeInput.style.display = 'none';
     }
     if (addDurationBtn) addDurationBtn.addEventListener('click', () => openDurationEditor(0));
     if (editDurationBtn) editDurationBtn.addEventListener('click', () => {
@@ -226,6 +282,18 @@ document.addEventListener('DOMContentLoaded', () => {
             addDurationBtn.style.display = '';
         }
     });
+    durationEditor.addEventListener('submit', e => {
+        if (useEndTime) {
+            const diff = new Date(endTimeInput.value) - periodStart;
+            if (diff <= 0) {
+                e.preventDefault();
+                alert('End time must be after start time');
+                return;
+            }
+            updateInputsFromEnd();
+        }
+    });
+    }
 
     function makeBtn(url, alt) {
         const b = document.createElement('button');

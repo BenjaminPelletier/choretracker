@@ -46,9 +46,15 @@
             <span class="help" data-help="Length of each instance">?</span>
         </div>
         <div class="duration-inputs">
-            <input type="number" name="duration_days" placeholder="Days" min="0">
-            <input type="number" name="duration_hours" placeholder="Hours" min="0">
-            <input type="number" name="duration_minutes" placeholder="Minutes" min="0" max="59">
+            <button type="button" id="toggle-duration-mode" class="icon-button">
+                <img id="duration-mode-icon" src="{{ url_for('static', path='endtime.svg') }}" alt="Use end time" class="icon">
+            </button>
+            <span id="duration-fields">
+                <input type="number" name="duration_days" placeholder="Days" min="0">
+                <input type="number" name="duration_hours" placeholder="Hours" min="0">
+                <input type="number" name="duration_minutes" placeholder="Minutes" min="0" max="59">
+            </span>
+            <input type="datetime-local" id="end_time" style="display:none">
         </div>
     </div>
 
@@ -397,13 +403,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const entryManagersSelector = setupUserSelector('entry-managers-container', 'managers', initialManagers);
 
     const form = document.getElementById('entry-form');
-    const durationInputs = document.querySelectorAll('.duration-inputs input');
+    const durationInputs = document.querySelectorAll('#duration-fields input');
+    const endTimeInput = document.getElementById('end_time');
+    const toggleMode = document.getElementById('toggle-duration-mode');
+    const modeIcon = document.getElementById('duration-mode-icon');
+    let useEndTime = false;
+    function computeDuration() {
+        if (useEndTime) {
+            const start = new Date(document.getElementById('first_start').value);
+            const end = new Date(endTimeInput.value);
+            return (end - start) / 1000;
+        } else {
+            const days = Number(document.querySelector('input[name="duration_days"]').value) || 0;
+            const hours = Number(document.querySelector('input[name="duration_hours"]').value) || 0;
+            const minutes = Number(document.querySelector('input[name="duration_minutes"]').value) || 0;
+            return days * 86400 + hours * 3600 + minutes * 60;
+        }
+    }
     function validateDuration() {
-        const days = Number(document.querySelector('input[name="duration_days"]').value) || 0;
-        const hours = Number(document.querySelector('input[name="duration_hours"]').value) || 0;
-        const minutes = Number(document.querySelector('input[name="duration_minutes"]').value) || 0;
-        const total = days * 86400 + hours * 3600 + minutes * 60;
-        durationInputs.forEach(inp => {
+        const total = computeDuration();
+        const targets = useEndTime ? [endTimeInput] : durationInputs;
+        targets.forEach(inp => {
             if (total <= 0) {
                 inp.setCustomValidity('Duration must be greater than 0');
             } else {
@@ -412,12 +432,53 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         return total > 0;
     }
-    durationInputs.forEach(inp => inp.addEventListener('input', validateDuration));
+    function updateEndFromInputs() {
+        const start = new Date(document.getElementById('first_start').value);
+        const days = Number(document.querySelector('input[name="duration_days"]').value) || 0;
+        const hours = Number(document.querySelector('input[name="duration_hours"]').value) || 0;
+        const minutes = Number(document.querySelector('input[name="duration_minutes"]').value) || 0;
+        const end = new Date(start.getTime() + (days * 86400 + hours * 3600 + minutes * 60) * 1000);
+        const local = new Date(end.getTime() - end.getTimezoneOffset() * 60000)
+            .toISOString()
+            .slice(0, 16);
+        endTimeInput.value = local;
+    }
+    function updateInputsFromEnd() {
+        const start = new Date(document.getElementById('first_start').value);
+        const end = new Date(endTimeInput.value);
+        const diff = end - start;
+        const days = Math.floor(diff / 86400000);
+        const hours = Math.floor((diff % 86400000) / 3600000);
+        const minutes = Math.floor((diff % 3600000) / 60000);
+        document.querySelector('input[name="duration_days"]').value = days || '';
+        document.querySelector('input[name="duration_hours"]').value = hours || '';
+        document.querySelector('input[name="duration_minutes"]').value = minutes || '';
+    }
+    toggleMode.addEventListener('click', () => {
+        useEndTime = !useEndTime;
+        if (useEndTime) {
+            modeIcon.src = "{{ url_for('static', path='duration.svg') }}";
+            document.getElementById('duration-fields').style.display = 'none';
+            endTimeInput.style.display = '';
+            updateEndFromInputs();
+        } else {
+            modeIcon.src = "{{ url_for('static', path='endtime.svg') }}";
+            document.getElementById('duration-fields').style.display = '';
+            endTimeInput.style.display = 'none';
+            updateInputsFromEnd();
+        }
+        validateDuration();
+    });
+    durationInputs.forEach(inp => inp.addEventListener('input', () => { if (!useEndTime) validateDuration(); }));
+    endTimeInput.addEventListener('input', () => { if (useEndTime) validateDuration(); });
     form.addEventListener('submit', function (e) {
         if (!validateDuration()) {
             e.preventDefault();
-            durationInputs[0].reportValidity();
+            (useEndTime ? endTimeInput : durationInputs[0]).reportValidity();
             return;
+        }
+        if (useEndTime) {
+            updateInputsFromEnd();
         }
         if (entryManagersSelector.users.length === 0) {
             e.preventDefault();
