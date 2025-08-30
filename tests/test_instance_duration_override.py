@@ -47,7 +47,9 @@ def test_instance_duration_override(tmp_path, monkeypatch):
         data={
             "recurrence_index": -1,
             "instance_index": -1,
+            "duration_days": "",
             "duration_hours": "2",
+            "duration_minutes": "",
         },
         follow_redirects=False,
     )

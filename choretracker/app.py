@@ -1547,9 +1547,16 @@ async def set_instance_duration(request: Request, entry_id: int):
     form = await request.form()
     rindex = int(form.get("recurrence_index", -1))
     iindex = int(form.get("instance_index", -1))
-    days = int(form.get("duration_days", 0))
-    hours = int(form.get("duration_hours", 0))
-    minutes = int(form.get("duration_minutes", 0))
+
+    def to_int(value: str | None) -> int:
+        try:
+            return int(value) if value is not None and value != "" else 0
+        except ValueError:
+            return 0
+
+    days = to_int(form.get("duration_days"))
+    hours = to_int(form.get("duration_hours"))
+    minutes = to_int(form.get("duration_minutes"))
     duration = timedelta(days=days, hours=hours, minutes=minutes)
     if duration <= timedelta(0):
         raise HTTPException(status_code=400)

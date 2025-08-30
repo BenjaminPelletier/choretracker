@@ -54,16 +54,16 @@
         {% endif %}
     </h2>
     {% if duration_override %}
-    <div id="duration-display" data-duration-seconds="{{ duration_override.total_seconds()|int }}">{{ duration_override|format_duration }}</div>
+    <div id="duration-display" class="duration-display" data-duration-seconds="{{ duration_override.total_seconds()|int }}">{{ duration_override|format_duration }}</div>
     {% endif %}
     <form method="post" action="{{ url_for('set_instance_duration', entry_id=entry.id) }}" id="duration-editor" style="display:none">
         <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
         <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
         <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
         <div class="duration-inputs">
-            <input type="number" name="duration_days" placeholder="Days" min="0">
-            <input type="number" name="duration_hours" placeholder="Hours" min="0">
-            <input type="number" name="duration_minutes" placeholder="Minutes" min="0" max="59">
+            <input type="number" class="inline-input" name="duration_days" placeholder="Days" min="0">
+            <input type="number" class="inline-input" name="duration_hours" placeholder="Hours" min="0">
+            <input type="number" class="inline-input" name="duration_minutes" placeholder="Minutes" min="0" max="59">
         </div>
         <div>
             <button type="submit" class="icon-button"><img src="{{ url_for('static', path='disk.svg') }}" alt="Save" class="icon"></button>
