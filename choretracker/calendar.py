@@ -14,6 +14,7 @@ from .time_utils import get_now, ensure_tz
 
 
 class RecurrenceType(str, Enum):
+    OneTime = "OneTime"
     Weekly = "Weekly"
     MonthlyDayOfMonth = "MonthlyDayOfMonth"
     MonthlyDayOfWeek = "MonthlyDayOfWeek"
@@ -98,6 +99,8 @@ class CalendarEntryStore:
     def create(self, entry: CalendarEntry) -> None:
         if not entry.managers:
             raise ValueError("CalendarEntry must have at least one manager")
+        if not entry.recurrences:
+            entry.recurrences = [Recurrence(type=RecurrenceType.OneTime)]
         with Session(self.engine) as session:
             session.add(entry)
             session.commit()
@@ -118,6 +121,8 @@ class CalendarEntryStore:
     def update(self, entry_id: int, new_data: CalendarEntry) -> None:
         if not new_data.managers:
             raise ValueError("CalendarEntry must have at least one manager")
+        if not new_data.recurrences:
+            new_data.recurrences = [Recurrence(type=RecurrenceType.OneTime)]
         with Session(self.engine) as session:
             entry = session.get(CalendarEntry, entry_id)
             if not entry:
@@ -451,7 +456,9 @@ def _apply_offset(base: datetime, offset: Offset) -> datetime:
     return result
 
 
-def _advance(start: datetime, rtype: RecurrenceType) -> datetime:
+def _advance(start: datetime, rtype: RecurrenceType) -> Optional[datetime]:
+    if rtype == RecurrenceType.OneTime:
+        return None
     if rtype == RecurrenceType.Weekly:
         return start + timedelta(weeks=1)
     if rtype == RecurrenceType.MonthlyDayOfMonth:

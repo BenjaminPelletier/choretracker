@@ -279,7 +279,9 @@ def entry_time_bounds(entry: CalendarEntry) -> tuple[datetime, datetime | None]:
         return (entry.first_start, None)
     start = first.start
     end = first.end
-    if entry.recurrences and entry.none_after is None:
+    if entry.none_after is None and any(
+        rec.type != RecurrenceType.OneTime for rec in entry.recurrences
+    ):
         return (start, None)
     for p in periods:
         end = p.end
