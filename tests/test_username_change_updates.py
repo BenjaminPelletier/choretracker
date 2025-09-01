@@ -43,7 +43,7 @@ def test_username_change_updates_references(tmp_path, monkeypatch):
     )
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id
-    app_module.completion_store.create(entry_id, -1, -1, "Bob")
+    app_module.completion_store.create(entry_id, 0, 0, "Bob")
 
     client = TestClient(app_module.app)
     client.post(

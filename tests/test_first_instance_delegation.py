@@ -9,7 +9,14 @@ from fastapi.testclient import TestClient
 # Ensure project root on path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from choretracker.calendar import CalendarEntry, CalendarEntryType, Recurrence, RecurrenceType, responsible_for
+from choretracker.calendar import (
+    CalendarEntry,
+    CalendarEntryType,
+    Recurrence,
+    RecurrenceType,
+    responsible_for,
+    find_delegation,
+)
 
 
 def test_delegate_first_instance(tmp_path, monkeypatch):
@@ -38,56 +45,58 @@ def test_delegate_first_instance(tmp_path, monkeypatch):
 
     resp = client.post(
         f"/calendar/{entry_id}/delegation",
-        data={"recurrence_index": -1, "instance_index": -1, "responsible[]": "Bob"},
+        data={"recurrence_index": 0, "instance_index": 0, "responsible[]": "Bob"},
         follow_redirects=False,
     )
     assert resp.status_code == 303
 
     entry = app_module.calendar_store.get(entry_id)
-    assert entry.first_instance_delegates == ["Bob"]
-    assert responsible_for(entry, -1, -1) == ["Bob"]
+    delg = find_delegation(entry, 0, 0)
+    assert delg is not None and delg.responsible == ["Bob"]
+    assert responsible_for(entry, 0, 0) == ["Bob"]
 
-    page = client.get(f"/calendar/entry/{entry_id}/period/-1/-1")
+    page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
     assert "trash.svg" in page.text
     assert "pen.svg" in page.text
 
     resp = client.post(
         f"/calendar/{entry_id}/delegation/remove",
-        data={"recurrence_index": -1, "instance_index": -1},
+        data={"recurrence_index": 0, "instance_index": 0},
         follow_redirects=False,
     )
     assert resp.status_code == 303
 
     entry = app_module.calendar_store.get(entry_id)
-    assert entry.first_instance_delegates == []
-    page = client.get(f"/calendar/entry/{entry_id}/period/-1/-1")
+    assert find_delegation(entry, 0, 0) is None
+    page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
     assert 'id="delegate-this-instance"' in page.text
 
     resp = client.post(
         f"/calendar/{entry_id}/delegation",
-        data={"recurrence_index": -1, "instance_index": -1, "responsible[]": "Bob"},
+        data={"recurrence_index": 0, "instance_index": 0, "responsible[]": "Bob"},
         follow_redirects=False,
     )
     assert resp.status_code == 303
 
     resp = client.post(
         f"/calendar/{entry_id}/skip",
-        data={"recurrence_index": -1, "instance_index": -1},
+        data={"recurrence_index": 0, "instance_index": 0},
         follow_redirects=False,
     )
     assert resp.status_code == 303
 
     entry = app_module.calendar_store.get(entry_id)
-    assert entry.first_instance_delegates == []
-    assert entry.skip_first_instance is True
-    page = client.get(f"/calendar/entry/{entry_id}/period/-1/-1")
+    rec0 = entry.recurrences[0]
+    assert find_delegation(entry, 0, 0) is None
+    assert 0 in rec0.skipped_instances
+    page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
     assert 'id="delegate-this-instance"' not in page.text
     assert 'id="edit-delegation"' not in page.text
 
     client.post(
         f"/calendar/{entry_id}/skip/remove",
-        data={"recurrence_index": -1, "instance_index": -1},
+        data={"recurrence_index": 0, "instance_index": 0},
         follow_redirects=False,
     )
-    page = client.get(f"/calendar/entry/{entry_id}/period/-1/-1")
+    page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
     assert 'id="delegate-this-instance"' in page.text

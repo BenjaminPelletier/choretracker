@@ -868,7 +868,6 @@ async def list_calendar_entries(request: Request, entry_type: str):
         start_map[entry.id] = start
         can_delete_map[entry.id] = (
             not completion_store.list_for_entry(entry.id)
-            and not entry.first_instance_delegates
             and not any(rec.delegations for rec in entry.recurrences)
         )
         if counts[entry.title] > 1:
@@ -993,10 +992,11 @@ async def view_calendar_entry(
             current_user, "chores.override_complete"
         )
         is_skipped = False
-        if comp.recurrence_index == -1 and comp.instance_index == -1:
-            is_skipped = entry.skip_first_instance
-        elif 0 <= comp.recurrence_index < len(entry.recurrences):
+        if 0 <= comp.recurrence_index < len(entry.recurrences):
             rec = entry.recurrences[comp.recurrence_index]
+            if not isinstance(rec, Recurrence):
+                rec = Recurrence.model_validate(rec)
+                entry.recurrences[comp.recurrence_index] = rec
             is_skipped = comp.instance_index in rec.skipped_instances
         responsible = responsible_for(
             entry, comp.recurrence_index, comp.instance_index
@@ -1019,10 +1019,11 @@ async def view_calendar_entry(
         if key in comp_map:
             continue
         is_skipped = False
-        if period.recurrence_index == -1 and period.instance_index == -1:
-            is_skipped = entry.skip_first_instance
-        elif 0 <= period.recurrence_index < len(entry.recurrences):
+        if 0 <= period.recurrence_index < len(entry.recurrences):
             rec = entry.recurrences[period.recurrence_index]
+            if not isinstance(rec, Recurrence):
+                rec = Recurrence.model_validate(rec)
+                entry.recurrences[period.recurrence_index] = rec
             is_skipped = period.instance_index in rec.skipped_instances
         responsible = responsible_for(
             entry, period.recurrence_index, period.instance_index
@@ -1046,9 +1047,7 @@ async def view_calendar_entry(
     past_instances = past_instances[-past_entries:]
     upcoming.sort(key=lambda x: x[0].start)
     can_delete = (
-        not comps_list
-        and not entry.first_instance_delegates
-        and not any(rec.delegations for rec in entry.recurrences)
+        not comps_list and not any(rec.delegations for rec in entry.recurrences)
     )
     return templates.TemplateResponse(
         request,
@@ -1095,10 +1094,11 @@ async def view_time_period(
     if entry.type == CalendarEntryType.Chore:
         completion = completion_store.get(entry_id, rindex, iindex)
     is_skipped = False
-    if rindex == -1 and iindex == -1:
-        is_skipped = entry.skip_first_instance
-    elif rindex >= 0 and rindex < len(entry.recurrences):
+    if 0 <= rindex < len(entry.recurrences):
         rec = entry.recurrences[rindex]
+        if not isinstance(rec, Recurrence):
+            rec = Recurrence.model_validate(rec)
+            entry.recurrences[rindex] = rec
         is_skipped = iindex in rec.skipped_instances
     delegation = find_delegation(entry, rindex, iindex)
     note_obj = find_instance_note(entry, rindex, iindex)
@@ -1550,10 +1550,7 @@ async def delegate_instance(request: Request, entry_id: int):
     responsible = form.getlist("responsible[]")
     if not responsible:
         raise HTTPException(status_code=400)
-    if rindex == -1 and iindex == -1:
-        entry.first_instance_delegates = responsible
-        calendar_store.update(entry_id, entry)
-    elif 0 <= rindex < len(entry.recurrences):
+    if 0 <= rindex < len(entry.recurrences):
         rec = entry.recurrences[rindex]
         if not isinstance(rec, Recurrence):
             rec = Recurrence.model_validate(rec)
@@ -1592,10 +1589,7 @@ async def remove_delegation(request: Request, entry_id: int):
     form = await request.form()
     rindex = int(form.get("recurrence_index", -1))
     iindex = int(form.get("instance_index", -1))
-    if rindex == -1 and iindex == -1:
-        entry.first_instance_delegates = []
-        calendar_store.update(entry_id, entry)
-    elif 0 <= rindex < len(entry.recurrences):
+    if 0 <= rindex < len(entry.recurrences):
         rec = entry.recurrences[rindex]
         if not isinstance(rec, Recurrence):
             rec = Recurrence.model_validate(rec)
@@ -1648,10 +1642,7 @@ async def set_instance_duration(request: Request, entry_id: int):
     if duration <= timedelta(0):
         raise HTTPException(status_code=400)
     seconds = int(duration.total_seconds())
-    if rindex == -1 and iindex == -1:
-        entry.first_instance_duration_seconds = seconds
-        calendar_store.update(entry_id, entry)
-    elif 0 <= rindex < len(entry.recurrences):
+    if 0 <= rindex < len(entry.recurrences):
         rec = entry.recurrences[rindex]
         if not isinstance(rec, Recurrence):
             rec = Recurrence.model_validate(rec)
@@ -1690,10 +1681,7 @@ async def remove_instance_duration(request: Request, entry_id: int):
     form = await request.form()
     rindex = int(form.get("recurrence_index", -1))
     iindex = int(form.get("instance_index", -1))
-    if rindex == -1 and iindex == -1:
-        entry.first_instance_duration_seconds = None
-        calendar_store.update(entry_id, entry)
-    elif 0 <= rindex < len(entry.recurrences):
+    if 0 <= rindex < len(entry.recurrences):
         rec = entry.recurrences[rindex]
         if not isinstance(rec, Recurrence):
             rec = Recurrence.model_validate(rec)
@@ -1735,10 +1723,7 @@ async def add_instance_note(request: Request, entry_id: int):
     note = (form.get("note", "").strip())
     if not note:
         raise HTTPException(status_code=400)
-    if rindex == -1 and iindex == -1:
-        entry.first_instance_note = note
-        calendar_store.update(entry_id, entry)
-    elif 0 <= rindex < len(entry.recurrences):
+    if 0 <= rindex < len(entry.recurrences):
         rec = entry.recurrences[rindex]
         if not isinstance(rec, Recurrence):
             rec = Recurrence.model_validate(rec)
@@ -1775,10 +1760,7 @@ async def remove_instance_note(request: Request, entry_id: int):
     form = await request.form()
     rindex = int(form.get("recurrence_index", -1))
     iindex = int(form.get("instance_index", -1))
-    if rindex == -1 and iindex == -1:
-        entry.first_instance_note = None
-        calendar_store.update(entry_id, entry)
-    elif 0 <= rindex < len(entry.recurrences):
+    if 0 <= rindex < len(entry.recurrences):
         rec = entry.recurrences[rindex]
         if not isinstance(rec, Recurrence):
             rec = Recurrence.model_validate(rec)
@@ -1817,12 +1799,7 @@ async def skip_instance(request: Request, entry_id: int):
     form = await request.form()
     rindex = int(form.get("recurrence_index", -1))
     iindex = int(form.get("instance_index", -1))
-    if rindex == -1 and iindex == -1:
-        entry.skip_first_instance = True
-        entry.first_instance_delegates = []
-        entry.first_instance_note = None
-        calendar_store.update(entry_id, entry)
-    elif 0 <= rindex < len(entry.recurrences):
+    if 0 <= rindex < len(entry.recurrences):
         rec = entry.recurrences[rindex]
         if iindex not in rec.skipped_instances:
             rec.skipped_instances.append(iindex)
@@ -1867,10 +1844,7 @@ async def unskip_instance(request: Request, entry_id: int):
     form = await request.form()
     rindex = int(form.get("recurrence_index", -1))
     iindex = int(form.get("instance_index", -1))
-    if rindex == -1 and iindex == -1:
-        entry.skip_first_instance = False
-        calendar_store.update(entry_id, entry)
-    elif 0 <= rindex < len(entry.recurrences):
+    if 0 <= rindex < len(entry.recurrences):
         rec = entry.recurrences[rindex]
         if iindex in rec.skipped_instances:
             rec.skipped_instances.remove(iindex)

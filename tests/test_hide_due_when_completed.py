@@ -36,8 +36,8 @@ def test_due_not_shown_when_completed(tmp_path, monkeypatch):
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id
 
-    # mark completion for the period (no recurrence -> indices -1, -1)
-    app_module.completion_store.create(entry_id, -1, -1, "Admin")
+    # mark completion for the period
+    app_module.completion_store.create(entry_id, 0, 0, "Admin")
 
     response = client.get("/")
     assert "Laundry" in response.text

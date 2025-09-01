@@ -45,8 +45,8 @@ def test_instance_duration_override(tmp_path, monkeypatch):
     resp = client.post(
         f"/calendar/{entry_id}/duration",
         data={
-            "recurrence_index": -1,
-            "instance_index": -1,
+            "recurrence_index": 0,
+            "instance_index": 0,
             "duration_days": "",
             "duration_hours": "2",
             "duration_minutes": "",
@@ -55,7 +55,7 @@ def test_instance_duration_override(tmp_path, monkeypatch):
     )
     assert resp.status_code == 303
 
-    page = client.get(f"/calendar/entry/{entry_id}/period/-1/-1")
+    page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
     assert "Duration" in page.text
     assert "2:00" in page.text
 

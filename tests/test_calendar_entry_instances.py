@@ -36,7 +36,7 @@ def test_instances_past_and_upcoming(tmp_path, monkeypatch):
         first_start=datetime(2000, 1, 1, 0, 0, 0, tzinfo=ZoneInfo("UTC")),
         duration_seconds=3600,
         recurrences=[
-            Recurrence(type=RecurrenceType.Weekly, skipped_instances=[1])
+            Recurrence(type=RecurrenceType.Weekly, skipped_instances=[2])
         ],
         responsible=["Bob"],
         managers=["Admin"],
@@ -44,8 +44,8 @@ def test_instances_past_and_upcoming(tmp_path, monkeypatch):
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id
 
-    # complete the third instance early (start 2000-01-22)
-    app_module.completion_store.create(entry_id, 0, 2, "Admin")
+    # complete the fourth instance early (start 2000-01-22)
+    app_module.completion_store.create(entry_id, 0, 3, "Admin")
 
     response = client.get(f"/calendar/entry/{entry_id}")
     text = response.text
@@ -53,23 +53,23 @@ def test_instances_past_and_upcoming(tmp_path, monkeypatch):
     assert "Past" in text and "Upcoming" in text
     # early completion should show under Past and be linked
     assert (
-        f'<a href="./{entry_id}/period/0/2">Sat 2000-01-22 00:00 to 01:00</a>' in text
+        f'<a href="./{entry_id}/period/0/3">Sat 2000-01-22 00:00 to 01:00</a>' in text
     )
     # skipped past instance is listed with annotation and responsible profile
     assert (
-        f'<a href="./{entry_id}/period/0/1">Sat 2000-01-15 00:00 to 01:00</a>' in text
+        f'<a href="./{entry_id}/period/0/2">Sat 2000-01-15 00:00 to 01:00</a>' in text
     )
     assert "(skipped)" in text
     # first upcoming instance is linked
     assert (
-        f'<a href="./{entry_id}/period/0/3">Sat 2000-01-29 00:00 to 01:00</a>' in text
+        f'<a href="./{entry_id}/period/0/4">Sat 2000-01-29 00:00 to 01:00</a>' in text
     )
     # profile icons for completed and responsible users displayed
     assert "/users/Admin/profile_picture" in text
     assert "/users/Bob/profile_picture" in text
     # Responsible icon should appear before completion details
     line = re.search(
-        rf'<a href="./{entry_id}/period/0/2">Sat 2000-01-22 00:00 to 01:00</a>(.*?)</li>',
+        rf'<a href="./{entry_id}/period/0/3">Sat 2000-01-22 00:00 to 01:00</a>(.*?)</li>',
         text,
         re.DOTALL,
     ).group(1)

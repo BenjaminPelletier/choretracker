@@ -68,28 +68,6 @@ def test_entry_not_deleted_with_delegation(tmp_path, monkeypatch):
     assert app_module.calendar_store.get(entry_id) is not None
 
 
-def test_entry_not_deleted_with_first_instance_delegation(tmp_path, monkeypatch):
-    db_file = tmp_path / "test.db"
-    monkeypatch.setenv("CHORETRACKER_DB", str(db_file))
-    if "choretracker.app" in sys.modules:
-        del sys.modules["choretracker.app"]
-    app_module = importlib.import_module("choretracker.app")
-    now = get_now()
-    entry = CalendarEntry(
-        title="DelegatedFirst",
-        description="",
-        type=CalendarEntryType.Chore,
-        first_start=now,
-        duration_seconds=60,
-        first_instance_delegates=["Admin"],
-        managers=["Admin"],
-    )
-    app_module.calendar_store.create(entry)
-    entry_id = app_module.calendar_store.list_entries()[0].id
-    assert not app_module.calendar_store.delete(entry_id)
-    assert app_module.calendar_store.get(entry_id) is not None
-
-
 def test_list_hides_delete_for_undeletable(tmp_path, monkeypatch):
     db_file = tmp_path / "test.db"
     monkeypatch.setenv("CHORETRACKER_DB", str(db_file))

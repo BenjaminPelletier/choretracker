@@ -43,12 +43,12 @@ def test_instance_notes(tmp_path, monkeypatch):
 
     resp = client.post(
         f"/calendar/{entry_id}/note",
-        data={"recurrence_index": -1, "instance_index": -1, "note": "<script>alert(1)</script>**Bold**"},
+        data={"recurrence_index": 0, "instance_index": 0, "note": "<script>alert(1)</script>**Bold**"},
         follow_redirects=False,
     )
     assert resp.status_code == 303
 
-    page = client.get(f"/calendar/entry/{entry_id}/period/-1/-1")
+    page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
     assert "<script>alert(1)</script>" not in page.text
     assert "<strong>Bold</strong>" in page.text
 
@@ -57,7 +57,7 @@ def test_instance_notes(tmp_path, monkeypatch):
 
     resp = client.post(
         f"/calendar/{entry_id}/note/remove",
-        data={"recurrence_index": -1, "instance_index": -1},
+        data={"recurrence_index": 0, "instance_index": 0},
         follow_redirects=False,
     )
     assert resp.status_code == 303
