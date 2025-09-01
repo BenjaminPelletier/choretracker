@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Chore Completions - Chore Tracker{% endblock %}
+
+{% block content %}
+{% if today %}
+<h2>Today</h2>
+<ul class="time-list">
+    {% for entry, comp, has_note in today %}
+    <li>
+        <img src="{{ url_for('profile_picture', username=comp.completed_by) }}" alt="{{ comp.completed_by }}" class="profile-icon" />
+        <a href="{{ url_for('view_time_period', entry_id=entry.id, rindex=comp.recurrence_index, iindex=comp.instance_index) }}">{{ entry.title }}{% if has_note %}<span class="note-marker">*</span>{% endif %}</a>
+        {{ comp.completed_at|format_datetime(True) }}
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+{% if yesterday %}
+<h2>Yesterday</h2>
+<ul class="time-list">
+    {% for entry, comp, has_note in yesterday %}
+    <li>
+        <img src="{{ url_for('profile_picture', username=comp.completed_by) }}" alt="{{ comp.completed_by }}" class="profile-icon" />
+        <a href="{{ url_for('view_time_period', entry_id=entry.id, rindex=comp.recurrence_index, iindex=comp.instance_index) }}">{{ entry.title }}{% if has_note %}<span class="note-marker">*</span>{% endif %}</a>
+        {{ comp.completed_at|format_datetime(True) }}
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+{% if earlier %}
+<h2>Earlier</h2>
+<ul class="time-list">
+    {% for entry, comp, has_note in earlier %}
+    <li>
+        <img src="{{ url_for('profile_picture', username=comp.completed_by) }}" alt="{{ comp.completed_by }}" class="profile-icon" />
+        <a href="{{ url_for('view_time_period', entry_id=entry.id, rindex=comp.recurrence_index, iindex=comp.instance_index) }}">{{ entry.title }}{% if has_note %}<span class="note-marker">*</span>{% endif %}</a>
+        {{ comp.completed_at|format_datetime(True) }}
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+{% if not today and not yesterday and not earlier %}
+<p>No completions.</p>
+{% endif %}
+{% endblock %}

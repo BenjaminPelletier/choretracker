@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from pathlib import Path
 import json
 import os
@@ -29,7 +29,7 @@ import base64
 import posixpath
 from jinja2 import pass_context
 
-from .time_utils import get_now, parse_datetime
+from .time_utils import get_now, parse_datetime, ensure_tz
 from .users import (
     UserStore,
     init_db,
@@ -888,6 +888,70 @@ async def list_calendar_entries(request: Request, entry_type: str):
             "current_user": current_user,
             "can_delete": can_delete_map,
         },
+    )
+
+
+@app.get("/chore_completions", response_class=HTMLResponse)
+async def list_chore_completions(
+    request: Request,
+    limit: int = 15,
+    after: str | None = None,
+    before: str | None = None,
+    on: str | None = None,
+):
+    require_permission(request, "chores.read")
+    try:
+        limit = int(limit)
+    except (TypeError, ValueError):
+        limit = 15
+    limit = max(0, limit)
+    after_dt = parse_datetime(after) if after else None
+    before_dt = parse_datetime(before) if before else None
+    on_date = date.fromisoformat(on) if on else None
+    tz = get_now().tzinfo
+    with Session(engine) as session:
+        stmt = select(ChoreCompletion).order_by(ChoreCompletion.completed_at.desc())
+        if after_dt:
+            stmt = stmt.where(ChoreCompletion.completed_at > after_dt)
+        if before_dt:
+            stmt = stmt.where(ChoreCompletion.completed_at < before_dt)
+        if on_date:
+            start = datetime.combine(on_date, datetime.min.time()).replace(tzinfo=tz)
+            end = start + timedelta(days=1)
+            stmt = stmt.where(
+                (ChoreCompletion.completed_at >= start)
+                & (ChoreCompletion.completed_at < end)
+            )
+        stmt = stmt.limit(limit)
+        comps = session.exec(stmt).all()
+    now = get_now()
+    today = now.date()
+    yesterday = today - timedelta(days=1)
+    today_list = []
+    yesterday_list = []
+    earlier_list = []
+    for comp in comps:
+        comp.completed_at = ensure_tz(comp.completed_at)
+        if comp.completed_at > now and comp.completed_at.date() != today:
+            continue
+        entry = calendar_store.get(comp.entry_id)
+        if not entry:
+            continue
+        has_note = bool(
+            find_instance_note(entry, comp.recurrence_index, comp.instance_index)
+        )
+        item = (entry, comp, has_note)
+        cdate = comp.completed_at.date()
+        if cdate == today:
+            today_list.append(item)
+        elif cdate == yesterday:
+            yesterday_list.append(item)
+        else:
+            earlier_list.append(item)
+    return templates.TemplateResponse(
+        request,
+        "completions/list.html",
+        {"today": today_list, "yesterday": yesterday_list, "earlier": earlier_list},
     )
 
 

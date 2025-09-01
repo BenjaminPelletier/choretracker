@@ -32,10 +32,15 @@
 </head>
 <body>
     <nav class="navbar">
+        {% set current_user = request.session.get('user') %}
         <a href="{{ url_for('index') }}" class="nav-item">
             <img src="{{ url_for('static', path='home.svg') }}" alt="Home" class="icon">
         </a>
-        {% set current_user = request.session.get('user') %}
+        {% if user_has(current_user, 'chores.read') %}
+        <a href="{{ url_for('list_chore_completions') }}" class="nav-item">
+            <img src="{{ url_for('static', path='checkbox-checked.svg') }}" alt="Completions" class="icon">
+        </a>
+        {% endif %}
         {% if current_user %}
         <div class="nav-actions">
             {% if user_has(current_user, 'events.read') or user_has(current_user, 'reminders.read') or user_has(current_user, 'chores.read') %}
