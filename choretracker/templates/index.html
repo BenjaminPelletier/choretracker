@@ -126,7 +126,13 @@ document.querySelectorAll('.checkbox-icon[data-action]').forEach(el => {
             const flash = document.createElement('div');
             flash.className = 'flash';
             flash.textContent = data.message;
-            document.body.prepend(flash);
+            const content = document.querySelector('main.content');
+            const existing = content.querySelector('.flash');
+            if (existing) {
+                existing.remove();
+            }
+            content.prepend(flash);
+            flash.scrollIntoView({ behavior: 'smooth', block: 'start' });
             return;
         }
         location.reload();
