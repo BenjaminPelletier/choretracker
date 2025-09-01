@@ -70,3 +70,28 @@ def test_nav_shows_completion_icon(tmp_path, monkeypatch):
     assert home_idx < comp_idx
     assert 'href="./chore_completions"' in text
 
+
+def test_completions_page_shows_remove_icon(tmp_path, monkeypatch):
+    fake_now = datetime(2000, 1, 2, 0, 0, tzinfo=ZoneInfo("UTC"))
+    app_module, client = _setup_app(tmp_path, monkeypatch, fake_now)
+
+    entry = app_module.CalendarEntry(
+        title="Task",
+        description="",
+        type=app_module.CalendarEntryType.Chore,
+        first_start=fake_now - timedelta(days=1),
+        duration_seconds=60,
+        managers=["Admin"],
+    )
+    app_module.calendar_store.create(entry)
+    entry_id = app_module.calendar_store.list_entries()[0].id
+
+    app_module.completion_store.create(
+        entry_id, -1, -1, "Admin", completed_at=fake_now - timedelta(hours=1)
+    )
+
+    response = client.get("/chore_completions")
+    text = response.text
+    assert "checkbox-checked.svg" in text
+    assert 'data-action="remove"' in text
+

@@ -11,6 +11,7 @@
         <img src="{{ url_for('profile_picture', username=comp.completed_by) }}" alt="{{ comp.completed_by }}" class="profile-icon" />
         <a href="{{ url_for('view_time_period', entry_id=entry.id, rindex=comp.recurrence_index, iindex=comp.instance_index) }}">{{ entry.title }}{% if has_note %}<span class="note-marker">*</span>{% endif %}</a>
         {{ comp.completed_at|format_datetime(True) }}
+        <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ comp.recurrence_index }}" data-iindex="{{ comp.instance_index }}" {% if comp.completed_by == request.session.get('user') or user_has(request.session.get('user'), 'chores.override_complete') %}data-action="remove"{% endif %} />
     </li>
     {% endfor %}
 </ul>
@@ -23,6 +24,7 @@
         <img src="{{ url_for('profile_picture', username=comp.completed_by) }}" alt="{{ comp.completed_by }}" class="profile-icon" />
         <a href="{{ url_for('view_time_period', entry_id=entry.id, rindex=comp.recurrence_index, iindex=comp.instance_index) }}">{{ entry.title }}{% if has_note %}<span class="note-marker">*</span>{% endif %}</a>
         {{ comp.completed_at|format_datetime(True) }}
+        <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ comp.recurrence_index }}" data-iindex="{{ comp.instance_index }}" {% if comp.completed_by == request.session.get('user') or user_has(request.session.get('user'), 'chores.override_complete') %}data-action="remove"{% endif %} />
     </li>
     {% endfor %}
 </ul>
@@ -35,6 +37,7 @@
         <img src="{{ url_for('profile_picture', username=comp.completed_by) }}" alt="{{ comp.completed_by }}" class="profile-icon" />
         <a href="{{ url_for('view_time_period', entry_id=entry.id, rindex=comp.recurrence_index, iindex=comp.instance_index) }}">{{ entry.title }}{% if has_note %}<span class="note-marker">*</span>{% endif %}</a>
         {{ comp.completed_at|format_datetime(True) }}
+        <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ comp.recurrence_index }}" data-iindex="{{ comp.instance_index }}" {% if comp.completed_by == request.session.get('user') or user_has(request.session.get('user'), 'chores.override_complete') %}data-action="remove"{% endif %} />
     </li>
     {% endfor %}
 </ul>
@@ -42,4 +45,23 @@
 {% if not today and not yesterday and not earlier %}
 <p>No completions.</p>
 {% endif %}
+<script>
+document.querySelectorAll('.checkbox-icon[data-action]').forEach(el => {
+    el.addEventListener('click', async () => {
+        const entry = el.dataset.entry;
+        const r = parseInt(el.dataset.rindex);
+        const i = parseInt(el.dataset.iindex);
+        const url = el.dataset.action === 'add'
+            ? `/calendar/${entry}/completion`
+            : `/calendar/${entry}/completion/remove`;
+        await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
+            body: JSON.stringify({recurrence_index: r, instance_index: i})
+        });
+        location.reload();
+    });
+});
+</script>
 {% endblock %}
