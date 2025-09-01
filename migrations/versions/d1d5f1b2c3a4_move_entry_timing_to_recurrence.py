@@ -1,7 +1,7 @@
 """move entry timing into recurrence
 
 Revision ID: d1d5f1b2c3a4
-Revises: c1a5c0d5e4f4
+Revises: 37f3cc068d39
 Create Date: 2025-09-01 00:00:01.000000
 """
 
@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Sequence, Union
 
 import json
+from datetime import datetime
 from alembic import op
 import sqlalchemy as sa
 
@@ -34,11 +35,14 @@ def upgrade() -> None:
             recurrences = row["recurrences"] or []
             if isinstance(recurrences, str):
                 recurrences = json.loads(recurrences)
+            first_start = row["first_start"]
+            if first_start is not None and not isinstance(first_start, str):
+                first_start = first_start.isoformat()
             recurrences.insert(
                 0,
                 {
                     "type": "OneTime",
-                    "first_start": row["first_start"].isoformat() if row["first_start"] else None,
+                    "first_start": first_start,
                     "duration_seconds": row["duration_seconds"],
                     "offset": None,
                     "skipped_instances": [],
@@ -85,6 +89,8 @@ def downgrade() -> None:
                 first_start = first.get("first_start")
                 duration_seconds = first.get("duration_seconds")
                 recurrences = recurrences[1:]
+            if isinstance(first_start, str):
+                first_start = datetime.fromisoformat(first_start)
             conn.execute(
                 sa.text(
                     "UPDATE calendarentry SET first_start = :fs, duration_seconds = :dur, recurrences = :rec WHERE id = :id"
