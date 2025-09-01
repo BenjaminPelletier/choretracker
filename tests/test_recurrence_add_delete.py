@@ -58,11 +58,43 @@ def test_add_recurrence(tmp_path, monkeypatch):
         new_id = int(data["redirect"].split("/")[-1])
 
     updated = app_module.calendar_store.get(new_id)
-    assert len(updated.recurrences) == 1
-    rec = updated.recurrences[0]
+    assert len(updated.recurrences) == 2
+    assert updated.recurrences[0].type == RecurrenceType.OneTime
+    rec = updated.recurrences[1]
     assert rec.type == RecurrenceType.Weekly
     assert rec.offset and rec.offset.exact_duration_seconds == 1 * 86400 + 2 * 3600 + 30 * 60
     assert rec.responsible == ["Bob"]
+
+
+def test_default_onetime_recurrence(tmp_path, monkeypatch):
+    app_module, client = setup_app(tmp_path, monkeypatch)
+    entry = CalendarEntry(
+        title="NoRec",
+        description="",
+        type=CalendarEntryType.Chore,
+        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
+        duration_seconds=60,
+        recurrences=[],
+        managers=["Admin"],
+    )
+    app_module.calendar_store.create(entry)
+    entry_id = app_module.calendar_store.list_entries()[0].id
+    stored = app_module.calendar_store.get(entry_id)
+    assert len(stored.recurrences) == 1
+    assert stored.recurrences[0].type == RecurrenceType.OneTime
+
+    resp = client.post(
+        f"/calendar/{entry_id}/recurrence/delete",
+        json={"recurrence_index": 0},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    new_id = entry_id
+    if "redirect" in data:
+        new_id = int(data["redirect"].split("/")[-1])
+    updated = app_module.calendar_store.get(new_id)
+    assert len(updated.recurrences) == 1
+    assert updated.recurrences[0].type == RecurrenceType.OneTime
 
 
 def test_delete_recurrence(tmp_path, monkeypatch):
