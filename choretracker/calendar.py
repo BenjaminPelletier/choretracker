@@ -5,11 +5,12 @@ from enum import Enum
 from dataclasses import dataclass
 from heapq import heappush, heappop
 import calendar as cal
+import json
 from typing import Iterator, List, Optional
 
 from sqlmodel import Column, Field, Session, SQLModel, select
 from sqlalchemy import JSON, ForeignKey, Integer
-from pydantic import ConfigDict
+from pydantic import ConfigDict, field_validator
 
 from .time_utils import get_now, ensure_tz
 
@@ -38,6 +39,16 @@ class Delegation(SQLModel):
     instance_index: int
     responsible: List[str] = Field(default_factory=list)
 
+    @field_validator("responsible", mode="before")
+    @classmethod
+    def _parse_responsible(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except Exception:
+                return []
+        return v
+
 
 class InstanceNote(SQLModel):
     instance_index: int
@@ -59,6 +70,35 @@ class Recurrence(SQLModel):
     delegations: List[Delegation] = Field(default_factory=list)
     notes: List[InstanceNote] = Field(default_factory=list)
     duration_overrides: List[InstanceDuration] = Field(default_factory=list)
+
+    @field_validator("delegations", mode="before")
+    @classmethod
+    def _clean_delegations(cls, v):
+        if isinstance(v, list):
+            cleaned = []
+            for d in v:
+                if isinstance(d, dict):
+                    resp = d.get("responsible")
+                    if isinstance(resp, str):
+                        try:
+                            resp = json.loads(resp)
+                        except Exception:
+                            resp = []
+                    if resp:
+                        d["responsible"] = resp
+                        cleaned.append(d)
+                elif isinstance(d, Delegation):
+                    resp = d.responsible
+                    if isinstance(resp, str):
+                        try:
+                            resp = json.loads(resp)
+                        except Exception:
+                            resp = []
+                    if resp:
+                        d.responsible = resp
+                        cleaned.append(d)
+            return cleaned
+        return v
 
     @property
     def duration(self) -> timedelta:

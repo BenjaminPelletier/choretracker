@@ -56,11 +56,17 @@ def upgrade() -> None:
                     }
                 ]
             rec0 = recurrences[0]
-            if row["first_instance_delegates"]:
+            delegates = row["first_instance_delegates"]
+            if isinstance(delegates, str):
+                try:
+                    delegates = json.loads(delegates)
+                except Exception:
+                    delegates = []
+            if delegates:
                 rec0.setdefault("delegations", []).append(
                     {
                         "instance_index": 0,
-                        "responsible": row["first_instance_delegates"],
+                        "responsible": delegates,
                     }
                 )
             if row["first_instance_note"]:
