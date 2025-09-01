@@ -250,7 +250,9 @@ def b64encode_filter(s: str) -> str:
 
 templates.env.filters["b64encode"] = b64encode_filter
 
-def time_range_summary(start: datetime, end: datetime | None) -> str:
+def time_range_summary(start: datetime | None, end: datetime | None) -> str:
+    if not start:
+        return ""
     start = start.replace(second=0, microsecond=0)
     start_str = start.strftime("%a %Y-%m-%d %H:%M")
     if end is None:

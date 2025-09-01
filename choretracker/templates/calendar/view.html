@@ -17,10 +17,10 @@
     {% endif %}
 </h1>
 <p class="time-range">{{ time_range_summary(entry_start, entry_end) }}</p>
-{% if prev_entry %}
+{% if prev_entry and prev_start %}
 <p class="time-range">Previous: <a href="{{ url_for('view_calendar_entry', entry_id=prev_entry.id) }}">{{ time_range_summary(prev_start, prev_end) }}</a></p>
 {% endif %}
-{% if next_entry %}
+{% if next_entry and next_start %}
 <p class="time-range">Next: <a href="{{ url_for('view_calendar_entry', entry_id=next_entry.id) }}">{{ time_range_summary(next_start, next_end) }}</a></p>
 {% endif %}
 <div class="description" id="description-container">
