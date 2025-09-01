@@ -1487,7 +1487,13 @@ async def complete_chore(request: Request, entry_id: int):
         raise HTTPException(status_code=403)
     user = request.session.get("user")
     if not user_store.has_permission(user, perm):
-        raise HTTPException(status_code=403)
+        return JSONResponse(
+            {
+                "status": "forbidden",
+                "message": f"{user} isn't authorized to complete this instance",
+            },
+            status_code=403,
+        )
     if completion_store.get(entry_id, rindex, iindex):
         return {"status": "exists"}
     completion_store.create(entry_id, rindex, iindex, user)
