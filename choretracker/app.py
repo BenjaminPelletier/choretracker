@@ -1133,9 +1133,10 @@ async def edit_calendar_entry(request: Request, entry_id: int):
     if not entry:
         raise HTTPException(status_code=404)
     require_entry_write_permission(request, entry)
-    entry_data = json.loads(
-        json.dumps(entry.model_dump(), default=pydantic_encoder)
-    )
+    entry_dict = entry.model_dump()
+    entry_dict["first_start"] = entry.first_start
+    entry_dict["duration_seconds"] = entry.duration_seconds
+    entry_data = json.loads(json.dumps(entry_dict, default=pydantic_encoder))
     current_user = request.session.get("user")
     return templates.TemplateResponse(
         request,
@@ -1401,7 +1402,13 @@ async def add_recurrence(request: Request, entry_id: int):
     offset = None
     if days or hours or minutes:
         offset = Offset(exact_duration_seconds=days * 86400 + hours * 3600 + minutes * 60)
-    rec = Recurrence(type=rtype, offset=offset, responsible=list(data.get("responsible") or []))
+    rec = Recurrence(
+        type=rtype,
+        offset=offset,
+        responsible=list(data.get("responsible") or []),
+        first_start=entry.first_start,
+        duration_seconds=entry.duration_seconds,
+    )
     entry.recurrences.append(rec)
     if not is_admin and has_past_instances(entry):
         raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
@@ -1429,7 +1436,15 @@ async def delete_recurrence(request: Request, entry_id: int):
     if rindex < 0 or rindex >= len(entry.recurrences):
         raise HTTPException(status_code=400)
     entry_id, entry, did_split = split_entry_if_past(entry_id, entry)
-    del entry.recurrences[rindex]
+    removed = entry.recurrences.pop(rindex)
+    if not entry.recurrences:
+        entry.recurrences.append(
+            Recurrence(
+                type=RecurrenceType.OneTime,
+                first_start=removed.first_start,
+                duration_seconds=removed.duration_seconds,
+            )
+        )
     if not is_admin and has_past_instances(entry):
         raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
     calendar_store.update(entry_id, entry)
