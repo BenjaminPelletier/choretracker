@@ -192,6 +192,19 @@ h1 .icon {
     padding: 0.5rem 1rem;
 }
 
+.nav-left {
+    display: flex;
+    align-items: center;
+}
+
+.nav-left .nav-item {
+    margin-right: 0.5rem;
+}
+
+.nav-left .nav-item:last-child {
+    margin-right: 0;
+}
+
 .nav-actions {
     display: flex;
     align-items: center;
