@@ -22,8 +22,7 @@ def upgrade() -> None:
         sa.text(
             "UPDATE calendarentry SET recurrences = :value "
             "WHERE recurrences IS NULL OR recurrences = '[]'"
-        ),
-        {"value": value},
+        ).bindparams(value=value)
     )
 
 
@@ -33,6 +32,5 @@ def downgrade() -> None:
         sa.text(
             "UPDATE calendarentry SET recurrences = '[]' "
             "WHERE recurrences = :value"
-        ),
-        {"value": value},
+        ).bindparams(value=value)
     )
