@@ -577,15 +577,20 @@ def enumerate_time_periods(
 ) -> Iterator[TimePeriod]:
     none_after = entry.none_after
     none_before = entry.none_before
+    try:
+        first_start = entry.first_start
+    except AttributeError:
+        first_start = None
     if (
-        (not none_after or entry.first_start <= none_after)
-        and (not none_before or entry.first_start >= none_before)
+        first_start
+        and (not none_after or first_start <= none_after)
+        and (not none_before or first_start >= none_before)
         and (include_skipped or not entry.skip_first_instance)
     ):
         dur = duration_for(entry, -1, -1)
         yield TimePeriod(
-            start=entry.first_start,
-            end=entry.first_start + dur,
+            start=first_start,
+            end=first_start + dur,
             recurrence_index=-1,
             instance_index=-1,
         )
