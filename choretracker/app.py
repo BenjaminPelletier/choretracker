@@ -578,8 +578,8 @@ async def index(request: Request):
         if nxt:
             heappush(upcoming_heap, (nxt.start, next(counter), entry, nxt, gen))
 
-    overdue.sort(key=lambda x: x[1].end)
-    current.sort(key=lambda x: x[1].end)
+    overdue.sort(key=lambda x: (x[1].end, x[0].title))
+    current.sort(key=lambda x: (x[2] is not None, x[1].end, x[0].title))
 
     return templates.TemplateResponse(
         request,
