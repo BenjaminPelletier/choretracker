@@ -27,8 +27,6 @@ def upgrade() -> None:
     sa.Column('title', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('description', sqlmodel.sql.sqltypes.AutoString(), nullable=False),
     sa.Column('type', sa.Enum('Event', 'Chore', 'Reminder', name='calendarentrytype'), nullable=False),
-    sa.Column('first_start', sa.DateTime(), nullable=False),
-    sa.Column('duration_seconds', sa.Integer(), nullable=False),
     sa.Column('recurrences', sa.JSON(), nullable=True),
     sa.Column('none_after', sa.DateTime(), nullable=True),
     sa.Column('none_before', sa.DateTime(), nullable=True),
