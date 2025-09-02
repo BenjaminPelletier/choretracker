@@ -80,13 +80,23 @@ const serverNow = {{ now_ts|float }} * 1000;
 const loadTime = Date.now();
 const currentServerTime = () => new Date(serverNow + (Date.now() - loadTime));
 
+// Log the reason for the previous refresh, if any.
+const prevReasons = sessionStorage.getItem('refreshReasons');
+if (prevReasons) {
+    console.log('Previous refresh triggered because:', JSON.parse(prevReasons));
+    sessionStorage.removeItem('refreshReasons');
+}
+
 function updateTimes() {
     const now = currentServerTime();
-    let refresh = false;
+    const refreshReasons = [];
     document.querySelectorAll('[data-kind="due-in"]').forEach(el => {
         const end = new Date(parseFloat(el.dataset.end) * 1000);
         const diff = (end - now) / 1000;
-        if (diff <= 0) refresh = true;
+        if (diff <= 0) {
+            const title = el.parentElement.querySelector('a')?.textContent?.trim() || '';
+            refreshReasons.push({kind: 'due-in', title, end: end.toISOString(), now: now.toISOString(), diff});
+        }
         el.textContent = `(Due in ${formatDuration(diff)})`;
     });
     document.querySelectorAll('[data-kind="due-ago"]').forEach(el => {
@@ -97,10 +107,14 @@ function updateTimes() {
     document.querySelectorAll('[data-kind="starts-in"]').forEach(el => {
         const start = new Date(parseFloat(el.dataset.start) * 1000);
         const diff = (start - now) / 1000;
-        if (diff <= 0) refresh = true;
+        if (diff <= 0) {
+            const title = el.parentElement.querySelector('a')?.textContent?.trim() || '';
+            refreshReasons.push({kind: 'starts-in', title, start: start.toISOString(), now: now.toISOString(), diff});
+        }
         el.textContent = `(Starts in ${formatDuration(diff)})`;
     });
-    if (refresh) {
+    if (refreshReasons.length > 0) {
+        sessionStorage.setItem('refreshReasons', JSON.stringify(refreshReasons));
         location.reload();
     }
 }
