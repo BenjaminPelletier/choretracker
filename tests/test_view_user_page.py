@@ -36,7 +36,7 @@ def test_view_user_page(tmp_path, monkeypatch):
     )
     app_module.calendar_store.create(entry1)
     entry1_id = app_module.calendar_store.list_entries()[0].id
-    app_module.completion_store.create(entry1_id, -1, -1, "Bob", completed_at=now)
+    app_module.completion_store.create(entry1_id, 0, 0, "Bob", completed_at=now)
 
     # entry where Bob responsible via recurrence
     entry2 = CalendarEntry(

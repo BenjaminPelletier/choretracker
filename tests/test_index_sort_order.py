@@ -69,7 +69,7 @@ def test_now_sorting(tmp_path, monkeypatch):
         app_module.calendar_store.create(entry)
 
     id_map = {e.title: e.id for e in app_module.calendar_store.list_entries()}
-    app_module.completion_store.create(id_map["Zeta"], -1, -1, "Admin")
+    app_module.completion_store.create(id_map["Zeta"], 0, 0, "Admin")
 
     response = client.get("/")
     text = response.text

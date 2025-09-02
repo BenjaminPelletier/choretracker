@@ -43,7 +43,7 @@ def test_unauthorized_completion_flashes_message(tmp_path, monkeypatch):
     # attempt to complete chore without permission
     resp = client.post(
         f"/calendar/{entry_id}/completion",
-        json={"recurrence_index": -1, "instance_index": -1},
+        json={"recurrence_index": 0, "instance_index": 0},
     )
     assert resp.status_code == 403
     assert (
