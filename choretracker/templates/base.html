@@ -254,6 +254,7 @@
                     if (resp.ok) {
                         resp.json().then(function (data) {
                             closePinModal();
+                            alert('Navigating to ' + data.redirect + ' after user switch');
                             window.location.href = data.redirect;
                         });
                     } else {
@@ -277,6 +278,7 @@
                     } catch (e) {}
                     if (xhr.status >= 200 && xhr.status < 300) {
                         closePinModal();
+                        alert('Navigating to ' + data.redirect + ' after user switch');
                         window.location.href = data.redirect;
                     } else {
                         pinError.textContent = data.error || 'Invalid PIN';
@@ -297,6 +299,7 @@
                 sessionStorage.setItem('refreshReasons', JSON.stringify([
                     {kind: 'logout-timer', logoutSeconds: logoutSeconds}
                 ]));
+                alert('Reloading due to logout timer after ' + logoutSeconds + ' seconds');
                 window.location.reload();
             }, (logoutSeconds + 1) * 1000);
         }

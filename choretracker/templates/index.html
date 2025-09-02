@@ -121,6 +121,7 @@ function updateTimes() {
     });
     if (refreshReasons.length > 0) {
         sessionStorage.setItem('refreshReasons', JSON.stringify(refreshReasons));
+        alert('Reloading due to: ' + JSON.stringify(refreshReasons));
         location.reload();
     }
 }
@@ -154,6 +155,7 @@ document.querySelectorAll('.checkbox-icon[data-action]').forEach(el => {
             content.prepend(flash);
             return;
         }
+        alert('Reloading after completion change');
         location.reload();
     });
 });
