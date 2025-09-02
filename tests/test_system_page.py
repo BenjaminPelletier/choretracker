@@ -3,6 +3,8 @@ import sys
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from sqlmodel import Session
+from choretracker.settings import Setting
 
 # Ensure project root on path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -67,3 +69,16 @@ def test_logout_duration_requires_admin(tmp_path, monkeypatch):
     client.post("/login", data={"username": "User", "password": "pw"}, follow_redirects=False)
     resp = client.post("/system/logout_duration", json={"minutes": 5}, follow_redirects=False)
     assert resp.status_code == 303
+
+
+def test_logout_duration_clamped(tmp_path, monkeypatch):
+    """Existing databases may contain an out-of-range value such as 0."""
+    app_module = _load_app(tmp_path, monkeypatch)
+    # Directly set an invalid value to simulate an older database state
+    app_module.settings_store.set_logout_duration(0)
+
+    # The getter should clamp the value and persist the correction
+    assert app_module.settings_store.get_logout_duration() == 1
+    with Session(app_module.engine) as session:
+        setting = session.get(Setting, "logout_duration_minutes")
+        assert setting.value == 1

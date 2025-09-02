@@ -21,6 +21,21 @@ class SettingsStore:
                 setting = Setting(key="logout_duration_minutes", value=1)
                 session.add(setting)
                 session.commit()
+                return 1
+
+            # Clamp existing values to the valid range of 1-15 minutes. Older
+            # databases may contain out-of-range values (e.g. 0) which would
+            # cause the frontend to refresh constantly. Correct the stored
+            # value so the application behaves consistently.
+            if setting.value < 1:
+                setting.value = 1
+                session.add(setting)
+                session.commit()
+            elif setting.value > 15:
+                setting.value = 15
+                session.add(setting)
+                session.commit()
+
             return setting.value
 
     def set_logout_duration(self, minutes: int) -> None:
