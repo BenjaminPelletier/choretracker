@@ -83,8 +83,14 @@ const currentServerTime = () => new Date(serverNow + (Date.now() - loadTime));
 // Log the reason for the previous refresh, if any.
 const prevReasons = sessionStorage.getItem('refreshReasons');
 if (prevReasons) {
-    console.log('Previous refresh triggered because:', JSON.parse(prevReasons));
+    try {
+        console.log('Previous refresh triggered because:', JSON.parse(prevReasons));
+    } catch (e) {
+        console.warn('Failed to parse refreshReasons', prevReasons, e);
+    }
     sessionStorage.removeItem('refreshReasons');
+} else {
+    console.log('No previous refresh reason stored');
 }
 
 function updateTimes() {

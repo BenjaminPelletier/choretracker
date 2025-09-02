@@ -291,9 +291,14 @@
 
         var loggedInUser = "{{ request.session.get('user') }}";
         if (loggedInUser && loggedInUser !== 'Viewer') {
+            var logoutSeconds = Math.max(60, {{ LOGOUT_DURATION.total_seconds()|int }});
+            console.log('Logout timer set to', logoutSeconds, 'seconds');
             setTimeout(function () {
+                sessionStorage.setItem('refreshReasons', JSON.stringify([
+                    {kind: 'logout-timer', logoutSeconds: logoutSeconds}
+                ]));
                 window.location.reload();
-            }, ({{ LOGOUT_DURATION.total_seconds()|int }} + 1) * 1000);
+            }, (logoutSeconds + 1) * 1000);
         }
     });
     </script>
