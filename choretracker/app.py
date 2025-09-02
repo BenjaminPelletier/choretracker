@@ -474,44 +474,41 @@ async def index(request: Request):
 
     for entry in calendar_store.list_entries():
         gen = enumerate_time_periods(entry)
-        for period in gen:
-            completion = None
+        period = next(gen, None)
+        while period:
+            completion: ChoreCompletion | None = None
             if entry.type == CalendarEntryType.Chore:
                 completion = completion_store.get(
                     entry.id, period.recurrence_index, period.instance_index
                 )
-                if completion:
-                    if period.end <= now:
-                        continue
-                    if period.start <= now:
-                        current.append(
-                            (
+                if completion and period.end <= now:
+                    period = next(gen, None)
+                    continue
+                if completion and period.start <= now:
+                    current.append(
+                        (
+                            entry,
+                            period,
+                            completion,
+                            responsible_for(
                                 entry,
-                                period,
-                                completion,
-                                responsible_for(
+                                period.recurrence_index,
+                                period.instance_index,
+                            ),
+                            bool(
+                                find_instance_note(
                                     entry,
                                     period.recurrence_index,
                                     period.instance_index,
-                                ),
-                                bool(
-                                    find_instance_note(
-                                        entry,
-                                        period.recurrence_index,
-                                        period.instance_index,
-                                    )
-                                ),
-                            )
+                                )
+                            ),
                         )
-                        nxt = next(gen, None)
-                        if nxt:
-                            heappush(
-                                upcoming_heap,
-                                (nxt.start, next(counter), entry, nxt, gen),
-                            )
-                        break
-                    else:
-                        continue
+                    )
+                    period = next(gen, None)
+                    continue
+                if completion:
+                    period = next(gen, None)
+                    continue
             if period.end <= now:
                 if entry.type == CalendarEntryType.Chore:
                     overdue.append(
@@ -532,7 +529,9 @@ async def index(request: Request):
                             ),
                         )
                     )
-            elif period.start <= now:
+                period = next(gen, None)
+                continue
+            if period.start <= now:
                 current.append(
                     (
                         entry,
@@ -552,16 +551,13 @@ async def index(request: Request):
                         ),
                     )
                 )
-                nxt = next(gen, None)
-                if nxt:
-                    heappush(upcoming_heap, (nxt.start, next(counter), entry, nxt, gen))
-                break
-            else:
-                heappush(
-                    upcoming_heap,
-                    (period.start, next(counter), entry, period, gen),
-                )
-                break
+                period = next(gen, None)
+                continue
+            heappush(
+                upcoming_heap,
+                (period.start, next(counter), entry, period, gen),
+            )
+            break
 
     upcoming: list[tuple[CalendarEntry, TimePeriod, list[str], bool]] = []
     while upcoming_heap and len(upcoming) < MAX_UPCOMING:
