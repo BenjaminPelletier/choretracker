@@ -51,7 +51,7 @@ def upgrade() -> None:
         conn.execute(
             sa.update(calendarentry)
             .where(calendarentry.c.id == entry_id)
-            .values(recurrences=json.dumps(updated))
+            .values(recurrences=updated)
         )
 
 
@@ -79,5 +79,5 @@ def downgrade() -> None:
         conn.execute(
             sa.update(calendarentry)
             .where(calendarentry.c.id == entry_id)
-            .values(recurrences=json.dumps(recurrences))
+            .values(recurrences=recurrences)
         )
