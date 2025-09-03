@@ -1367,6 +1367,12 @@ async def update_recurrence(request: Request, entry_id: int):
         rec.offset = Offset(exact_duration_seconds=days * 86400 + hours * 3600 + minutes * 60)
     else:
         rec.offset = None
+    if "first_start" in data:
+        fs = data["first_start"]
+        rec.first_start = parse_datetime(fs) if fs else None
+    if "duration_seconds" in data:
+        ds = data["duration_seconds"]
+        rec.duration_seconds = int(ds) if ds else None
     if "responsible" in data:
         rec.responsible = list(data["responsible"])
     if not is_admin and has_past_instances(entry):
@@ -1401,7 +1407,19 @@ async def add_recurrence(request: Request, entry_id: int):
     offset = None
     if days or hours or minutes:
         offset = Offset(exact_duration_seconds=days * 86400 + hours * 3600 + minutes * 60)
-    rec = Recurrence(type=rtype, offset=offset, responsible=list(data.get("responsible") or []))
+    first_start = (
+        parse_datetime(data["first_start"]) if data.get("first_start") else None
+    )
+    duration_seconds = (
+        int(data["duration_seconds"]) if data.get("duration_seconds") else None
+    )
+    rec = Recurrence(
+        type=rtype,
+        offset=offset,
+        first_start=first_start,
+        duration_seconds=duration_seconds,
+        responsible=list(data.get("responsible") or []),
+    )
     entry.recurrences.append(rec)
     if not is_admin and has_past_instances(entry):
         raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")

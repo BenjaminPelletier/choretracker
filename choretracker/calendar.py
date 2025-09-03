@@ -51,6 +51,8 @@ class InstanceDuration(SQLModel):
 class Recurrence(SQLModel):
     type: RecurrenceType
     offset: Optional[Offset] = None
+    first_start: Optional[datetime] = None
+    duration_seconds: Optional[int] = Field(default=None, gt=0)
     skipped_instances: List[int] = Field(default_factory=list)
     responsible: List[str] = Field(default_factory=list)
     delegations: List[Delegation] = Field(default_factory=list)
@@ -113,6 +115,9 @@ class CalendarEntryStore:
                     rec if isinstance(rec, Recurrence) else Recurrence.model_validate(rec)
                     for rec in entry.recurrences
                 ]
+                for rec in entry.recurrences:
+                    if rec.first_start:
+                        rec.first_start = ensure_tz(rec.first_start)
                 entry.first_start = ensure_tz(entry.first_start)
                 entry.none_after = ensure_tz(entry.none_after)
                 entry.none_before = ensure_tz(entry.none_before)
@@ -152,6 +157,9 @@ class CalendarEntryStore:
                     rec if isinstance(rec, Recurrence) else Recurrence.model_validate(rec)
                     for rec in entry.recurrences
                 ]
+                for rec in entry.recurrences:
+                    if rec.first_start:
+                        rec.first_start = ensure_tz(rec.first_start)
                 entry.first_start = ensure_tz(entry.first_start)
                 entry.none_after = ensure_tz(entry.none_after)
                 entry.none_before = ensure_tz(entry.none_before)
@@ -475,7 +483,11 @@ def _recurrence_generator(
 ) -> Iterator[TimePeriod]:
     none_after = entry.none_after
     none_before = entry.none_before
-    if rec.offset:
+    if rec.first_start:
+        start = ensure_tz(rec.first_start)
+        if rec.offset:
+            start = _apply_offset(start, rec.offset)
+    elif rec.offset:
         start = _apply_offset(entry.first_start, rec.offset)
     else:
         start = _advance(entry.first_start, rec.type)
@@ -630,5 +642,11 @@ def duration_for(
     override = find_instance_duration(entry, recurrence_index, instance_index)
     if override:
         return timedelta(seconds=override.duration_seconds)
+    if recurrence_index >= 0 and 0 <= recurrence_index < len(entry.recurrences):
+        rec = entry.recurrences[recurrence_index]
+        if not isinstance(rec, Recurrence):
+            rec = Recurrence.model_validate(rec)
+        if rec.duration_seconds is not None:
+            return timedelta(seconds=rec.duration_seconds)
     return entry.duration
 
