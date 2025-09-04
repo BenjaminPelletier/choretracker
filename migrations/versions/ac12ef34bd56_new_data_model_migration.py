@@ -1,7 +1,7 @@
 """new data model migration
 
 Revision ID: ac12ef34bd56
-Revises: c1a5c0d5e4f4
+Revises: 37f3cc068d39
 Create Date: 2025-09-01 00:00:00.000000
 """
 from __future__ import annotations
@@ -14,7 +14,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = 'ac12ef34bd56'
-down_revision: Union[str, Sequence[str], None] = 'c1a5c0d5e4f4'
+down_revision: Union[str, Sequence[str], None] = '37f3cc068d39'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
