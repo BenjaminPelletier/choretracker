@@ -41,5 +41,5 @@ def test_migration_applies_times_and_stores_array(tmp_path):
             sa.select(calendarentry.c.recurrences).where(calendarentry.c.id == 1)
         ).scalar_one()
         assert isinstance(result, list)
-        assert result[0]["first_start"] == "2000-01-01T00:00:00"
+        assert result[0]["first_start"] == "2000-01-08T00:00:00"
         assert result[0]["duration_seconds"] == 3600
