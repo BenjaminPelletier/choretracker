@@ -134,7 +134,6 @@ def upgrade() -> None:
             rec['duration_seconds'] = row.duration_seconds
             rec['id'] = idx
             rec.pop('offset', None)
-            new_recs.append(rec)
 
             for inst in rec.get('skipped_instances', []):
                 key = (row.id, idx, inst)
@@ -152,6 +151,12 @@ def upgrade() -> None:
                 specifics_rows.setdefault(key, {}).update(
                     {'duration_seconds': dur.get('duration_seconds')}
                 )
+
+            rec.pop('skipped_instances', None)
+            rec.pop('delegations', None)
+            rec.pop('notes', None)
+            rec.pop('duration_overrides', None)
+            new_recs.append(rec)
 
         conn.execute(
             calendarentry.update().where(calendarentry.c.id == row.id).values(recurrences=new_recs)

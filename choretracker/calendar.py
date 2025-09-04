@@ -47,15 +47,12 @@ class InstanceDuration(SQLModel):
     instance_index: int
     duration_seconds: int = Field(gt=0)
 
-
 class Recurrence(SQLModel):
+    id: int
     type: RecurrenceType
-    offset: Optional[Offset] = None
-    skipped_instances: List[int] = Field(default_factory=list)
+    first_start: datetime
+    duration_seconds: int = Field(gt=0)
     responsible: List[str] = Field(default_factory=list)
-    delegations: List[Delegation] = Field(default_factory=list)
-    notes: List[InstanceNote] = Field(default_factory=list)
-    duration_overrides: List[InstanceDuration] = Field(default_factory=list)
 
 
 class CalendarEntry(SQLModel, table=True):
@@ -63,19 +60,11 @@ class CalendarEntry(SQLModel, table=True):
     title: str
     description: str = ""
     type: CalendarEntryType
-    first_start: datetime
-    duration_seconds: int = Field(gt=0)
     recurrences: List[Recurrence] = Field(default_factory=list, sa_column=Column(JSON))
     none_after: Optional[datetime] = None
     none_before: Optional[datetime] = None
     responsible: List[str] = Field(default_factory=list, sa_column=Column(JSON))
     managers: List[str] = Field(default_factory=list, sa_column=Column(JSON))
-    first_instance_delegates: List[str] = Field(
-        default_factory=list, sa_column=Column(JSON)
-    )
-    first_instance_note: Optional[str] = None
-    first_instance_duration_seconds: Optional[int] = None
-    skip_first_instance: bool = False
     previous_entry: Optional[int] = Field(
         default=None, foreign_key="calendarentry.id"
     )
@@ -83,13 +72,21 @@ class CalendarEntry(SQLModel, table=True):
         default=None, foreign_key="calendarentry.id"
     )
 
-    @property
-    def duration(self) -> timedelta:
-        return timedelta(seconds=self.duration_seconds)
 
-    @duration.setter
-    def duration(self, value: timedelta) -> None:
-        self.duration_seconds = int(value.total_seconds())
+class InstanceSpecifics(SQLModel, table=True):
+    entry_id: int = Field(
+        sa_column=Column(
+            Integer, ForeignKey("calendarentry.id", ondelete="CASCADE"), primary_key=True
+        )
+    )
+    recurrence_id: int = Field(primary_key=True)
+    instance_index: int = Field(primary_key=True)
+    skip: bool = Field(default=False)
+    duration_seconds: Optional[int] = None
+    responsible: Optional[List[str]] = Field(
+        default=None, sa_column=Column(JSON)
+    )
+    note: Optional[str] = None
 
 
 class CalendarEntryStore:
@@ -329,7 +326,7 @@ class ChoreCompletion(SQLModel, table=True):
             index=True,
         )
     )
-    recurrence_index: int
+    recurrence_id: int
     instance_index: int
     completed_by: str
     completed_at: datetime = Field(default_factory=get_now)
@@ -340,12 +337,12 @@ class ChoreCompletionStore:
         self.engine = engine
 
     def get(
-        self, entry_id: int, recurrence_index: int, instance_index: int
+        self, entry_id: int, recurrence_id: int, instance_index: int
     ) -> Optional[ChoreCompletion]:
         with Session(self.engine) as session:
             stmt = select(ChoreCompletion).where(
                 (ChoreCompletion.entry_id == entry_id)
-                & (ChoreCompletion.recurrence_index == recurrence_index)
+                & (ChoreCompletion.recurrence_id == recurrence_id)
                 & (ChoreCompletion.instance_index == instance_index)
             )
             comp = session.exec(stmt).first()
@@ -356,14 +353,14 @@ class ChoreCompletionStore:
     def create(
         self,
         entry_id: int,
-        recurrence_index: int,
+        recurrence_id: int,
         instance_index: int,
         user: str,
         completed_at: datetime | None = None,
     ) -> None:
         completion = ChoreCompletion(
             entry_id=entry_id,
-            recurrence_index=recurrence_index,
+            recurrence_id=recurrence_id,
             instance_index=instance_index,
             completed_by=user,
             completed_at=completed_at or get_now(),
@@ -372,11 +369,11 @@ class ChoreCompletionStore:
             session.add(completion)
             session.commit()
 
-    def delete(self, entry_id: int, recurrence_index: int, instance_index: int) -> None:
+    def delete(self, entry_id: int, recurrence_id: int, instance_index: int) -> None:
         with Session(self.engine) as session:
             stmt = select(ChoreCompletion).where(
                 (ChoreCompletion.entry_id == entry_id)
-                & (ChoreCompletion.recurrence_index == recurrence_index)
+                & (ChoreCompletion.recurrence_id == recurrence_id)
                 & (ChoreCompletion.instance_index == instance_index)
             )
             comp = session.exec(stmt).first()
