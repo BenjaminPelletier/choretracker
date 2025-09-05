@@ -11,10 +11,10 @@
         {% for user in responsible %}
         <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
-        <a href="{{ url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ entry.title }}</a>{% if has_note %}<span class="note-marker">*</span>{% endif %}
+        <a href="{{ url_for('view_time_period', entry_id=entry.id, recurrence_id=period.recurrence_id, iindex=period.instance_index) }}">{{ entry.title }}</a>{% if has_note %}<span class="note-marker">*</span>{% endif %}
         <span class="time-suffix" data-kind="due-ago" data-end="{{ period.end.timestamp() }}"></span>
         {% if entry.type == CalendarEntryType.Chore %}
-        <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ period.recurrence_index }}" data-iindex="{{ period.instance_index }}" data-action="add" />
+        <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rid="{{ period.recurrence_id }}" data-iindex="{{ period.instance_index }}" data-action="add" />
         {% endif %}
     </li>
     {% endfor %}
@@ -29,13 +29,13 @@
         {% for user in responsible %}
         <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
-        <a href="{{ url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ entry.title }}</a>{% if has_note %}<span class="note-marker">*</span>{% endif %}
+        <a href="{{ url_for('view_time_period', entry_id=entry.id, recurrence_id=period.recurrence_id, iindex=period.instance_index) }}">{{ entry.title }}</a>{% if has_note %}<span class="note-marker">*</span>{% endif %}
         {% if entry.type == CalendarEntryType.Chore %}
         {% if completion %}
-        <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ period.recurrence_index }}" data-iindex="{{ period.instance_index }}" {% if completion.completed_by == request.session.get('user') or user_has(request.session.get('user'), 'chores.override_complete') %}data-action="remove"{% endif %} />
+        <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rid="{{ period.recurrence_id }}" data-iindex="{{ period.instance_index }}" {% if completion.completed_by == request.session.get('user') or user_has(request.session.get('user'), 'chores.override_complete') %}data-action="remove"{% endif %} />
         {% else %}
         <span class="time-suffix" data-kind="due-in" data-end="{{ period.end.timestamp() }}"></span>
-        <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ period.recurrence_index }}" data-iindex="{{ period.instance_index }}" data-action="add" />
+        <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rid="{{ period.recurrence_id }}" data-iindex="{{ period.instance_index }}" data-action="add" />
         {% endif %}
         {% endif %}
     </li>
@@ -51,7 +51,7 @@
         {% for user in responsible %}
         <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
-        <a href="{{ url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ entry.title }}</a>{% if has_note %}<span class="note-marker">*</span>{% endif %}
+        <a href="{{ url_for('view_time_period', entry_id=entry.id, recurrence_id=period.recurrence_id, iindex=period.instance_index) }}">{{ entry.title }}</a>{% if has_note %}<span class="note-marker">*</span>{% endif %}
         <span class="time-suffix" data-kind="starts-in" data-start="{{ period.start.timestamp() }}"></span>
     </li>
     {% endfor %}
@@ -110,7 +110,7 @@ setInterval(updateTimes, 1000);
 document.querySelectorAll('.checkbox-icon[data-action]').forEach(el => {
     el.addEventListener('click', async () => {
         const entry = el.dataset.entry;
-        const r = parseInt(el.dataset.rindex);
+        const r = parseInt(el.dataset.rid);
         const i = parseInt(el.dataset.iindex);
         const url = el.dataset.action === 'add'
             ? `/calendar/${entry}/completion`
@@ -119,7 +119,7 @@ document.querySelectorAll('.checkbox-icon[data-action]').forEach(el => {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             credentials: 'same-origin',
-            body: JSON.stringify({recurrence_index: r, instance_index: i})
+            body: JSON.stringify({recurrence_id: r, instance_index: i})
         });
         if (resp.status === 403) {
             const data = await resp.json();

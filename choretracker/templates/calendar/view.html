@@ -54,7 +54,7 @@
         {% if entry.recurrences %}
         <ul id="recurrence-list">
             {% for rec in entry.recurrences %}
-            <li class="recurrence-item" data-rindex="{{ loop.index0 }}" data-type="{{ rec.type.value }}" data-responsible='{{ rec.responsible|tojson }}'>
+            <li class="recurrence-item" data-rid="{{ rec.id }}" data-type="{{ rec.type.value }}" data-responsible='{{ rec.responsible|tojson }}'>
                 <span class="recurrence-text">{{ rec.type.value }}</span>
                 {% for user in rec.responsible %}
                 <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
@@ -95,7 +95,7 @@
             <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
             {% endfor %}
             {% if completion %}
-            <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ completion.recurrence_index }}" data-iindex="{{ completion.instance_index }}" {% if can_remove %}data-action="remove"{% endif %} />
+            <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rid="{{ completion.recurrence_id }}" data-iindex="{{ completion.instance_index }}" {% if can_remove %}data-action="remove"{% endif %} />
             <img src="{{ url_for('profile_picture', username=completion.completed_by) }}" alt="{{ completion.completed_by }}" class="profile-icon" />
             {{ completion.completed_at|format_completion_time(period.end) }}
             {% endif %}
@@ -123,13 +123,13 @@
 document.querySelectorAll('.checkbox-icon[data-action="remove"]').forEach(el => {
     el.addEventListener('click', async () => {
         const entry = el.dataset.entry;
-        const r = parseInt(el.dataset.rindex);
+        const r = parseInt(el.dataset.rid);
         const i = parseInt(el.dataset.iindex);
         await fetch(`/calendar/${entry}/completion/remove`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             credentials: 'same-origin',
-            body: JSON.stringify({recurrence_index: r, instance_index: i})
+            body: JSON.stringify({recurrence_id: r, instance_index: i})
         });
         location.reload();
     });
@@ -369,7 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const recContainer = document.getElementById('recurrence-container');
     let recList = document.getElementById('recurrence-list');
 
-    function setupRecurrenceEditor(li, rindex, originalType, originalResp, isNew) {
+    function setupRecurrenceEditor(li, rid, originalType, originalResp, isNew) {
         if (isNew && addRecurrence) {
             addRecurrence.style.display = 'none';
         }
@@ -459,7 +459,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 payload.first_start = defaultFirstStart;
                 payload.duration_seconds = defaultDurationSeconds;
             } else {
-                payload.recurrence_id = rindex;
+                payload.recurrence_id = rid;
             }
             const resp = await fetch(url, {
                 method: 'POST',
@@ -496,22 +496,22 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.recurrence-item .edit-recurrence').forEach(btn => {
         btn.addEventListener('click', () => {
             const li = btn.closest('.recurrence-item');
-            const rindex = parseInt(li.dataset.rindex);
+            const rid = parseInt(li.dataset.rid);
             const originalType = li.dataset.type;
             const originalResp = JSON.parse(li.dataset.responsible || '[]');
-            setupRecurrenceEditor(li, rindex, originalType, originalResp, false);
+            setupRecurrenceEditor(li, rid, originalType, originalResp, false);
         });
     });
 
     document.querySelectorAll('.recurrence-item .delete-recurrence').forEach(btn => {
         btn.addEventListener('click', async () => {
             const li = btn.closest('.recurrence-item');
-            const rindex = parseInt(li.dataset.rindex);
+            const rid = parseInt(li.dataset.rid);
             const resp = await fetch(`/calendar/${entryId}/recurrence/delete`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 credentials: 'same-origin',
-                body: JSON.stringify({recurrence_id: rindex})
+                body: JSON.stringify({recurrence_id: rid})
             });
             if (resp.ok) {
                 const data = await resp.json();
@@ -538,7 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const li = document.createElement('li');
             li.className = 'recurrence-item';
             recList.appendChild(li);
-            setupRecurrenceEditor(li, recList.children.length - 1, recurrenceTypes[0], [], true);
+            setupRecurrenceEditor(li, -1, recurrenceTypes[0], [], true);
         });
     }
 
