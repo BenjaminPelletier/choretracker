@@ -29,13 +29,17 @@ def test_instance_duration_override(tmp_path, monkeypatch):
     client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
 
     start = get_now() - timedelta(minutes=30)
+    rec = Recurrence(
+        id=0,
+        type=RecurrenceType.Weekly,
+        first_start=start,
+        duration_seconds=3600,
+    )
     entry = CalendarEntry(
         title="Task",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=start,
-        duration_seconds=3600,
-        recurrences=[Recurrence(type=RecurrenceType.Weekly)],
+        recurrences=[rec],
         responsible=["Admin"],
         managers=["Admin"],
     )
@@ -45,8 +49,8 @@ def test_instance_duration_override(tmp_path, monkeypatch):
     resp = client.post(
         f"/calendar/{entry_id}/duration",
         data={
-            "recurrence_index": -1,
-            "instance_index": -1,
+            "recurrence_id": 0,
+            "instance_index": 0,
             "duration_days": "",
             "duration_hours": "2",
             "duration_minutes": "",
@@ -55,7 +59,7 @@ def test_instance_duration_override(tmp_path, monkeypatch):
     )
     assert resp.status_code == 303
 
-    page = client.get(f"/calendar/entry/{entry_id}/period/-1/-1")
+    page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
     assert "Duration" in page.text
     assert "2:00" in page.text
 

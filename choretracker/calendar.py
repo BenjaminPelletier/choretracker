@@ -291,6 +291,16 @@ class CalendarEntryStore:
             session.add(new_entry)
             session.commit()
 
+            # Ensure Recurrence objects after commit
+            entry.recurrences = [
+                r if isinstance(r, Recurrence) else Recurrence.model_validate(r)
+                for r in entry.recurrences
+            ]
+            new_entry.recurrences = [
+                r if isinstance(r, Recurrence) else Recurrence.model_validate(r)
+                for r in new_entry.recurrences
+            ]
+
             # Store instance specifics
             _store_instance_specifics(session, entry)
             _store_instance_specifics(session, new_entry)

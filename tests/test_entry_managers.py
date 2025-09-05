@@ -9,7 +9,12 @@ from fastapi.testclient import TestClient
 # Ensure project root on path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from choretracker.calendar import CalendarEntry, CalendarEntryType
+from choretracker.calendar import (
+    CalendarEntry,
+    CalendarEntryType,
+    Recurrence,
+    RecurrenceType,
+)
 
 
 def test_edit_permissions(tmp_path, monkeypatch):
@@ -25,12 +30,17 @@ def test_edit_permissions(tmp_path, monkeypatch):
     app_module.user_store.create("Manager", "manager", None, set())
     app_module.user_store.create("Bob", "bob", None, set())
 
+    rec = Recurrence(
+        id=0,
+        type=RecurrenceType.OneTime,
+        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
+        duration_seconds=60,
+    )
     entry = CalendarEntry(
         title="Test",
         description="",
         type=CalendarEntryType.Event,
-        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
-        duration_seconds=60,
+        recurrences=[rec],
         managers=["Manager"],
     )
     app_module.calendar_store.create(entry)
@@ -95,12 +105,17 @@ def test_update_rejects_empty_managers(tmp_path, monkeypatch):
 
     client = TestClient(app_module.app)
 
+    rec = Recurrence(
+        id=0,
+        type=RecurrenceType.OneTime,
+        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
+        duration_seconds=60,
+    )
     entry = CalendarEntry(
         title="Test",
         description="",
         type=CalendarEntryType.Event,
-        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
-        duration_seconds=60,
+        recurrences=[rec],
         managers=["Admin"],
     )
     app_module.calendar_store.create(entry)

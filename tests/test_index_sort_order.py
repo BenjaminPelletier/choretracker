@@ -9,7 +9,12 @@ from fastapi.testclient import TestClient
 # Ensure project root on path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from choretracker.calendar import CalendarEntry, CalendarEntryType
+from choretracker.calendar import (
+    CalendarEntry,
+    CalendarEntryType,
+    Recurrence,
+    RecurrenceType,
+)
 
 
 def _setup_app(tmp_path, monkeypatch, fake_now):
@@ -36,40 +41,68 @@ def test_now_sorting(tmp_path, monkeypatch):
             title="Beta",
             description="",
             type=CalendarEntryType.Chore,
-            first_start=start,
-            duration_seconds=600,
+            recurrences=[
+                Recurrence(
+                    id=0,
+                    type=RecurrenceType.OneTime,
+                    first_start=start,
+                    duration_seconds=600,
+                )
+            ],
             managers=["Admin"],
+            responsible=["Admin"],
         ),
         CalendarEntry(
             title="Gamma",
             description="",
             type=CalendarEntryType.Chore,
-            first_start=start,
-            duration_seconds=600,
+            recurrences=[
+                Recurrence(
+                    id=0,
+                    type=RecurrenceType.OneTime,
+                    first_start=start,
+                    duration_seconds=600,
+                )
+            ],
             managers=["Admin"],
+            responsible=["Admin"],
         ),
         CalendarEntry(
             title="Alpha",
             description="",
             type=CalendarEntryType.Chore,
-            first_start=start,
-            duration_seconds=900,
+            recurrences=[
+                Recurrence(
+                    id=0,
+                    type=RecurrenceType.OneTime,
+                    first_start=start,
+                    duration_seconds=900,
+                )
+            ],
             managers=["Admin"],
+            responsible=["Admin"],
         ),
         CalendarEntry(
             title="Zeta",
             description="",
             type=CalendarEntryType.Chore,
-            first_start=start,
-            duration_seconds=360,
+            recurrences=[
+                Recurrence(
+                    id=0,
+                    type=RecurrenceType.OneTime,
+                    first_start=start,
+                    duration_seconds=360,
+                )
+            ],
             managers=["Admin"],
+            responsible=["Admin"],
         ),
     ]
     for entry in entries:
         app_module.calendar_store.create(entry)
 
     id_map = {e.title: e.id for e in app_module.calendar_store.list_entries()}
-    app_module.completion_store.create(id_map["Zeta"], -1, -1, "Admin")
+    app_module.completion_store.create(id_map["Zeta"], 0, 0, "Admin")
 
     response = client.get("/")
     text = response.text
@@ -85,25 +118,46 @@ def test_overdue_sorting(tmp_path, monkeypatch):
             title="Alpha",
             description="",
             type=CalendarEntryType.Chore,
-            first_start=fake_now - timedelta(minutes=20),
-            duration_seconds=300,
+            recurrences=[
+                Recurrence(
+                    id=0,
+                    type=RecurrenceType.OneTime,
+                    first_start=fake_now - timedelta(minutes=20),
+                    duration_seconds=300,
+                )
+            ],
             managers=["Admin"],
+            responsible=["Admin"],
         ),
         CalendarEntry(
             title="Beta",
             description="",
             type=CalendarEntryType.Chore,
-            first_start=fake_now - timedelta(minutes=10),
-            duration_seconds=300,
+            recurrences=[
+                Recurrence(
+                    id=0,
+                    type=RecurrenceType.OneTime,
+                    first_start=fake_now - timedelta(minutes=10),
+                    duration_seconds=300,
+                )
+            ],
             managers=["Admin"],
+            responsible=["Admin"],
         ),
         CalendarEntry(
             title="Gamma",
             description="",
             type=CalendarEntryType.Chore,
-            first_start=fake_now - timedelta(minutes=10),
-            duration_seconds=300,
+            recurrences=[
+                Recurrence(
+                    id=0,
+                    type=RecurrenceType.OneTime,
+                    first_start=fake_now - timedelta(minutes=10),
+                    duration_seconds=300,
+                )
+            ],
             managers=["Admin"],
+            responsible=["Admin"],
         ),
     ]
     for entry in entries:
