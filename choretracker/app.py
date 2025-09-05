@@ -1514,6 +1514,18 @@ async def remove_delegation(request: Request, entry_id: int):
         if d.instance_index == iindex:
             del rec.delegations[idx]
             break
+    specs = getattr(rec, "instance_specifics", {})
+    spec = specs.get(iindex)
+    if spec:
+        spec.responsible = None
+        if (
+            not spec.skip
+            and spec.duration_seconds is None
+            and spec.responsible is None
+            and spec.note is None
+        ):
+            del specs[iindex]
+    setattr(rec, "instance_specifics", specs)
     calendar_store.update(entry_id, entry)
     referer = request.headers.get(
         "referer",
