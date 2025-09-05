@@ -10,7 +10,12 @@ import re
 # Ensure project root is on path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from choretracker.calendar import CalendarEntry, CalendarEntryType
+from choretracker.calendar import (
+    CalendarEntry,
+    CalendarEntryType,
+    Recurrence,
+    RecurrenceType,
+)
 
 
 def test_description_sanitized(tmp_path, monkeypatch):
@@ -21,12 +26,17 @@ def test_description_sanitized(tmp_path, monkeypatch):
 
     client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
 
+    rec = Recurrence(
+        id=0,
+        type=RecurrenceType.OneTime,
+        first_start=datetime(2025, 1, 1, 0, 0, 0, tzinfo=ZoneInfo("UTC")),
+        duration_seconds=60,
+    )
     entry = CalendarEntry(
         title="Sanitize",
         description="<script>alert('x')</script>",
         type=CalendarEntryType.Event,
-        first_start=datetime(2025, 1, 1, 0, 0, 0, tzinfo=ZoneInfo("UTC")),
-        duration_seconds=60,
+        recurrences=[rec],
         managers=["Admin"],
     )
     app_module.calendar_store.create(entry)
