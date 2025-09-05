@@ -25,38 +25,53 @@ def test_view_user_page(tmp_path, monkeypatch):
     now = get_now()
 
     # entry where Bob responsible and completion
+    rec1 = Recurrence(
+        id=0,
+        type=RecurrenceType.OneTime,
+        first_start=now - timedelta(days=1),
+        duration_seconds=60,
+    )
     entry1 = CalendarEntry(
         title="Dishes",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=now - timedelta(days=1),
-        duration_seconds=60,
+        recurrences=[rec1],
         responsible=["Bob"],
         managers=["Admin"],
     )
     app_module.calendar_store.create(entry1)
     entry1_id = app_module.calendar_store.list_entries()[0].id
-    app_module.completion_store.create(entry1_id, -1, -1, "Bob", completed_at=now)
+    app_module.completion_store.create(entry1_id, 0, 0, "Bob", completed_at=now)
 
     # entry where Bob responsible via recurrence
+    rec2 = Recurrence(
+        id=0,
+        type=RecurrenceType.Weekly,
+        first_start=now,
+        duration_seconds=60,
+        responsible=["Bob"],
+    )
     entry2 = CalendarEntry(
         title="Laundry",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=now,
-        duration_seconds=60,
-        recurrences=[Recurrence(type=RecurrenceType.Weekly, responsible=["Bob"])],
+        recurrences=[rec2],
         managers=["Admin"],
     )
     app_module.calendar_store.create(entry2)
 
     # entry managed by Bob
+    rec3 = Recurrence(
+        id=0,
+        type=RecurrenceType.OneTime,
+        first_start=now,
+        duration_seconds=60,
+    )
     entry3 = CalendarEntry(
         title="Managed",
         description="",
         type=CalendarEntryType.Event,
-        first_start=now,
-        duration_seconds=60,
+        recurrences=[rec3],
         managers=["Bob"],
     )
     app_module.calendar_store.create(entry3)

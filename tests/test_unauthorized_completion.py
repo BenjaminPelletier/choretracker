@@ -7,7 +7,12 @@ from fastapi.testclient import TestClient
 # Ensure project root on path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from choretracker.calendar import CalendarEntry, CalendarEntryType
+from choretracker.calendar import (
+    CalendarEntry,
+    CalendarEntryType,
+    Recurrence,
+    RecurrenceType,
+)
 from choretracker.time_utils import get_now
 
 def test_unauthorized_completion_flashes_message(tmp_path, monkeypatch):
@@ -21,12 +26,17 @@ def test_unauthorized_completion_flashes_message(tmp_path, monkeypatch):
     app_module.user_store.create("Bob", "bob", None, set())
 
     now = get_now()
+    rec = Recurrence(
+        id=0,
+        type=RecurrenceType.OneTime,
+        first_start=now,
+        duration_seconds=60,
+    )
     entry = CalendarEntry(
         title="Dishes",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=now,
-        duration_seconds=60,
+        recurrences=[rec],
         managers=["Admin"],
     )
     app_module.calendar_store.create(entry)
@@ -43,7 +53,7 @@ def test_unauthorized_completion_flashes_message(tmp_path, monkeypatch):
     # attempt to complete chore without permission
     resp = client.post(
         f"/calendar/{entry_id}/completion",
-        json={"recurrence_index": -1, "instance_index": -1},
+        json={"recurrence_id": 0, "instance_index": 0},
     )
     assert resp.status_code == 403
     assert (

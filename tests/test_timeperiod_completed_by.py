@@ -28,13 +28,17 @@ def test_completed_by_username_shown(tmp_path, monkeypatch):
     # login as Admin user
     client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
 
+    rec = Recurrence(
+        id=0,
+        type=RecurrenceType.Weekly,
+        first_start=datetime(2000, 1, 1, 8, 0, 0, tzinfo=ZoneInfo("UTC")),
+        duration_seconds=60,
+    )
     entry = CalendarEntry(
         title="Dishes",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=datetime(2000, 1, 1, 8, 0, 0, tzinfo=ZoneInfo("UTC")),
-        duration_seconds=60,
-        recurrences=[Recurrence(type=RecurrenceType.Weekly)],
+        recurrences=[rec],
         managers=["Admin"],
     )
     app_module.calendar_store.create(entry)
