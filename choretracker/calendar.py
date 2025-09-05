@@ -8,7 +8,7 @@ import calendar as cal
 from typing import Iterator, List, Optional
 
 from sqlmodel import Column, Field, Session, SQLModel, select
-from sqlalchemy import JSON, ForeignKey, Integer
+from sqlalchemy import JSON, ForeignKey, Integer, delete
 
 from .time_utils import get_now, ensure_tz
 
@@ -25,12 +25,6 @@ class CalendarEntryType(str, Enum):
     Event = "Event"
     Chore = "Chore"
     Reminder = "Reminder"
-
-
-class Offset(SQLModel):
-    exact_duration_seconds: Optional[int] = None
-    months: Optional[int] = None
-    years: Optional[int] = None
 
 
 class Delegation(SQLModel):
@@ -89,6 +83,82 @@ class InstanceSpecifics(SQLModel, table=True):
     note: Optional[str] = None
 
 
+def _load_instance_specifics(session: Session, entry: CalendarEntry) -> None:
+    specs = session.exec(
+        select(InstanceSpecifics).where(InstanceSpecifics.entry_id == entry.id)
+    ).all()
+    rec_map = {rec.id: rec for rec in entry.recurrences}
+    for spec in specs:
+        rec = rec_map.get(spec.recurrence_id)
+        if not rec:
+            continue
+        if spec.skip:
+            skipped = getattr(rec, "skipped_instances", [])
+            skipped.append(spec.instance_index)
+            setattr(rec, "skipped_instances", skipped)
+        if spec.responsible is not None:
+            delegations = getattr(rec, "delegations", [])
+            delegations.append(
+                Delegation(instance_index=spec.instance_index, responsible=spec.responsible)
+            )
+            setattr(rec, "delegations", delegations)
+        if spec.note is not None:
+            notes = getattr(rec, "notes", [])
+            notes.append(InstanceNote(instance_index=spec.instance_index, note=spec.note))
+            setattr(rec, "notes", notes)
+        if spec.duration_seconds is not None:
+            overrides = getattr(rec, "duration_overrides", [])
+            overrides.append(
+                InstanceDuration(
+                    instance_index=spec.instance_index,
+                    duration_seconds=spec.duration_seconds,
+                )
+            )
+            setattr(rec, "duration_overrides", overrides)
+
+
+def _store_instance_specifics(session: Session, entry: CalendarEntry) -> None:
+    session.exec(delete(InstanceSpecifics).where(InstanceSpecifics.entry_id == entry.id))
+    for rec in entry.recurrences:
+        spec_map: dict[int, InstanceSpecifics] = {}
+        for idx in getattr(rec, "skipped_instances", []):
+            spec_map.setdefault(
+                idx,
+                InstanceSpecifics(
+                    entry_id=entry.id, recurrence_id=rec.id, instance_index=idx
+                ),
+            ).skip = True
+        for deleg in getattr(rec, "delegations", []):
+            spec_map.setdefault(
+                deleg.instance_index,
+                InstanceSpecifics(
+                    entry_id=entry.id,
+                    recurrence_id=rec.id,
+                    instance_index=deleg.instance_index,
+                ),
+            ).responsible = deleg.responsible
+        for note in getattr(rec, "notes", []):
+            spec_map.setdefault(
+                note.instance_index,
+                InstanceSpecifics(
+                    entry_id=entry.id,
+                    recurrence_id=rec.id,
+                    instance_index=note.instance_index,
+                ),
+            ).note = note.note
+        for dur in getattr(rec, "duration_overrides", []):
+            spec_map.setdefault(
+                dur.instance_index,
+                InstanceSpecifics(
+                    entry_id=entry.id,
+                    recurrence_id=rec.id,
+                    instance_index=dur.instance_index,
+                ),
+            ).duration_seconds = dur.duration_seconds
+        for spec in spec_map.values():
+            session.add(spec)
+
+
 class CalendarEntryStore:
     def __init__(self, engine):
         self.engine = engine
@@ -99,7 +169,14 @@ class CalendarEntryStore:
         if not entry.recurrences:
             entry.recurrences = [Recurrence(type=RecurrenceType.OneTime)]
         with Session(self.engine) as session:
+            recs = entry.recurrences
+            entry.recurrences = [
+                Recurrence.model_validate(r).model_dump() for r in recs
+            ]
             session.add(entry)
+            session.commit()
+            entry.recurrences = recs
+            _store_instance_specifics(session, entry)
             session.commit()
 
     def get(self, entry_id: int) -> Optional[CalendarEntry]:
@@ -110,9 +187,11 @@ class CalendarEntryStore:
                     rec if isinstance(rec, Recurrence) else Recurrence.model_validate(rec)
                     for rec in entry.recurrences
                 ]
-                entry.first_start = ensure_tz(entry.first_start)
+                for rec in entry.recurrences:
+                    rec.first_start = ensure_tz(rec.first_start)
                 entry.none_after = ensure_tz(entry.none_after)
                 entry.none_before = ensure_tz(entry.none_before)
+                _load_instance_specifics(session, entry)
             return entry
 
     def update(self, entry_id: int, new_data: CalendarEntry) -> None:
@@ -127,18 +206,18 @@ class CalendarEntryStore:
             entry.title = new_data.title
             entry.description = new_data.description
             entry.type = new_data.type
-            entry.first_start = new_data.first_start
-            entry.duration_seconds = new_data.duration_seconds
-            entry.recurrences = new_data.recurrences
+            recs = new_data.recurrences
+            entry.recurrences = [
+                Recurrence.model_validate(r).model_dump() for r in recs
+            ]
             entry.none_after = new_data.none_after
             entry.none_before = new_data.none_before
             entry.responsible = new_data.responsible
             entry.managers = new_data.managers
-            entry.first_instance_delegates = new_data.first_instance_delegates
-            entry.first_instance_note = new_data.first_instance_note
-            entry.first_instance_duration_seconds = new_data.first_instance_duration_seconds
-            entry.skip_first_instance = new_data.skip_first_instance
             session.add(entry)
+            session.commit()
+            entry.recurrences = recs
+            _store_instance_specifics(session, entry)
             session.commit()
 
     def list_entries(self) -> List[CalendarEntry]:
@@ -149,9 +228,11 @@ class CalendarEntryStore:
                     rec if isinstance(rec, Recurrence) else Recurrence.model_validate(rec)
                     for rec in entry.recurrences
                 ]
-                entry.first_start = ensure_tz(entry.first_start)
+                for rec in entry.recurrences:
+                    rec.first_start = ensure_tz(rec.first_start)
                 entry.none_after = ensure_tz(entry.none_after)
                 entry.none_before = ensure_tz(entry.none_before)
+                _load_instance_specifics(session, entry)
             return entries
 
     def delete(self, entry_id: int) -> bool:
@@ -163,8 +244,9 @@ class CalendarEntryStore:
                 rec if isinstance(rec, Recurrence) else Recurrence.model_validate(rec)
                 for rec in entry.recurrences
             ]
-            has_delegations = bool(entry.first_instance_delegates) or any(
-                rec.delegations for rec in entry.recurrences
+            _load_instance_specifics(session, entry)
+            has_delegations = any(
+                getattr(rec, "delegations", []) for rec in entry.recurrences
             )
             has_completions = (
                 session.exec(
@@ -195,9 +277,11 @@ class CalendarEntryStore:
                 rec if isinstance(rec, Recurrence) else Recurrence.model_validate(rec)
                 for rec in entry.recurrences
             ]
-            entry.first_start = ensure_tz(entry.first_start)
+            for rec in entry.recurrences:
+                rec.first_start = ensure_tz(rec.first_start)
             entry.none_after = ensure_tz(entry.none_after)
             entry.none_before = ensure_tz(entry.none_before)
+            _load_instance_specifics(session, entry)
 
             # Copy of entry for time period calculations
             original = CalendarEntry.model_validate(entry.model_dump())
@@ -205,6 +289,7 @@ class CalendarEntryStore:
                 r if isinstance(r, Recurrence) else Recurrence.model_validate(r)
                 for r in original.recurrences
             ]
+            _load_instance_specifics(session, original)
 
             # Create new entry as a copy
             new_entry = CalendarEntry.model_validate(entry.model_dump())
@@ -214,74 +299,58 @@ class CalendarEntryStore:
                 Recurrence.model_validate(r.model_dump()) for r in entry.recurrences
             ]
 
-            # Move first instance settings
-            if split_time <= entry.first_start:
-                new_entry.first_instance_delegates = entry.first_instance_delegates
-                new_entry.first_instance_note = entry.first_instance_note
-                new_entry.first_instance_duration_seconds = (
-                    entry.first_instance_duration_seconds
-                )
-                new_entry.skip_first_instance = entry.skip_first_instance
-                entry.first_instance_delegates = []
-                entry.first_instance_note = None
-                entry.first_instance_duration_seconds = None
-                entry.skip_first_instance = False
-            else:
-                new_entry.first_instance_delegates = []
-                new_entry.first_instance_note = None
-                new_entry.first_instance_duration_seconds = None
-                new_entry.skip_first_instance = False
-
             # Move skips and delegations
             for idx, rec in enumerate(entry.recurrences):
                 new_rec = new_entry.recurrences[idx]
                 keep_skips: list[int] = []
                 move_skips: list[int] = []
-                for sidx in rec.skipped_instances:
-                    period = find_time_period(original, idx, sidx, include_skipped=True)
+                for sidx in getattr(rec, "skipped_instances", []):
+                    period = find_time_period(original, rec.id, sidx, include_skipped=True)
                     if period and period.start >= split_time:
                         move_skips.append(sidx)
                     else:
                         keep_skips.append(sidx)
-                rec.skipped_instances = keep_skips
-                new_rec.skipped_instances = move_skips
+                setattr(rec, "skipped_instances", keep_skips)
+                setattr(new_rec, "skipped_instances", move_skips)
 
                 keep_del: list[Delegation] = []
                 move_del: list[Delegation] = []
-                for d in rec.delegations:
-                    period = find_time_period(original, idx, d.instance_index, include_skipped=True)
+                for d in getattr(rec, "delegations", []):
+                    period = find_time_period(
+                        original, rec.id, d.instance_index, include_skipped=True
+                    )
                     if period and period.start >= split_time:
                         move_del.append(d)
                     else:
                         keep_del.append(d)
-                rec.delegations = keep_del
-                new_rec.delegations = move_del
+                setattr(rec, "delegations", keep_del)
+                setattr(new_rec, "delegations", move_del)
 
                 keep_notes: list[InstanceNote] = []
                 move_notes: list[InstanceNote] = []
-                for n in rec.notes:
+                for n in getattr(rec, "notes", []):
                     period = find_time_period(
-                        original, idx, n.instance_index, include_skipped=True
+                        original, rec.id, n.instance_index, include_skipped=True
                     )
                     if period and period.start >= split_time:
                         move_notes.append(n)
                     else:
                         keep_notes.append(n)
-                rec.notes = keep_notes
-                new_rec.notes = move_notes
+                setattr(rec, "notes", keep_notes)
+                setattr(new_rec, "notes", move_notes)
 
                 keep_dur: list[InstanceDuration] = []
                 move_dur: list[InstanceDuration] = []
-                for d in rec.duration_overrides:
+                for d in getattr(rec, "duration_overrides", []):
                     period = find_time_period(
-                        original, idx, d.instance_index, include_skipped=True
+                        original, rec.id, d.instance_index, include_skipped=True
                     )
                     if period and period.start >= split_time:
                         move_dur.append(d)
                     else:
                         keep_dur.append(d)
-                rec.duration_overrides = keep_dur
-                new_rec.duration_overrides = move_dur
+                setattr(rec, "duration_overrides", keep_dur)
+                setattr(new_rec, "duration_overrides", move_dur)
 
             # Adjust boundaries
             entry.none_after = split_time - timedelta(minutes=1)
@@ -295,6 +364,11 @@ class CalendarEntryStore:
             new_entry.previous_entry = entry.id
             session.add(entry)
             session.add(new_entry)
+            session.commit()
+
+            # Store instance specifics
+            _store_instance_specifics(session, entry)
+            _store_instance_specifics(session, new_entry)
 
             # Move completions
             comps = session.exec(
@@ -302,7 +376,7 @@ class CalendarEntryStore:
             ).all()
             for comp in comps:
                 period = find_time_period(
-                    original, comp.recurrence_index, comp.instance_index, include_skipped=True
+                    original, comp.recurrence_id, comp.instance_index, include_skipped=True
                 )
                 if period and period.start >= split_time:
                     comp.entry_id = new_entry.id
@@ -394,7 +468,7 @@ class ChoreCompletionStore:
 class TimePeriod:
     start: datetime
     end: datetime
-    recurrence_index: int
+    recurrence_id: int
     instance_index: int
 
 
@@ -441,18 +515,6 @@ def _next_monthly_day_of_week(dt: datetime) -> datetime:
         if day > days_in_month:
             continue
         return dt.replace(year=year, month=month, day=day)
-
-
-def _apply_offset(base: datetime, offset: Offset) -> datetime:
-    result = base
-    if offset.exact_duration_seconds:
-        result += timedelta(seconds=offset.exact_duration_seconds)
-    months = (offset.months or 0) + (offset.years or 0) * 12
-    if months:
-        result = _add_months_skip(result, months)
-    return result
-
-
 def _advance(start: datetime, rtype: RecurrenceType) -> Optional[datetime]:
     if rtype == RecurrenceType.OneTime:
         return None
@@ -468,25 +530,25 @@ def _advance(start: datetime, rtype: RecurrenceType) -> Optional[datetime]:
 
 
 def _recurrence_generator(
-    entry: CalendarEntry, rec: Recurrence, rindex: int, include_skipped: bool
+    entry: CalendarEntry, rec: Recurrence, include_skipped: bool
 ) -> Iterator[TimePeriod]:
     none_after = entry.none_after
     none_before = entry.none_before
-    if rec.offset:
-        start = _apply_offset(entry.first_start, rec.offset)
-    else:
-        start = _advance(entry.first_start, rec.type)
+    start = rec.first_start
     instance = 0
     while start and (not none_after or start <= none_after):
         if (
             (not none_before or start >= none_before)
-            and (include_skipped or instance not in rec.skipped_instances)
+            and (
+                include_skipped
+                or instance not in getattr(rec, "skipped_instances", [])
+            )
         ):
-            dur = duration_for(entry, rindex, instance)
+            dur = duration_for(entry, rec.id, instance)
             yield TimePeriod(
                 start=start,
                 end=start + dur,
-                recurrence_index=rindex,
+                recurrence_id=rec.id,
                 instance_index=instance,
             )
         instance += 1
@@ -496,47 +558,32 @@ def _recurrence_generator(
 def enumerate_time_periods(
     entry: CalendarEntry, include_skipped: bool = False
 ) -> Iterator[TimePeriod]:
-    none_after = entry.none_after
-    none_before = entry.none_before
-    if (
-        (not none_after or entry.first_start <= none_after)
-        and (not none_before or entry.first_start >= none_before)
-        and (include_skipped or not entry.skip_first_instance)
-    ):
-        dur = duration_for(entry, -1, -1)
-        yield TimePeriod(
-            start=entry.first_start,
-            end=entry.first_start + dur,
-            recurrence_index=-1,
-            instance_index=-1,
-        )
-
     heap: List[tuple[datetime, int, Iterator[TimePeriod], TimePeriod]] = []
-    for idx, rec in enumerate(entry.recurrences):
+    for rec in entry.recurrences:
         if not isinstance(rec, Recurrence):
             rec = Recurrence.model_validate(rec)
-        gen = _recurrence_generator(entry, rec, idx, include_skipped)
+        gen = _recurrence_generator(entry, rec, include_skipped)
         first = next(gen, None)
         if first:
-            heappush(heap, (first.start, idx, gen, first))
+            heappush(heap, (first.start, rec.id, gen, first))
 
     while heap:
-        _, idx, gen, period = heappop(heap)
+        _, rid, gen, period = heappop(heap)
         yield period
         nxt = next(gen, None)
         if nxt:
-            heappush(heap, (nxt.start, idx, gen, nxt))
+            heappush(heap, (nxt.start, rid, gen, nxt))
 
 
 def find_time_period(
     entry: CalendarEntry,
-    recurrence_index: int,
+    recurrence_id: int,
     instance_index: int,
     include_skipped: bool = False,
 ) -> Optional[TimePeriod]:
     for period in enumerate_time_periods(entry, include_skipped=include_skipped):
         if (
-            period.recurrence_index == recurrence_index
+            period.recurrence_id == recurrence_id
             and period.instance_index == instance_index
         ):
             return period
@@ -544,15 +591,13 @@ def find_time_period(
 
 
 def responsible_for(
-    entry: CalendarEntry, recurrence_index: int, instance_index: int
+    entry: CalendarEntry, recurrence_id: int, instance_index: int
 ) -> List[str]:
-    if recurrence_index == -1 and instance_index == -1:
-        return entry.first_instance_delegates or entry.responsible
-    if 0 <= recurrence_index < len(entry.recurrences):
-        rec = entry.recurrences[recurrence_index]
+    rec = next((r for r in entry.recurrences if r.id == recurrence_id), None)
+    if rec:
         if not isinstance(rec, Recurrence):
             rec = Recurrence.model_validate(rec)
-        for d in rec.delegations:
+        for d in getattr(rec, "delegations", []):
             if not isinstance(d, Delegation):
                 d = Delegation.model_validate(d)
             if d.instance_index == instance_index:
@@ -563,17 +608,13 @@ def responsible_for(
 
 
 def find_delegation(
-    entry: CalendarEntry, recurrence_index: int, instance_index: int
+    entry: CalendarEntry, recurrence_id: int, instance_index: int
 ) -> Optional[Delegation]:
-    if recurrence_index == -1 and instance_index == -1:
-        if entry.first_instance_delegates:
-            return Delegation(instance_index=-1, responsible=entry.first_instance_delegates)
-        return None
-    if 0 <= recurrence_index < len(entry.recurrences):
-        rec = entry.recurrences[recurrence_index]
+    rec = next((r for r in entry.recurrences if r.id == recurrence_id), None)
+    if rec:
         if not isinstance(rec, Recurrence):
             rec = Recurrence.model_validate(rec)
-        for d in rec.delegations:
+        for d in getattr(rec, "delegations", []):
             if not isinstance(d, Delegation):
                 d = Delegation.model_validate(d)
             if d.instance_index == instance_index:
@@ -582,17 +623,13 @@ def find_delegation(
 
 
 def find_instance_note(
-    entry: CalendarEntry, recurrence_index: int, instance_index: int
+    entry: CalendarEntry, recurrence_id: int, instance_index: int
 ) -> Optional[InstanceNote]:
-    if recurrence_index == -1 and instance_index == -1:
-        if entry.first_instance_note:
-            return InstanceNote(instance_index=-1, note=entry.first_instance_note)
-        return None
-    if 0 <= recurrence_index < len(entry.recurrences):
-        rec = entry.recurrences[recurrence_index]
+    rec = next((r for r in entry.recurrences if r.id == recurrence_id), None)
+    if rec:
         if not isinstance(rec, Recurrence):
             rec = Recurrence.model_validate(rec)
-        for n in rec.notes:
+        for n in getattr(rec, "notes", []):
             if not isinstance(n, InstanceNote):
                 n = InstanceNote.model_validate(n)
             if n.instance_index == instance_index:
@@ -601,19 +638,13 @@ def find_instance_note(
 
 
 def find_instance_duration(
-    entry: CalendarEntry, recurrence_index: int, instance_index: int
+    entry: CalendarEntry, recurrence_id: int, instance_index: int
 ) -> Optional[InstanceDuration]:
-    if recurrence_index == -1 and instance_index == -1:
-        if entry.first_instance_duration_seconds is not None:
-            return InstanceDuration(
-                instance_index=-1, duration_seconds=entry.first_instance_duration_seconds
-            )
-        return None
-    if 0 <= recurrence_index < len(entry.recurrences):
-        rec = entry.recurrences[recurrence_index]
+    rec = next((r for r in entry.recurrences if r.id == recurrence_id), None)
+    if rec:
         if not isinstance(rec, Recurrence):
             rec = Recurrence.model_validate(rec)
-        for d in rec.duration_overrides:
+        for d in getattr(rec, "duration_overrides", []):
             if not isinstance(d, InstanceDuration):
                 d = InstanceDuration.model_validate(d)
             if d.instance_index == instance_index:
@@ -622,10 +653,15 @@ def find_instance_duration(
 
 
 def duration_for(
-    entry: CalendarEntry, recurrence_index: int, instance_index: int
+    entry: CalendarEntry, recurrence_id: int, instance_index: int
 ) -> timedelta:
-    override = find_instance_duration(entry, recurrence_index, instance_index)
+    override = find_instance_duration(entry, recurrence_id, instance_index)
     if override:
         return timedelta(seconds=override.duration_seconds)
-    return entry.duration
+    rec = next((r for r in entry.recurrences if r.id == recurrence_id), None)
+    if rec:
+        if not isinstance(rec, Recurrence):
+            rec = Recurrence.model_validate(rec)
+        return timedelta(seconds=rec.duration_seconds)
+    return timedelta(0)
 
