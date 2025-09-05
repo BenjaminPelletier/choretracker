@@ -8,6 +8,7 @@ import calendar as cal
 from typing import Iterator, List, Optional
 
 from sqlmodel import Column, Field, Session, SQLModel, select
+from pydantic import ConfigDict
 from sqlalchemy import JSON, ForeignKey, Integer, delete
 
 from .time_utils import get_now, ensure_tz
@@ -47,6 +48,8 @@ class Recurrence(SQLModel):
     first_start: datetime
     duration_seconds: int = Field(gt=0)
     responsible: List[str] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="allow")
 
 
 class CalendarEntry(SQLModel, table=True):

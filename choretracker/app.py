@@ -84,6 +84,29 @@ def _add_months_skip(dt: datetime, months: int) -> datetime:
                 day -= 1
     return result
 
+
+def _calculate_offset(base: datetime, start: datetime) -> dict:
+    """Calculate the offset from ``base`` to ``start``.
+
+    Returns a dictionary with ``years``, ``months`` and
+    ``exact_duration_seconds`` keys, omitting any zero values.
+    """
+    months = (start.year - base.year) * 12 + (start.month - base.month)
+    adjusted = _add_months_skip(base, months)
+    if start < adjusted:
+        months -= 1
+        adjusted = _add_months_skip(base, months)
+    years, months = divmod(months, 12)
+    seconds = int((start - adjusted).total_seconds())
+    offset = {}
+    if years:
+        offset["years"] = years
+    if months:
+        offset["months"] = months
+    if seconds:
+        offset["exact_duration_seconds"] = seconds
+    return offset
+
 db_path = os.getenv("CHORETRACKER_DB", "choretracker.db")
 engine = create_engine(
     f"sqlite:///{db_path}",
@@ -989,8 +1012,12 @@ async def view_calendar_entry(
         raise HTTPException(status_code=404)
     require_entry_read_permission(request, entry.type)
     if entry.recurrences:
-        entry.first_start = min(rec.first_start for rec in entry.recurrences)
-        entry.duration = timedelta(seconds=entry.recurrences[0].duration_seconds)
+        first_start = min(rec.first_start for rec in entry.recurrences)
+        duration = timedelta(seconds=entry.recurrences[0].duration_seconds)
+        object.__setattr__(entry, "first_start", first_start)
+        object.__setattr__(entry, "duration", duration)
+        for rec in entry.recurrences:
+            rec.offset = _calculate_offset(first_start, rec.first_start)
     entry_start, entry_end = entry_time_bounds(entry)
     prev_entry = (
         calendar_store.get(entry.previous_entry) if entry.previous_entry else None
@@ -1161,10 +1188,14 @@ async def edit_calendar_entry(request: Request, entry_id: int):
         json.dumps(entry.model_dump(), default=pydantic_encoder)
     )
     if entry.recurrences:
-        entry.first_start = min(rec.first_start for rec in entry.recurrences)
-        entry.duration = timedelta(seconds=entry.recurrences[0].duration_seconds)
-        entry_data["first_start"] = entry.first_start.isoformat()
+        first_start = min(rec.first_start for rec in entry.recurrences)
+        duration = timedelta(seconds=entry.recurrences[0].duration_seconds)
+        object.__setattr__(entry, "first_start", first_start)
+        object.__setattr__(entry, "duration", duration)
+        entry_data["first_start"] = first_start.isoformat()
         entry_data["duration_seconds"] = entry.recurrences[0].duration_seconds
+        for rec, rdata in zip(entry.recurrences, entry_data.get("recurrences", [])):
+            rdata["offset"] = _calculate_offset(first_start, rec.first_start)
     current_user = request.session.get("user")
     return templates.TemplateResponse(
         request,

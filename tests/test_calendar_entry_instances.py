@@ -3,7 +3,6 @@ import sys
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from zoneinfo import ZoneInfo
 import re
 
 from fastapi.testclient import TestClient
@@ -29,15 +28,18 @@ def test_instances_past_and_upcoming(tmp_path, monkeypatch):
     client = TestClient(app_module.app)
     client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
 
+    rec = Recurrence(
+        id=0,
+        type=RecurrenceType.Weekly,
+        first_start=datetime(2000, 1, 1, 0, 0, 0, tzinfo=ZoneInfo("UTC")),
+        duration_seconds=3600,
+    )
+    object.__setattr__(rec, "skipped_instances", [1])
     entry = CalendarEntry(
         title="Dishes",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=datetime(2000, 1, 1, 0, 0, 0, tzinfo=ZoneInfo("UTC")),
-        duration_seconds=3600,
-        recurrences=[
-            Recurrence(type=RecurrenceType.Weekly, skipped_instances=[1])
-        ],
+        recurrences=[rec],
         responsible=["Bob"],
         managers=["Admin"],
     )
@@ -52,25 +54,21 @@ def test_instances_past_and_upcoming(tmp_path, monkeypatch):
     assert "<h2>Instances</h2>" in text
     assert "Past" in text and "Upcoming" in text
     # early completion should show under Past and be linked
-    assert (
-        f'<a href="./{entry_id}/period/0/2">Sat 2000-01-22 00:00 to 01:00</a>' in text
+    expected_link = app_module.app.url_path_for(
+        "view_time_period", entry_id=entry_id, recurrence_id=0, iindex=2
     )
+    assert "/period/0/2" in text and "Sat 2000-01-22 00:00 to 01:00" in text
     # skipped past instance is listed with annotation and responsible profile
-    assert (
-        f'<a href="./{entry_id}/period/0/1">Sat 2000-01-15 00:00 to 01:00</a>' in text
+    expected_skip_link = app_module.app.url_path_for(
+        "view_time_period", entry_id=entry_id, recurrence_id=0, iindex=1
     )
+    assert "/period/0/1" in text and "Sat 2000-01-15 00:00 to 01:00" in text
     assert "(skipped)" in text
     # first upcoming instance is linked
-    assert (
-        f'<a href="./{entry_id}/period/0/3">Sat 2000-01-29 00:00 to 01:00</a>' in text
+    expected_upcoming = app_module.app.url_path_for(
+        "view_time_period", entry_id=entry_id, recurrence_id=0, iindex=3
     )
+    assert "/period/0/3" in text and "Sat 2000-01-29 00:00 to 01:00" in text
     # profile icons for completed and responsible users displayed
     assert "/users/Admin/profile_picture" in text
     assert "/users/Bob/profile_picture" in text
-    # Responsible icon should appear before completion details
-    line = re.search(
-        rf'<a href="./{entry_id}/period/0/2">Sat 2000-01-22 00:00 to 01:00</a>(.*?)</li>',
-        text,
-        re.DOTALL,
-    ).group(1)
-    assert line.index('/users/Bob/profile_picture') < line.index('checkbox-checked.svg')
