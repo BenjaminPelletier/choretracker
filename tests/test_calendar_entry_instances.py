@@ -40,10 +40,8 @@ def test_instances_past_and_upcoming(tmp_path, monkeypatch):
         first_start=datetime(2000, 1, 1, 0, 0, 0, tzinfo=ZoneInfo("UTC")),
         duration_seconds=3600,
     )
-    object.__setattr__(
-        rec,
-        "instance_specifics",
-        {1: InstanceSpecifics(entry_id=0, recurrence_id=0, instance_index=1, skip=True)},
+    rec.instance_specifics[1] = InstanceSpecifics(
+        entry_id=0, recurrence_id=0, instance_index=1, skip=True
     )
     entry = CalendarEntry(
         title="Dishes",

@@ -11,7 +11,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from choretracker.calendar import (
     CalendarEntry,
     CalendarEntryType,
-    Delegation,
+    InstanceSpecifics,
     Recurrence,
     RecurrenceType,
 )
@@ -35,11 +35,14 @@ def test_username_change_updates_references(tmp_path, monkeypatch):
         managers=["Bob"],
         recurrences=[
             Recurrence(
+                id=0,
                 type=RecurrenceType.Weekly,
                 responsible=["Bob"],
-                delegations=[Delegation(instance_index=0, responsible=["Bob"])],
             )
         ],
+    )
+    entry.recurrences[0].instance_specifics[0] = InstanceSpecifics(
+        entry_id=0, recurrence_id=0, instance_index=0, responsible=["Bob"]
     )
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id
@@ -66,7 +69,7 @@ def test_username_change_updates_references(tmp_path, monkeypatch):
     assert entry.managers == ["Bobby"]
     assert entry.responsible == ["Bobby"]
     assert entry.recurrences[0].responsible == ["Bobby"]
-    assert entry.recurrences[0].delegations[0].responsible == ["Bobby"]
+    assert entry.recurrences[0].instance_specifics[0].responsible == ["Bobby"]
 
     comp = app_module.completion_store.list_for_entry(entry_id)[0]
     assert comp.completed_by == "Bobby"

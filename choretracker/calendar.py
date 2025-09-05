@@ -8,7 +8,6 @@ import calendar as cal
 from typing import Iterator, List, Optional
 
 from sqlmodel import Column, Field, Session, SQLModel, select
-from pydantic import ConfigDict
 from sqlalchemy import JSON, ForeignKey, Integer, delete
 
 from .time_utils import get_now, ensure_tz
@@ -48,8 +47,9 @@ class Recurrence(SQLModel):
     first_start: datetime
     duration_seconds: int = Field(gt=0)
     responsible: List[str] = Field(default_factory=list)
-
-    model_config = ConfigDict(extra="allow")
+    instance_specifics: dict[int, InstanceSpecifics] = Field(
+        default_factory=dict, exclude=True
+    )
 
 
 class CalendarEntry(SQLModel, table=True):
@@ -85,6 +85,8 @@ class InstanceSpecifics(SQLModel, table=True):
     )
     note: Optional[str] = None
 
+Recurrence.model_rebuild()
+
 
 def _load_instance_specifics(session: Session, entry: CalendarEntry) -> None:
     specs = session.exec(
@@ -95,42 +97,19 @@ def _load_instance_specifics(session: Session, entry: CalendarEntry) -> None:
         rec = rec_map.get(spec.recurrence_id)
         if not rec:
             continue
-        spec_map = getattr(rec, "instance_specifics", {})
-        spec_map[spec.instance_index] = spec
-        setattr(rec, "instance_specifics", spec_map)
-        if spec.responsible is not None:
-            delegations = getattr(rec, "delegations", [])
-            delegations.append(
-                Delegation(instance_index=spec.instance_index, responsible=spec.responsible)
-            )
-            setattr(rec, "delegations", delegations)
-        if spec.note is not None:
-            notes = getattr(rec, "notes", [])
-            notes.append(InstanceNote(instance_index=spec.instance_index, note=spec.note))
-            setattr(rec, "notes", notes)
-        if spec.duration_seconds is not None:
-            overrides = getattr(rec, "duration_overrides", [])
-            overrides.append(
-                InstanceDuration(
-                    instance_index=spec.instance_index,
-                    duration_seconds=spec.duration_seconds,
-                )
-            )
-            setattr(rec, "duration_overrides", overrides)
+        rec.instance_specifics[spec.instance_index] = spec
 
 
 def _store_instance_specifics(session: Session, entry: CalendarEntry) -> None:
     session.exec(delete(InstanceSpecifics).where(InstanceSpecifics.entry_id == entry.id))
     for rec in entry.recurrences:
-        spec_map: dict[int, InstanceSpecifics] = {}
-        for spec in getattr(rec, "instance_specifics", {}).values():
-            db_spec = spec_map.setdefault(
-                spec.instance_index,
-                InstanceSpecifics(
-                    entry_id=entry.id,
-                    recurrence_id=rec.id,
-                    instance_index=spec.instance_index,
-                ),
+        for spec in rec.instance_specifics.values():
+            if not isinstance(spec, InstanceSpecifics):
+                spec = InstanceSpecifics.model_validate(spec)
+            db_spec = InstanceSpecifics(
+                entry_id=entry.id,
+                recurrence_id=rec.id,
+                instance_index=spec.instance_index,
             )
             if spec.skip:
                 db_spec.skip = True
@@ -140,35 +119,7 @@ def _store_instance_specifics(session: Session, entry: CalendarEntry) -> None:
                 db_spec.note = spec.note
             if spec.duration_seconds is not None:
                 db_spec.duration_seconds = spec.duration_seconds
-        for deleg in getattr(rec, "delegations", []):
-            spec_map.setdefault(
-                deleg.instance_index,
-                InstanceSpecifics(
-                    entry_id=entry.id,
-                    recurrence_id=rec.id,
-                    instance_index=deleg.instance_index,
-                ),
-            ).responsible = deleg.responsible
-        for note in getattr(rec, "notes", []):
-            spec_map.setdefault(
-                note.instance_index,
-                InstanceSpecifics(
-                    entry_id=entry.id,
-                    recurrence_id=rec.id,
-                    instance_index=note.instance_index,
-                ),
-            ).note = note.note
-        for dur in getattr(rec, "duration_overrides", []):
-            spec_map.setdefault(
-                dur.instance_index,
-                InstanceSpecifics(
-                    entry_id=entry.id,
-                    recurrence_id=rec.id,
-                    instance_index=dur.instance_index,
-                ),
-            ).duration_seconds = dur.duration_seconds
-        for spec in spec_map.values():
-            session.add(spec)
+            session.add(db_spec)
 
 
 class CalendarEntryStore:
@@ -258,7 +209,8 @@ class CalendarEntryStore:
             ]
             _load_instance_specifics(session, entry)
             has_delegations = any(
-                getattr(rec, "delegations", []) for rec in entry.recurrences
+                any(spec.responsible for spec in rec.instance_specifics.values())
+                for rec in entry.recurrences
             )
             has_completions = (
                 session.exec(
@@ -311,58 +263,19 @@ class CalendarEntryStore:
                 Recurrence.model_validate(r.model_dump()) for r in entry.recurrences
             ]
 
-            # Move instance specifics and delegations
+            # Move instance specifics
             for idx, rec in enumerate(entry.recurrences):
                 new_rec = new_entry.recurrences[idx]
                 keep_specs: dict[int, InstanceSpecifics] = {}
                 move_specs: dict[int, InstanceSpecifics] = {}
-                for sidx, spec in getattr(rec, "instance_specifics", {}).items():
+                for sidx, spec in rec.instance_specifics.items():
                     period = find_time_period(original, rec.id, sidx, include_skipped=True)
                     if period and period.start >= split_time:
                         move_specs[sidx] = spec
                     else:
                         keep_specs[sidx] = spec
-                setattr(rec, "instance_specifics", keep_specs)
-                setattr(new_rec, "instance_specifics", move_specs)
-
-                keep_del: list[Delegation] = []
-                move_del: list[Delegation] = []
-                for d in getattr(rec, "delegations", []):
-                    period = find_time_period(
-                        original, rec.id, d.instance_index, include_skipped=True
-                    )
-                    if period and period.start >= split_time:
-                        move_del.append(d)
-                    else:
-                        keep_del.append(d)
-                setattr(rec, "delegations", keep_del)
-                setattr(new_rec, "delegations", move_del)
-
-                keep_notes: list[InstanceNote] = []
-                move_notes: list[InstanceNote] = []
-                for n in getattr(rec, "notes", []):
-                    period = find_time_period(
-                        original, rec.id, n.instance_index, include_skipped=True
-                    )
-                    if period and period.start >= split_time:
-                        move_notes.append(n)
-                    else:
-                        keep_notes.append(n)
-                setattr(rec, "notes", keep_notes)
-                setattr(new_rec, "notes", move_notes)
-
-                keep_dur: list[InstanceDuration] = []
-                move_dur: list[InstanceDuration] = []
-                for d in getattr(rec, "duration_overrides", []):
-                    period = find_time_period(
-                        original, rec.id, d.instance_index, include_skipped=True
-                    )
-                    if period and period.start >= split_time:
-                        move_dur.append(d)
-                    else:
-                        keep_dur.append(d)
-                setattr(rec, "duration_overrides", keep_dur)
-                setattr(new_rec, "duration_overrides", move_dur)
+                rec.instance_specifics = keep_specs
+                new_rec.instance_specifics = move_specs
 
             # Adjust boundaries
             entry.none_after = split_time - timedelta(minutes=1)
@@ -548,7 +461,7 @@ def _recurrence_generator(
     none_before = entry.none_before
     start = rec.first_start
     instance = 0
-    specs = getattr(rec, "instance_specifics", {})
+    specs = rec.instance_specifics
     while start and (not none_after or start <= none_after):
         if (
             (not none_before or start >= none_before)
@@ -610,11 +523,12 @@ def responsible_for(
     if rec:
         if not isinstance(rec, Recurrence):
             rec = Recurrence.model_validate(rec)
-        for d in getattr(rec, "delegations", []):
-            if not isinstance(d, Delegation):
-                d = Delegation.model_validate(d)
-            if d.instance_index == instance_index:
-                return d.responsible
+        spec = rec.instance_specifics.get(instance_index)
+        if spec:
+            if not isinstance(spec, InstanceSpecifics):
+                spec = InstanceSpecifics.model_validate(spec)
+            if spec.responsible is not None:
+                return spec.responsible
         if rec.responsible:
             return rec.responsible
     return entry.responsible
@@ -627,11 +541,14 @@ def find_delegation(
     if rec:
         if not isinstance(rec, Recurrence):
             rec = Recurrence.model_validate(rec)
-        for d in getattr(rec, "delegations", []):
-            if not isinstance(d, Delegation):
-                d = Delegation.model_validate(d)
-            if d.instance_index == instance_index:
-                return d
+        spec = rec.instance_specifics.get(instance_index)
+        if spec:
+            if not isinstance(spec, InstanceSpecifics):
+                spec = InstanceSpecifics.model_validate(spec)
+            if spec.responsible is not None:
+                return Delegation(
+                    instance_index=instance_index, responsible=spec.responsible
+                )
     return None
 
 
@@ -642,11 +559,12 @@ def find_instance_note(
     if rec:
         if not isinstance(rec, Recurrence):
             rec = Recurrence.model_validate(rec)
-        for n in getattr(rec, "notes", []):
-            if not isinstance(n, InstanceNote):
-                n = InstanceNote.model_validate(n)
-            if n.instance_index == instance_index:
-                return n
+        spec = rec.instance_specifics.get(instance_index)
+        if spec:
+            if not isinstance(spec, InstanceSpecifics):
+                spec = InstanceSpecifics.model_validate(spec)
+            if spec.note is not None:
+                return InstanceNote(instance_index=instance_index, note=spec.note)
     return None
 
 
@@ -657,11 +575,15 @@ def find_instance_duration(
     if rec:
         if not isinstance(rec, Recurrence):
             rec = Recurrence.model_validate(rec)
-        for d in getattr(rec, "duration_overrides", []):
-            if not isinstance(d, InstanceDuration):
-                d = InstanceDuration.model_validate(d)
-            if d.instance_index == instance_index:
-                return d
+        spec = rec.instance_specifics.get(instance_index)
+        if spec:
+            if not isinstance(spec, InstanceSpecifics):
+                spec = InstanceSpecifics.model_validate(spec)
+            if spec.duration_seconds is not None:
+                return InstanceDuration(
+                    instance_index=instance_index,
+                    duration_seconds=spec.duration_seconds,
+                )
     return None
 
 
@@ -672,7 +594,7 @@ def is_instance_skipped(
     if rec:
         if not isinstance(rec, Recurrence):
             rec = Recurrence.model_validate(rec)
-        spec = getattr(rec, "instance_specifics", {}).get(instance_index)
+        spec = rec.instance_specifics.get(instance_index)
         if spec:
             if not isinstance(spec, InstanceSpecifics):
                 spec = InstanceSpecifics.model_validate(spec)

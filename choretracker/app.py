@@ -44,8 +44,6 @@ from .calendar import (
     ChoreCompletion,
     ChoreCompletionStore,
     Delegation,
-    InstanceDuration,
-    InstanceNote,
     InstanceSpecifics,
     Recurrence,
     RecurrenceType,
@@ -777,8 +775,13 @@ async def create_calendar_entry(request: Request):
             duration_seconds=int(duration.total_seconds()),
             responsible=responsible_users,
         )
-        if delegations:
-            rec.delegations = delegations
+        for d in delegations:
+            rec.instance_specifics[d.instance_index] = InstanceSpecifics(
+                entry_id=0,
+                recurrence_id=rec.id,
+                instance_index=d.instance_index,
+                responsible=d.responsible,
+            )
         recurrences.append(rec)
 
     none_after_str = form.get("none_after")
@@ -794,8 +797,8 @@ async def create_calendar_entry(request: Request):
         raise HTTPException(status_code=400, detail="At least one responsible user required")
     if entry_type == CalendarEntryType.Chore:
         for rec in recurrences:
-            for d in rec.delegations:
-                if not d.responsible:
+            for spec in rec.instance_specifics.values():
+                if spec.responsible is not None and not spec.responsible:
                     raise HTTPException(status_code=400, detail="Delegations must have responsible users")
 
     entry = CalendarEntry(
@@ -833,7 +836,10 @@ async def list_calendar_entries(request: Request, entry_type: str):
         start_map[entry.id] = start
         can_delete_map[entry.id] = (
             not completion_store.list_for_entry(entry.id)
-            and not any(getattr(rec, "delegations", []) for rec in entry.recurrences)
+            and not any(
+                any(spec.responsible for spec in rec.instance_specifics.values())
+                for rec in entry.recurrences
+            )
         )
         if counts[entry.title] > 1:
             entry.title = f"{entry.title} ({time_range_summary(start, end)})"
@@ -1005,7 +1011,10 @@ async def view_calendar_entry(
     upcoming.sort(key=lambda x: x[0].start)
     can_delete = (
         not comps_list
-        and not any(getattr(rec, "delegations", []) for rec in entry.recurrences)
+        and not any(
+            any(spec.responsible for spec in rec.instance_specifics.values())
+            for rec in entry.recurrences
+        )
     )
     return templates.TemplateResponse(
         request,
@@ -1163,8 +1172,13 @@ async def update_calendar_entry(request: Request, entry_id: int):
             duration_seconds=int(duration.total_seconds()),
             responsible=responsible_users,
         )
-        if delegations:
-            rec.delegations = delegations
+        for d in delegations:
+            rec.instance_specifics[d.instance_index] = InstanceSpecifics(
+                entry_id=0,
+                recurrence_id=rec.id,
+                instance_index=d.instance_index,
+                responsible=d.responsible,
+            )
         recurrences.append(rec)
 
     none_after_str = form.get("none_after")
@@ -1178,8 +1192,8 @@ async def update_calendar_entry(request: Request, entry_id: int):
         raise HTTPException(status_code=400, detail="At least one responsible user required")
     if entry_type == CalendarEntryType.Chore:
         for rec in recurrences:
-            for d in rec.delegations:
-                if not d.responsible:
+            for spec in rec.instance_specifics.values():
+                if spec.responsible is not None and not spec.responsible:
                     raise HTTPException(status_code=400, detail="Delegations must have responsible users")
 
     new_entry = CalendarEntry(
@@ -1466,13 +1480,21 @@ async def delegate_instance(request: Request, entry_id: int):
             if r.id == rid:
                 entry.recurrences[idx] = rec
                 break
-    existing = find_delegation(entry, rid, iindex)
-    if existing:
-        existing.responsible = responsible
+    specs = rec.instance_specifics
+    spec = specs.get(iindex)
+    if spec:
+        if not isinstance(spec, InstanceSpecifics):
+            spec = InstanceSpecifics.model_validate(spec)
+        spec.responsible = responsible
     else:
-        if not hasattr(rec, "delegations"):
-            rec.delegations = []
-        rec.delegations.append(Delegation(instance_index=iindex, responsible=responsible))
+        spec = InstanceSpecifics(
+            entry_id=entry_id,
+            recurrence_id=rid,
+            instance_index=iindex,
+            responsible=responsible,
+        )
+    specs[iindex] = spec
+    rec.instance_specifics = specs
     calendar_store.update(entry_id, entry)
     referer = request.headers.get(
         "referer",
@@ -1507,16 +1529,11 @@ async def remove_delegation(request: Request, entry_id: int):
             if r.id == rid:
                 entry.recurrences[idx] = rec
                 break
-    for idx, d in enumerate(getattr(rec, "delegations", [])):
-        if not isinstance(d, Delegation):
-            d = Delegation.model_validate(d)
-            rec.delegations[idx] = d
-        if d.instance_index == iindex:
-            del rec.delegations[idx]
-            break
-    specs = getattr(rec, "instance_specifics", {})
+    specs = rec.instance_specifics
     spec = specs.get(iindex)
     if spec:
+        if not isinstance(spec, InstanceSpecifics):
+            spec = InstanceSpecifics.model_validate(spec)
         spec.responsible = None
         if (
             not spec.skip
@@ -1525,7 +1542,9 @@ async def remove_delegation(request: Request, entry_id: int):
             and spec.note is None
         ):
             del specs[iindex]
-    setattr(rec, "instance_specifics", specs)
+        else:
+            specs[iindex] = spec
+    rec.instance_specifics = specs
     calendar_store.update(entry_id, entry)
     referer = request.headers.get(
         "referer",
@@ -1574,15 +1593,21 @@ async def set_instance_duration(request: Request, entry_id: int):
             if r.id == rid:
                 entry.recurrences[idx] = rec
                 break
-    existing = find_instance_duration(entry, rid, iindex)
-    if existing:
-        existing.duration_seconds = seconds
+    specs = rec.instance_specifics
+    spec = specs.get(iindex)
+    if spec:
+        if not isinstance(spec, InstanceSpecifics):
+            spec = InstanceSpecifics.model_validate(spec)
+        spec.duration_seconds = seconds
     else:
-        if not hasattr(rec, "duration_overrides"):
-            rec.duration_overrides = []
-        rec.duration_overrides.append(
-            InstanceDuration(instance_index=iindex, duration_seconds=seconds)
+        spec = InstanceSpecifics(
+            entry_id=entry_id,
+            recurrence_id=rid,
+            instance_index=iindex,
+            duration_seconds=seconds,
         )
+    specs[iindex] = spec
+    rec.instance_specifics = specs
     calendar_store.update(entry_id, entry)
     referer = request.headers.get(
         "referer",
@@ -1617,13 +1642,22 @@ async def remove_instance_duration(request: Request, entry_id: int):
             if r.id == rid:
                 entry.recurrences[idx] = rec
                 break
-    for idx, d in enumerate(getattr(rec, "duration_overrides", [])):
-        if not isinstance(d, InstanceDuration):
-            d = InstanceDuration.model_validate(d)
-            rec.duration_overrides[idx] = d
-        if d.instance_index == iindex:
-            del rec.duration_overrides[idx]
-            break
+    specs = rec.instance_specifics
+    spec = specs.get(iindex)
+    if spec:
+        if not isinstance(spec, InstanceSpecifics):
+            spec = InstanceSpecifics.model_validate(spec)
+        spec.duration_seconds = None
+        if (
+            not spec.skip
+            and spec.duration_seconds is None
+            and spec.responsible is None
+            and spec.note is None
+        ):
+            del specs[iindex]
+        else:
+            specs[iindex] = spec
+    rec.instance_specifics = specs
     calendar_store.update(entry_id, entry)
     referer = request.headers.get(
         "referer",
@@ -1661,13 +1695,21 @@ async def add_instance_note(request: Request, entry_id: int):
             if r.id == rid:
                 entry.recurrences[idx] = rec
                 break
-    existing = find_instance_note(entry, rid, iindex)
-    if existing:
-        existing.note = note
+    specs = rec.instance_specifics
+    spec = specs.get(iindex)
+    if spec:
+        if not isinstance(spec, InstanceSpecifics):
+            spec = InstanceSpecifics.model_validate(spec)
+        spec.note = note
     else:
-        if not hasattr(rec, "notes"):
-            rec.notes = []
-        rec.notes.append(InstanceNote(instance_index=iindex, note=note))
+        spec = InstanceSpecifics(
+            entry_id=entry_id,
+            recurrence_id=rid,
+            instance_index=iindex,
+            note=note,
+        )
+    specs[iindex] = spec
+    rec.instance_specifics = specs
     calendar_store.update(entry_id, entry)
     referer = request.headers.get(
         "referer",
@@ -1702,13 +1744,22 @@ async def remove_instance_note(request: Request, entry_id: int):
             if r.id == rid:
                 entry.recurrences[idx] = rec
                 break
-    for idx, n in enumerate(getattr(rec, "notes", [])):
-        if not isinstance(n, InstanceNote):
-            n = InstanceNote.model_validate(n)
-            rec.notes[idx] = n
-        if n.instance_index == iindex:
-            del rec.notes[idx]
-            break
+    specs = rec.instance_specifics
+    spec = specs.get(iindex)
+    if spec:
+        if not isinstance(spec, InstanceSpecifics):
+            spec = InstanceSpecifics.model_validate(spec)
+        spec.note = None
+        if (
+            not spec.skip
+            and spec.duration_seconds is None
+            and spec.responsible is None
+            and spec.note is None
+        ):
+            del specs[iindex]
+        else:
+            specs[iindex] = spec
+    rec.instance_specifics = specs
     calendar_store.update(entry_id, entry)
     referer = request.headers.get(
         "referer",
@@ -1737,7 +1788,7 @@ async def skip_instance(request: Request, entry_id: int):
     rec = next((r for r in entry.recurrences if r.id == rid), None)
     if rec is None:
         raise HTTPException(status_code=400)
-    specs = getattr(rec, "instance_specifics", {})
+    specs = rec.instance_specifics
     spec = specs.get(iindex)
     if not spec:
         spec = InstanceSpecifics(
@@ -1747,22 +1798,10 @@ async def skip_instance(request: Request, entry_id: int):
         if not isinstance(spec, InstanceSpecifics):
             spec = InstanceSpecifics.model_validate(spec)
         spec.skip = True
+        spec.responsible = None
+        spec.note = None
     specs[iindex] = spec
-    setattr(rec, "instance_specifics", specs)
-    for idx, d in enumerate(getattr(rec, "delegations", [])):
-        if not isinstance(d, Delegation):
-            d = Delegation.model_validate(d)
-            rec.delegations[idx] = d
-        if d.instance_index == iindex:
-            del rec.delegations[idx]
-            break
-    for idx, n in enumerate(getattr(rec, "notes", [])):
-        if not isinstance(n, InstanceNote):
-            n = InstanceNote.model_validate(n)
-            rec.notes[idx] = n
-        if n.instance_index == iindex:
-            del rec.notes[idx]
-            break
+    rec.instance_specifics = specs
     calendar_store.update(entry_id, entry)
     referer = request.headers.get(
         "referer",
@@ -1791,7 +1830,7 @@ async def unskip_instance(request: Request, entry_id: int):
     rec = next((r for r in entry.recurrences if r.id == rid), None)
     if rec is None:
         raise HTTPException(status_code=400)
-    specs = getattr(rec, "instance_specifics", {})
+    specs = rec.instance_specifics
     spec = specs.get(iindex)
     if spec:
         if not isinstance(spec, InstanceSpecifics):
@@ -1801,7 +1840,7 @@ async def unskip_instance(request: Request, entry_id: int):
             specs[iindex] = spec
         else:
             specs.pop(iindex)
-    setattr(rec, "instance_specifics", specs)
+    rec.instance_specifics = specs
     calendar_store.update(entry_id, entry)
     referer = request.headers.get(
         "referer",
