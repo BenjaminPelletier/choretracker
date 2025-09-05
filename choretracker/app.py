@@ -46,10 +46,12 @@ from .calendar import (
     Delegation,
     InstanceDuration,
     InstanceNote,
+    InstanceSpecifics,
     Recurrence,
     RecurrenceType,
     TimePeriod,
     enumerate_time_periods,
+    is_instance_skipped,
     find_time_period,
     find_delegation,
     find_instance_duration,
@@ -954,10 +956,9 @@ async def view_calendar_entry(
         can_remove = comp.completed_by == current_user or user_store.has_permission(
             current_user, "chores.override_complete"
         )
-        is_skipped = False
-        rec = next((r for r in entry.recurrences if r.id == comp.recurrence_id), None)
-        if rec:
-            is_skipped = comp.instance_index in getattr(rec, "skipped_instances", [])
+        is_skipped = is_instance_skipped(
+            entry, comp.recurrence_id, comp.instance_index
+        )
         responsible = responsible_for(
             entry, comp.recurrence_id, comp.instance_index
         )
@@ -978,13 +979,8 @@ async def view_calendar_entry(
         key = (period.recurrence_id, period.instance_index)
         if key in comp_map:
             continue
-        rec = next(
-            (r for r in entry.recurrences if r.id == period.recurrence_id), None
-        )
-        is_skipped = (
-            period.instance_index in getattr(rec, "skipped_instances", [])
-            if rec
-            else False
+        is_skipped = is_instance_skipped(
+            entry, period.recurrence_id, period.instance_index
         )
         responsible = responsible_for(
             entry, period.recurrence_id, period.instance_index
@@ -1059,7 +1055,7 @@ async def view_time_period(
     rec = next((r for r in entry.recurrences if r.id == recurrence_id), None)
     base_duration = None
     if rec:
-        is_skipped = iindex in getattr(rec, "skipped_instances", [])
+        is_skipped = is_instance_skipped(entry, recurrence_id, iindex)
         base_duration = timedelta(seconds=rec.duration_seconds)
     delegation = find_delegation(entry, recurrence_id, iindex)
     note_obj = find_instance_note(entry, recurrence_id, iindex)
@@ -1729,10 +1725,18 @@ async def skip_instance(request: Request, entry_id: int):
     rec = next((r for r in entry.recurrences if r.id == rid), None)
     if rec is None:
         raise HTTPException(status_code=400)
-    if iindex not in getattr(rec, "skipped_instances", []):
-        if not hasattr(rec, "skipped_instances"):
-            rec.skipped_instances = []
-        rec.skipped_instances.append(iindex)
+    specs = getattr(rec, "instance_specifics", {})
+    spec = specs.get(iindex)
+    if not spec:
+        spec = InstanceSpecifics(
+            entry_id=entry_id, recurrence_id=rid, instance_index=iindex, skip=True
+        )
+    else:
+        if not isinstance(spec, InstanceSpecifics):
+            spec = InstanceSpecifics.model_validate(spec)
+        spec.skip = True
+    specs[iindex] = spec
+    setattr(rec, "instance_specifics", specs)
     for idx, d in enumerate(getattr(rec, "delegations", [])):
         if not isinstance(d, Delegation):
             d = Delegation.model_validate(d)
@@ -1775,8 +1779,17 @@ async def unskip_instance(request: Request, entry_id: int):
     rec = next((r for r in entry.recurrences if r.id == rid), None)
     if rec is None:
         raise HTTPException(status_code=400)
-    if iindex in getattr(rec, "skipped_instances", []):
-        rec.skipped_instances.remove(iindex)
+    specs = getattr(rec, "instance_specifics", {})
+    spec = specs.get(iindex)
+    if spec:
+        if not isinstance(spec, InstanceSpecifics):
+            spec = InstanceSpecifics.model_validate(spec)
+        if spec.responsible or spec.note or spec.duration_seconds is not None:
+            spec.skip = False
+            specs[iindex] = spec
+        else:
+            specs.pop(iindex)
+    setattr(rec, "instance_specifics", specs)
     calendar_store.update(entry_id, entry)
     referer = request.headers.get(
         "referer",

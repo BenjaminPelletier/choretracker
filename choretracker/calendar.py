@@ -95,10 +95,9 @@ def _load_instance_specifics(session: Session, entry: CalendarEntry) -> None:
         rec = rec_map.get(spec.recurrence_id)
         if not rec:
             continue
-        if spec.skip:
-            skipped = getattr(rec, "skipped_instances", [])
-            skipped.append(spec.instance_index)
-            setattr(rec, "skipped_instances", skipped)
+        spec_map = getattr(rec, "instance_specifics", {})
+        spec_map[spec.instance_index] = spec
+        setattr(rec, "instance_specifics", spec_map)
         if spec.responsible is not None:
             delegations = getattr(rec, "delegations", [])
             delegations.append(
@@ -124,13 +123,23 @@ def _store_instance_specifics(session: Session, entry: CalendarEntry) -> None:
     session.exec(delete(InstanceSpecifics).where(InstanceSpecifics.entry_id == entry.id))
     for rec in entry.recurrences:
         spec_map: dict[int, InstanceSpecifics] = {}
-        for idx in getattr(rec, "skipped_instances", []):
-            spec_map.setdefault(
-                idx,
+        for spec in getattr(rec, "instance_specifics", {}).values():
+            db_spec = spec_map.setdefault(
+                spec.instance_index,
                 InstanceSpecifics(
-                    entry_id=entry.id, recurrence_id=rec.id, instance_index=idx
+                    entry_id=entry.id,
+                    recurrence_id=rec.id,
+                    instance_index=spec.instance_index,
                 ),
-            ).skip = True
+            )
+            if spec.skip:
+                db_spec.skip = True
+            if spec.responsible is not None:
+                db_spec.responsible = spec.responsible
+            if spec.note is not None:
+                db_spec.note = spec.note
+            if spec.duration_seconds is not None:
+                db_spec.duration_seconds = spec.duration_seconds
         for deleg in getattr(rec, "delegations", []):
             spec_map.setdefault(
                 deleg.instance_index,
@@ -302,19 +311,19 @@ class CalendarEntryStore:
                 Recurrence.model_validate(r.model_dump()) for r in entry.recurrences
             ]
 
-            # Move skips and delegations
+            # Move instance specifics and delegations
             for idx, rec in enumerate(entry.recurrences):
                 new_rec = new_entry.recurrences[idx]
-                keep_skips: list[int] = []
-                move_skips: list[int] = []
-                for sidx in getattr(rec, "skipped_instances", []):
+                keep_specs: dict[int, InstanceSpecifics] = {}
+                move_specs: dict[int, InstanceSpecifics] = {}
+                for sidx, spec in getattr(rec, "instance_specifics", {}).items():
                     period = find_time_period(original, rec.id, sidx, include_skipped=True)
                     if period and period.start >= split_time:
-                        move_skips.append(sidx)
+                        move_specs[sidx] = spec
                     else:
-                        keep_skips.append(sidx)
-                setattr(rec, "skipped_instances", keep_skips)
-                setattr(new_rec, "skipped_instances", move_skips)
+                        keep_specs[sidx] = spec
+                setattr(rec, "instance_specifics", keep_specs)
+                setattr(new_rec, "instance_specifics", move_specs)
 
                 keep_del: list[Delegation] = []
                 move_del: list[Delegation] = []
@@ -539,12 +548,13 @@ def _recurrence_generator(
     none_before = entry.none_before
     start = rec.first_start
     instance = 0
+    specs = getattr(rec, "instance_specifics", {})
     while start and (not none_after or start <= none_after):
         if (
             (not none_before or start >= none_before)
             and (
                 include_skipped
-                or instance not in getattr(rec, "skipped_instances", [])
+                or not (specs.get(instance) and specs[instance].skip)
             )
         ):
             dur = duration_for(entry, rec.id, instance)
@@ -653,6 +663,21 @@ def find_instance_duration(
             if d.instance_index == instance_index:
                 return d
     return None
+
+
+def is_instance_skipped(
+    entry: CalendarEntry, recurrence_id: int, instance_index: int
+) -> bool:
+    rec = next((r for r in entry.recurrences if r.id == recurrence_id), None)
+    if rec:
+        if not isinstance(rec, Recurrence):
+            rec = Recurrence.model_validate(rec)
+        spec = getattr(rec, "instance_specifics", {}).get(instance_index)
+        if spec:
+            if not isinstance(spec, InstanceSpecifics):
+                spec = InstanceSpecifics.model_validate(spec)
+            return bool(spec.skip)
+    return False
 
 
 def duration_for(

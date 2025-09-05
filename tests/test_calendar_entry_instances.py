@@ -10,7 +10,13 @@ from fastapi.testclient import TestClient
 # Ensure project root on path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from choretracker.calendar import CalendarEntry, CalendarEntryType, Recurrence, RecurrenceType
+from choretracker.calendar import (
+    CalendarEntry,
+    CalendarEntryType,
+    InstanceSpecifics,
+    Recurrence,
+    RecurrenceType,
+)
 
 
 def test_instances_past_and_upcoming(tmp_path, monkeypatch):
@@ -34,7 +40,11 @@ def test_instances_past_and_upcoming(tmp_path, monkeypatch):
         first_start=datetime(2000, 1, 1, 0, 0, 0, tzinfo=ZoneInfo("UTC")),
         duration_seconds=3600,
     )
-    object.__setattr__(rec, "skipped_instances", [1])
+    object.__setattr__(
+        rec,
+        "instance_specifics",
+        {1: InstanceSpecifics(entry_id=0, recurrence_id=0, instance_index=1, skip=True)},
+    )
     entry = CalendarEntry(
         title="Dishes",
         description="",
