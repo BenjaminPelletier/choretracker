@@ -176,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelNoteBtn = document.getElementById('cancel-note');
 
     const durationExists = {{ 'true' if duration_override else 'false' }};
-    const defaultDurationSeconds = {{ entry.duration.total_seconds()|int }};
+    const defaultDurationSeconds = {{ base_duration.total_seconds()|int if base_duration else 0 }};
     const addDurationBtn = document.getElementById('add-duration');
     const editDurationBtn = document.getElementById('edit-duration');
     const deleteDurationForm = document.getElementById('delete-duration-form');

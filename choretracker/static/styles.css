@@ -286,23 +286,7 @@ h1 .icon {
     font-size: inherit;
 }
 
-.offset-inputs {
-    display: flex;
-    flex-direction: column;
-}
-
-.offset-inputs .time-row,
-.offset-inputs .date-row {
-    display: flex;
-    flex-wrap: wrap;
-}
-
-.offset-inputs .date-row {
-    margin-bottom: 0.25rem;
-}
-
-.duration-inputs input,
-.offset-inputs input {
+.duration-inputs input {
     margin-right: 0.25rem;
     width: 4rem;
 }

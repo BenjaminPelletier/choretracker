@@ -62,51 +62,6 @@ from .settings import SettingsStore
 LOGOUT_DURATION = timedelta(minutes=1)
 MAX_UPCOMING = 5
 
-def _add_months_skip(dt: datetime, months: int) -> datetime:
-    """Add ``months`` to ``dt`` skipping invalid days."""
-    result = dt
-    step = 1 if months >= 0 else -1
-    for _ in range(abs(months)):
-        year = result.year
-        month = result.month + step
-        if month > 12:
-            month = 1
-            year += 1
-        elif month < 1:
-            month = 12
-            year -= 1
-        day = result.day
-        while True:
-            try:
-                result = result.replace(year=year, month=month, day=day)
-                break
-            except ValueError:
-                day -= 1
-    return result
-
-
-def _calculate_offset(base: datetime, start: datetime) -> dict:
-    """Calculate the offset from ``base`` to ``start``.
-
-    Returns a dictionary with ``years``, ``months`` and
-    ``exact_duration_seconds`` keys, omitting any zero values.
-    """
-    months = (start.year - base.year) * 12 + (start.month - base.month)
-    adjusted = _add_months_skip(base, months)
-    if start < adjusted:
-        months -= 1
-        adjusted = _add_months_skip(base, months)
-    years, months = divmod(months, 12)
-    seconds = int((start - adjusted).total_seconds())
-    offset = {}
-    if years:
-        offset["years"] = years
-    if months:
-        offset["months"] = months
-    if seconds:
-        offset["exact_duration_seconds"] = seconds
-    return offset
-
 db_path = os.getenv("CHORETRACKER_DB", "choretracker.db")
 engine = create_engine(
     f"sqlite:///{db_path}",
@@ -230,33 +185,7 @@ def format_duration(td: timedelta | None) -> str:
     return s
 
 
-def format_offset(offset: dict | None) -> str:
-    if not offset:
-        return ""
-    years = offset.get("years") or 0
-    months = offset.get("months") or 0
-    seconds = offset.get("exact_duration_seconds") or 0
-    parts: list[str] = []
-    if years:
-        parts.append(f"{years}Y")
-    if months:
-        parts.append(f"{months}M")
-    if seconds:
-        td = timedelta(seconds=seconds)
-        days = td.days
-        hours, remainder = divmod(td.seconds, 3600)
-        minutes = remainder // 60
-        if days:
-            parts.append(f"{days}d")
-        if hours:
-            parts.append(f"{hours}h")
-        if minutes:
-            parts.append(f"{minutes}m")
-    return "".join(parts)
-
-
 templates.env.filters["format_duration"] = format_duration
-templates.env.filters["format_offset"] = format_offset
 
 
 ALLOWED_TAGS = bleach.sanitizer.ALLOWED_TAGS | {
@@ -824,25 +753,12 @@ async def create_calendar_entry(request: Request):
         raise HTTPException(status_code=400, detail="Duration must be greater than 0")
 
     recurrence_types = form.getlist("recurrence_type[]")
-    rec_ids = form.getlist("recurrence_id[]")
-    offset_days = form.getlist("offset_days[]")
-    offset_months = form.getlist("offset_months[]")
-    offset_years = form.getlist("offset_years[]")
-    offset_hours = form.getlist("offset_hours[]")
-    offset_minutes = form.getlist("offset_minutes[]")
     rec_resp_json = form.getlist("recurrence_responsible[]")
     rec_del_json = form.getlist("recurrence_delegations[]")
 
     recurrences = []
     for i, rtype in enumerate(recurrence_types):
-        days = int(offset_days[i]) if i < len(offset_days) and offset_days[i] else 0
-        months = int(offset_months[i]) if i < len(offset_months) and offset_months[i] else 0
-        years = int(offset_years[i]) if i < len(offset_years) and offset_years[i] else 0
-        hours = int(offset_hours[i]) if i < len(offset_hours) and offset_hours[i] else 0
-        minutes = int(offset_minutes[i]) if i < len(offset_minutes) and offset_minutes[i] else 0
-
-        start = _add_months_skip(first_start, years * 12 + months)
-        start += timedelta(days=days, hours=hours, minutes=minutes)
+        start = first_start
 
         responsible_users: list[str] = []
         if i < len(rec_resp_json) and rec_resp_json[i]:
@@ -1011,13 +927,6 @@ async def view_calendar_entry(
     if not entry:
         raise HTTPException(status_code=404)
     require_entry_read_permission(request, entry.type)
-    if entry.recurrences:
-        first_start = min(rec.first_start for rec in entry.recurrences)
-        duration = timedelta(seconds=entry.recurrences[0].duration_seconds)
-        object.__setattr__(entry, "first_start", first_start)
-        object.__setattr__(entry, "duration", duration)
-        for rec in entry.recurrences:
-            rec.offset = _calculate_offset(first_start, rec.first_start)
     entry_start, entry_end = entry_time_bounds(entry)
     prev_entry = (
         calendar_store.get(entry.previous_entry) if entry.previous_entry else None
@@ -1148,9 +1057,10 @@ async def view_time_period(
         completion = completion_store.get(entry_id, recurrence_id, iindex)
     is_skipped = False
     rec = next((r for r in entry.recurrences if r.id == recurrence_id), None)
+    base_duration = None
     if rec:
         is_skipped = iindex in getattr(rec, "skipped_instances", [])
-        entry.duration = timedelta(seconds=rec.duration_seconds)
+        base_duration = timedelta(seconds=rec.duration_seconds)
     delegation = find_delegation(entry, recurrence_id, iindex)
     note_obj = find_instance_note(entry, recurrence_id, iindex)
     note = note_obj.note if note_obj else None
@@ -1174,6 +1084,7 @@ async def view_time_period(
             "delegation": delegation,
             "note": note,
             "duration_override": dur_override,
+            "base_duration": base_duration,
         },
     )
 
@@ -1189,13 +1100,8 @@ async def edit_calendar_entry(request: Request, entry_id: int):
     )
     if entry.recurrences:
         first_start = min(rec.first_start for rec in entry.recurrences)
-        duration = timedelta(seconds=entry.recurrences[0].duration_seconds)
-        object.__setattr__(entry, "first_start", first_start)
-        object.__setattr__(entry, "duration", duration)
         entry_data["first_start"] = first_start.isoformat()
         entry_data["duration_seconds"] = entry.recurrences[0].duration_seconds
-        for rec, rdata in zip(entry.recurrences, entry_data.get("recurrences", [])):
-            rdata["offset"] = _calculate_offset(first_start, rec.first_start)
     current_user = request.session.get("user")
     return templates.TemplateResponse(
         request,
@@ -1237,25 +1143,14 @@ async def update_calendar_entry(request: Request, entry_id: int):
         raise HTTPException(status_code=400, detail="Duration must be greater than 0")
 
     recurrence_types = form.getlist("recurrence_type[]")
-    offset_days = form.getlist("offset_days[]")
-    offset_months = form.getlist("offset_months[]")
-    offset_years = form.getlist("offset_years[]")
-    offset_hours = form.getlist("offset_hours[]")
-    offset_minutes = form.getlist("offset_minutes[]")
+    rec_ids = form.getlist("recurrence_id[]")
     rec_resp_json = form.getlist("recurrence_responsible[]")
     rec_del_json = form.getlist("recurrence_delegations[]")
 
     recurrences = []
     for i, rtype in enumerate(recurrence_types):
         rid = int(rec_ids[i]) if i < len(rec_ids) and rec_ids[i] else i
-        days = int(offset_days[i]) if i < len(offset_days) and offset_days[i] else 0
-        months = int(offset_months[i]) if i < len(offset_months) and offset_months[i] else 0
-        years = int(offset_years[i]) if i < len(offset_years) and offset_years[i] else 0
-        hours = int(offset_hours[i]) if i < len(offset_hours) and offset_hours[i] else 0
-        minutes = int(offset_minutes[i]) if i < len(offset_minutes) and offset_minutes[i] else 0
-
-        start = _add_months_skip(first_start, years * 12 + months)
-        start += timedelta(days=days, hours=hours, minutes=minutes)
+        start = first_start
 
         responsible_users: list[str] = []
         if i < len(rec_resp_json) and rec_resp_json[i]:
@@ -1346,38 +1241,17 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
         "description",
         "title",
         "type",
-        "first_start",
-        "duration_days",
-        "duration_hours",
-        "duration_minutes",
     }
     did_split = False
     if split_fields & set(data.keys()):
         entry_id, entry, did_split = split_entry_if_past(entry_id, entry)
 
-    if "first_start" in data:
-        old_start = min(rec.first_start for rec in entry.recurrences)
-        new_start = parse_datetime(data["first_start"])
-        for rec in entry.recurrences:
-            delta = rec.first_start - old_start
-            rec.first_start = new_start + delta
     if "description" in data:
         entry.description = data["description"].strip()
     if "title" in data:
         entry.title = data["title"].strip()
     if "type" in data:
         entry.type = CalendarEntryType(data["type"])
-    if (
-        "duration_days" in data
-        or "duration_hours" in data
-        or "duration_minutes" in data
-    ):
-        days = int(data.get("duration_days", 0))
-        hours = int(data.get("duration_hours", 0))
-        minutes = int(data.get("duration_minutes", 0))
-        dur = timedelta(days=days, hours=hours, minutes=minutes)
-        for rec in entry.recurrences:
-            rec.duration_seconds = int(dur.total_seconds())
     if "none_after" in data:
         na = data["none_after"]
         entry.none_after = parse_datetime(na) if na else None
