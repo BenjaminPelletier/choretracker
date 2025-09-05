@@ -38,21 +38,9 @@
         <button type="button" id="edit-managers" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
         {% endif %}
     </span></dt>
-    <dt>First start: <span id="first-start-container">
-        <span id="first-start-text">{{ entry.first_start|format_datetime(include_day=True) }}</span>
-        {% if can_edit %}
-        <button type="button" id="edit-first-start" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
-        {% endif %}
-    </span></dt>
     {% if entry.none_before %}
     <dt>None before: <span id="none-before-text">{{ entry.none_before|format_datetime(include_day=True) }}</span></dt>
     {% endif %}
-    <dt>Duration: <span id="duration-container" data-duration-seconds="{{ entry.duration.total_seconds()|int }}">
-        <span id="duration-text">{{ entry.duration|format_duration }}</span>
-        {% if can_edit %}
-        <button type="button" id="edit-duration" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
-        {% endif %}
-    </span></dt>
     <dt>Responsible: <span id="entry-responsible-container" data-responsible='{{ entry.responsible|tojson }}'>
         {% for user in entry.responsible %}
         <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
@@ -66,8 +54,8 @@
         {% if entry.recurrences %}
         <ul id="recurrence-list">
             {% for rec in entry.recurrences %}
-            <li class="recurrence-item" data-rindex="{{ loop.index0 }}" data-type="{{ rec.type.value }}" data-offset-seconds="{{ rec.offset.exact_duration_seconds if rec.offset and rec.offset.exact_duration_seconds else 0 }}" data-responsible='{{ rec.responsible|tojson }}'>
-                <span class="recurrence-text">{{ rec.type.value }}{% if rec.offset %} (offset: {{ rec.offset|format_offset }}){% endif %}</span>
+            <li class="recurrence-item" data-rindex="{{ loop.index0 }}" data-type="{{ rec.type.value }}" data-responsible='{{ rec.responsible|tojson }}'>
+                <span class="recurrence-text">{{ rec.type.value }}</span>
                 {% for user in rec.responsible %}
                 <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
                 {% endfor %}
@@ -102,7 +90,7 @@
     <ul class="time-list">
         {% for period, completion, can_remove, is_skipped, responsible, has_note in past_instances %}
         <li>
-            <a href="{{ url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ time_range_summary(period.start, period.end) }}</a>{% if has_note %}<span class="note-marker">*</span>{% endif %}
+            <a href="{{ url_for('view_time_period', entry_id=entry.id, recurrence_id=period.recurrence_id, iindex=period.instance_index) }}">{{ time_range_summary(period.start, period.end) }}</a>{% if has_note %}<span class="note-marker">*</span>{% endif %}
             {% for user in responsible %}
             <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
             {% endfor %}
@@ -121,7 +109,7 @@
     <ul class="time-list">
         {% for period, completion, can_remove, is_skipped, responsible, has_note in upcoming_instances %}
         <li>
-            <a href="{{ url_for('view_time_period', entry_id=entry.id, rindex=period.recurrence_index, iindex=period.instance_index) }}">{{ time_range_summary(period.start, period.end) }}</a>{% if has_note %}<span class="note-marker">*</span>{% endif %}
+            <a href="{{ url_for('view_time_period', entry_id=entry.id, recurrence_id=period.recurrence_id, iindex=period.instance_index) }}">{{ time_range_summary(period.start, period.end) }}</a>{% if has_note %}<span class="note-marker">*</span>{% endif %}
             {% for user in responsible %}
             <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
             {% endfor %}
@@ -154,11 +142,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const xUrl = "{{ url_for('static', path='x.svg') }}";
     const trashUrl = "{{ url_for('static', path='trash.svg') }}";
     const plusUrl = "{{ url_for('static', path='plus.svg') }}";
-    const endtimeUrl = "{{ url_for('static', path='endtime.svg') }}";
-    const durationUrl = "{{ url_for('static', path='duration.svg') }}";
     const profileUrlTemplate = "{{ url_for('profile_picture', username='__user__') }}";
     const allUsers = {{ all_users()|selectattr('username','ne','Viewer')|map(attribute='username')|list|tojson }};
     const recurrenceTypes = {{ RecurrenceType|map(attribute='value')|list|tojson }};
+    const defaultFirstStart = "{{ entry.recurrences[0].first_start.strftime('%Y-%m-%dT%H:%M') if entry.recurrences else '' }}";
+    const defaultDurationSeconds = {{ entry.recurrences[0].duration_seconds if entry.recurrences else 0 }};
 
     function makeBtn(url, alt) {
         const b = document.createElement('button');
@@ -172,158 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return b;
     }
 
-    const fsEdit = document.getElementById('edit-first-start');
-    if (fsEdit) {
-        fsEdit.addEventListener('click', () => {
-            const container = document.getElementById('first-start-container');
-            const input = document.createElement('input');
-            input.type = 'datetime-local';
-            input.value = "{{ entry.first_start.strftime('%Y-%m-%dT%H:%M') }}";
-            input.className = 'inline-input';
-            const save = makeBtn(diskUrl, 'Save');
-            const cancel = makeBtn(xUrl, 'Cancel');
-            container.innerHTML = '';
-            container.appendChild(input);
-            container.appendChild(save);
-            container.appendChild(cancel);
-            save.addEventListener('click', async () => {
-                const resp = await fetch(`/calendar/${entryId}/update`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    credentials: 'same-origin',
-                    body: JSON.stringify({first_start: input.value})
-                });
-                const data = await resp.json();
-                if (data.redirect) {
-                    window.location = data.redirect;
-                } else {
-                    location.reload();
-                }
-            });
-            cancel.addEventListener('click', () => location.reload());
-        });
-    }
-
-    const durEdit = document.getElementById('edit-duration');
-    if (durEdit) {
-        durEdit.addEventListener('click', () => {
-            const container = document.getElementById('duration-container');
-            const total = parseInt(container.dataset.durationSeconds || '0');
-            container.innerHTML = '';
-            const dayInput = document.createElement('input');
-            dayInput.type = 'number';
-            dayInput.placeholder = 'Days';
-            dayInput.min = '0';
-            dayInput.className = 'inline-input';
-            dayInput.style.width = '4ch';
-            const hourInput = document.createElement('input');
-            hourInput.type = 'number';
-            hourInput.placeholder = 'Hours';
-            hourInput.min = '0';
-            hourInput.className = 'inline-input';
-            hourInput.style.width = '4ch';
-            const minuteInput = document.createElement('input');
-            minuteInput.type = 'number';
-            minuteInput.placeholder = 'Minutes';
-            minuteInput.min = '0';
-            minuteInput.max = '59';
-            minuteInput.className = 'inline-input';
-            minuteInput.style.width = '4ch';
-            const endInput = document.createElement('input');
-            endInput.type = 'datetime-local';
-            endInput.className = 'inline-input';
-            endInput.style.display = 'none';
-            const modeBtn = makeBtn(endtimeUrl, 'Use end time');
-            const modeImg = modeBtn.querySelector('img');
-            const save = makeBtn(diskUrl, 'Save');
-            const cancel = makeBtn(xUrl, 'Cancel');
-            container.appendChild(modeBtn);
-            container.appendChild(dayInput);
-            container.appendChild(hourInput);
-            container.appendChild(minuteInput);
-            container.appendChild(endInput);
-            container.appendChild(save);
-            container.appendChild(cancel);
-
-            const firstStart = new Date("{{ entry.first_start.strftime('%Y-%m-%dT%H:%M') }}");
-            const days = Math.floor(total / 86400);
-            const hours = Math.floor((total % 86400) / 3600);
-            const minutes = Math.floor((total % 3600) / 60);
-            if (days) dayInput.value = days;
-            if (hours) hourInput.value = hours;
-            if (minutes) minuteInput.value = minutes;
-
-            let useEndTime = false;
-            function updateEndFromInputs() {
-                const d = parseInt(dayInput.value || '0');
-                const h = parseInt(hourInput.value || '0');
-                const m = parseInt(minuteInput.value || '0');
-                const end = new Date(firstStart.getTime() + (d * 86400 + h * 3600 + m * 60) * 1000);
-                const local = new Date(end.getTime() - end.getTimezoneOffset() * 60000)
-                    .toISOString()
-                    .slice(0, 16);
-                endInput.value = local;
-            }
-            function updateInputsFromEnd() {
-                const end = new Date(endInput.value);
-                const diff = end - firstStart;
-                const d = Math.floor(diff / 86400000);
-                const h = Math.floor((diff % 86400000) / 3600000);
-                const m = Math.floor((diff % 3600000) / 60000);
-                dayInput.value = d || '';
-                hourInput.value = h || '';
-                minuteInput.value = m || '';
-            }
-            modeBtn.addEventListener('click', () => {
-                useEndTime = !useEndTime;
-                if (useEndTime) {
-                    modeImg.src = durationUrl;
-                    dayInput.style.display = 'none';
-                    hourInput.style.display = 'none';
-                    minuteInput.style.display = 'none';
-                    endInput.style.display = '';
-                    updateEndFromInputs();
-                } else {
-                    modeImg.src = endtimeUrl;
-                    endInput.style.display = 'none';
-                    dayInput.style.display = '';
-                    hourInput.style.display = '';
-                    minuteInput.style.display = '';
-                    updateInputsFromEnd();
-                }
-            });
-
-            save.addEventListener('click', async () => {
-                if (useEndTime) {
-                    updateInputsFromEnd();
-                }
-                const d = parseInt(dayInput.value || '0');
-                const h = parseInt(hourInput.value || '0');
-                const m = parseInt(minuteInput.value || '0');
-                if (d * 86400 + h * 3600 + m * 60 <= 0) {
-                    alert('Duration must be greater than 0');
-                    return;
-                }
-                const resp = await fetch(`/calendar/${entryId}/update`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    credentials: 'same-origin',
-                    body: JSON.stringify({
-                        duration_days: d,
-                        duration_hours: h,
-                        duration_minutes: m
-                    })
-                });
-                const data = await resp.json();
-                if (data.redirect) {
-                    window.location = data.redirect;
-                } else {
-                    location.reload();
-                }
-            });
-            cancel.addEventListener('click', () => location.reload());
-        });
-    }
+    
 
     const naEdit = document.getElementById('edit-none-after');
     if (naEdit) {
@@ -532,13 +369,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const recContainer = document.getElementById('recurrence-container');
     let recList = document.getElementById('recurrence-list');
 
-    function setupRecurrenceEditor(li, rindex, originalType, originalResp, offsetSeconds, isNew) {
+    function setupRecurrenceEditor(li, rindex, originalType, originalResp, isNew) {
         if (isNew && addRecurrence) {
             addRecurrence.style.display = 'none';
         }
-        const days = Math.floor(offsetSeconds / 86400);
-        const hours = Math.floor((offsetSeconds % 86400) / 3600);
-        const minutes = Math.floor((offsetSeconds % 3600) / 60);
         li.innerHTML = '';
 
         const typeSelect = document.createElement('select');
@@ -550,36 +384,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (t === originalType) opt.selected = true;
             typeSelect.appendChild(opt);
         });
-
-        const durationSpan = document.createElement('span');
-        const durLabel = document.createElement('span');
-        durLabel.textContent = 'Offset: ';
-        durationSpan.appendChild(durLabel);
-        const dayInput = document.createElement('input');
-        dayInput.type = 'number';
-        dayInput.placeholder = 'Days';
-        dayInput.min = '0';
-        dayInput.className = 'inline-input';
-        if (days) dayInput.value = days;
-        dayInput.style.width = '4ch';
-        const hourInput = document.createElement('input');
-        hourInput.type = 'number';
-        hourInput.placeholder = 'Hours';
-        hourInput.min = '0';
-        hourInput.className = 'inline-input';
-        if (hours) hourInput.value = hours;
-        hourInput.style.width = '4ch';
-        const minuteInput = document.createElement('input');
-        minuteInput.type = 'number';
-        minuteInput.placeholder = 'Minutes';
-        minuteInput.min = '0';
-        minuteInput.max = '59';
-        minuteInput.className = 'inline-input';
-        if (minutes) minuteInput.value = minutes;
-        minuteInput.style.width = '4ch';
-        durationSpan.appendChild(dayInput);
-        durationSpan.appendChild(hourInput);
-        durationSpan.appendChild(minuteInput);
 
         const respContainer = document.createElement('span');
         const responsible = [...originalResp];
@@ -640,7 +444,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const cancel = makeBtn(xUrl, 'Cancel');
 
         li.appendChild(typeSelect);
-        li.appendChild(durationSpan);
         li.appendChild(respContainer);
         li.appendChild(addWrap);
         li.appendChild(save);
@@ -650,12 +453,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const url = isNew ? `/calendar/${entryId}/recurrence/add` : `/calendar/${entryId}/recurrence/update`;
             const payload = {
                 type: typeSelect.value,
-                offset_days: parseInt(dayInput.value || '0'),
-                offset_hours: parseInt(hourInput.value || '0'),
-                offset_minutes: parseInt(minuteInput.value || '0'),
                 responsible: responsible
             };
-            if (!isNew) payload.recurrence_index = rindex;
+            if (isNew) {
+                payload.first_start = defaultFirstStart;
+                payload.duration_seconds = defaultDurationSeconds;
+            } else {
+                payload.recurrence_id = rindex;
+            }
             const resp = await fetch(url, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -694,8 +499,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const rindex = parseInt(li.dataset.rindex);
             const originalType = li.dataset.type;
             const originalResp = JSON.parse(li.dataset.responsible || '[]');
-            const offsetSeconds = parseInt(li.dataset.offsetSeconds || '0');
-            setupRecurrenceEditor(li, rindex, originalType, originalResp, offsetSeconds, false);
+            setupRecurrenceEditor(li, rindex, originalType, originalResp, false);
         });
     });
 
@@ -707,7 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 credentials: 'same-origin',
-                body: JSON.stringify({recurrence_index: rindex})
+                body: JSON.stringify({recurrence_id: rindex})
             });
             if (resp.ok) {
                 const data = await resp.json();
@@ -734,7 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const li = document.createElement('li');
             li.className = 'recurrence-item';
             recList.appendChild(li);
-            setupRecurrenceEditor(li, recList.children.length - 1, recurrenceTypes[0], [], 0, true);
+            setupRecurrenceEditor(li, recList.children.length - 1, recurrenceTypes[0], [], true);
         });
     }
 

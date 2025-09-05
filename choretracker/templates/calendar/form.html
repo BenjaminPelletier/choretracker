@@ -134,10 +134,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupRecurrenceEditor(li, rec) {
-        const offsetSeconds = rec && rec.offset && rec.offset.exact_duration_seconds ? rec.offset.exact_duration_seconds : 0;
-        const days = Math.floor(offsetSeconds / 86400);
-        const hours = Math.floor((offsetSeconds % 86400) / 3600);
-        const minutes = Math.floor((offsetSeconds % 3600) / 60);
         li.innerHTML = '';
 
         const typeSelect = document.createElement('select');
@@ -150,49 +146,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (rec && rec.type === t) opt.selected = true;
             typeSelect.appendChild(opt);
         });
-
-        const durationSpan = document.createElement('span');
-        const durLabel = document.createElement('span');
-        durLabel.textContent = 'Offset: ';
-        durationSpan.appendChild(durLabel);
-        const dayInput = document.createElement('input');
-        dayInput.type = 'number';
-        dayInput.placeholder = 'Days';
-        dayInput.min = '0';
-        dayInput.name = 'offset_days[]';
-        dayInput.className = 'inline-input';
-        if (days) dayInput.value = days;
-        dayInput.style.width = '4ch';
-        const hourInput = document.createElement('input');
-        hourInput.type = 'number';
-        hourInput.placeholder = 'Hours';
-        hourInput.min = '0';
-        hourInput.name = 'offset_hours[]';
-        hourInput.className = 'inline-input';
-        if (hours) hourInput.value = hours;
-        hourInput.style.width = '4ch';
-        const minuteInput = document.createElement('input');
-        minuteInput.type = 'number';
-        minuteInput.placeholder = 'Minutes';
-        minuteInput.min = '0';
-        minuteInput.max = '59';
-        minuteInput.name = 'offset_minutes[]';
-        minuteInput.className = 'inline-input';
-        if (minutes) minuteInput.value = minutes;
-        minuteInput.style.width = '4ch';
-        const monthInput = document.createElement('input');
-        monthInput.type = 'hidden';
-        monthInput.name = 'offset_months[]';
-        monthInput.value = rec && rec.offset && rec.offset.months ? rec.offset.months : 0;
-        const yearInput = document.createElement('input');
-        yearInput.type = 'hidden';
-        yearInput.name = 'offset_years[]';
-        yearInput.value = rec && rec.offset && rec.offset.years ? rec.offset.years : 0;
-        durationSpan.appendChild(dayInput);
-        durationSpan.appendChild(hourInput);
-        durationSpan.appendChild(minuteInput);
-        durationSpan.appendChild(monthInput);
-        durationSpan.appendChild(yearInput);
 
         const respContainer = document.createElement('span');
         const responsible = rec && rec.responsible ? [...rec.responsible] : [];
@@ -273,7 +226,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         li.appendChild(typeSelect);
-        li.appendChild(durationSpan);
         li.appendChild(respContainer);
         li.appendChild(addWrap);
         li.appendChild(respHidden);
