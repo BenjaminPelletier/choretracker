@@ -53,12 +53,23 @@ way to run the suite is via the provided make target:
 make test
 ```
 
-Under the hood this executes:
+This command works in both POSIX shells and PowerShell. If your Python
+interpreter is not available as `python` (for example on some Windows
+setups), override it with the `PYTHON` variable:
+
+```powershell
+make PYTHON=py test
+```
+
+Under the hood the make target executes:
 
 ```bash
 CHORETRACKER_SECRET_KEY=test CHORETRACKER_DISABLE_CSRF=1 \
 uv run --with pytest --with httpx -m pytest
 ```
+
+The `uv` command must be installed and on your `PATH`. See the
+prerequisites section above for installation instructions.
 
 ## Running the Development Server
 From the PyCharm terminal or a system shell, start the server with:
