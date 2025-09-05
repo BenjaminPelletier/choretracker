@@ -29,6 +29,7 @@ def test_non_admin_cannot_create_or_edit_past_entries(tmp_path, monkeypatch):
             "type": "Event",
             "first_start": past,
             "duration_hours": "1",
+            "recurrence_type[]": "OneTime",
             "managers": "User",
         },
         follow_redirects=False,
@@ -44,6 +45,7 @@ def test_non_admin_cannot_create_or_edit_past_entries(tmp_path, monkeypatch):
             "type": "Event",
             "first_start": future,
             "duration_hours": "1",
+            "recurrence_type[]": "OneTime",
             "managers": "User",
         },
         follow_redirects=False,
@@ -53,12 +55,10 @@ def test_non_admin_cannot_create_or_edit_past_entries(tmp_path, monkeypatch):
 
     past2 = (get_now() - timedelta(days=2)).isoformat()
     resp = client.post(
-        f"/calendar/{entry_id}/update",
-        json={"first_start": past2},
+        f"/calendar/{entry_id}/recurrence/update",
+        json={"recurrence_id": 0, "first_start": past2},
         follow_redirects=False,
     )
     assert resp.status_code == 400
-    assert (
-        app_module.calendar_store.get(entry_id).first_start.isoformat(timespec="minutes")
-        == future
-    )
+    stored = app_module.calendar_store.get(entry_id)
+    assert stored.recurrences[0].first_start.isoformat(timespec="minutes") == future

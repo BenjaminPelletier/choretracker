@@ -19,6 +19,8 @@ def test_responsible_hierarchy():
     rec = Recurrence(
         id=0,
         type=RecurrenceType.Weekly,
+        first_start=get_now(),
+        duration_seconds=60,
         responsible=["alice"],
     )
     rec.instance_specifics[1] = InstanceSpecifics(
@@ -28,8 +30,6 @@ def test_responsible_hierarchy():
         title="Test",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=get_now(),
-        duration_seconds=60,
         recurrences=[rec],
         responsible=["carol"],
     )

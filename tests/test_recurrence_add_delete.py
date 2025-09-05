@@ -1,15 +1,20 @@
-from pathlib import Path
-from datetime import datetime
-from zoneinfo import ZoneInfo
 import importlib
 import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
 
 # Ensure project root on path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from choretracker.calendar import CalendarEntry, CalendarEntryType, Recurrence, RecurrenceType
+from choretracker.calendar import (
+    CalendarEntry,
+    CalendarEntryType,
+    Recurrence,
+    RecurrenceType,
+)
 
 
 def setup_app(tmp_path, monkeypatch):
@@ -29,14 +34,21 @@ def setup_app(tmp_path, monkeypatch):
 
 def test_add_recurrence(tmp_path, monkeypatch):
     app_module, client = setup_app(tmp_path, monkeypatch)
+    start = datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC"))
     entry = CalendarEntry(
         title="AddRec",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
-        duration_seconds=60,
-        recurrences=[],
+        recurrences=[
+            Recurrence(
+                id=0,
+                type=RecurrenceType.OneTime,
+                first_start=start,
+                duration_seconds=60,
+            )
+        ],
         managers=["Admin"],
+        responsible=["Admin"],
     )
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id
@@ -45,9 +57,8 @@ def test_add_recurrence(tmp_path, monkeypatch):
         f"/calendar/{entry_id}/recurrence/add",
         json={
             "type": "Weekly",
-            "offset_days": 1,
-            "offset_hours": 2,
-            "offset_minutes": 30,
+            "first_start": (start + timedelta(days=1, hours=2, minutes=30)).isoformat(),
+            "duration_seconds": 60,
             "responsible": ["Bob"],
         },
     )
@@ -62,54 +73,31 @@ def test_add_recurrence(tmp_path, monkeypatch):
     assert updated.recurrences[0].type == RecurrenceType.OneTime
     rec = updated.recurrences[1]
     assert rec.type == RecurrenceType.Weekly
-    assert rec.offset and rec.offset.exact_duration_seconds == 1 * 86400 + 2 * 3600 + 30 * 60
+    assert rec.first_start == start + timedelta(days=1, hours=2, minutes=30)
     assert rec.responsible == ["Bob"]
-
-
-def test_default_onetime_recurrence(tmp_path, monkeypatch):
-    app_module, client = setup_app(tmp_path, monkeypatch)
-    entry = CalendarEntry(
-        title="NoRec",
-        description="",
-        type=CalendarEntryType.Chore,
-        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
-        duration_seconds=60,
-        recurrences=[],
-        managers=["Admin"],
-    )
-    app_module.calendar_store.create(entry)
-    entry_id = app_module.calendar_store.list_entries()[0].id
-    stored = app_module.calendar_store.get(entry_id)
-    assert len(stored.recurrences) == 1
-    assert stored.recurrences[0].type == RecurrenceType.OneTime
-
-    resp = client.post(
-        f"/calendar/{entry_id}/recurrence/delete",
-        json={"recurrence_index": 0},
-    )
-    assert resp.status_code == 200
-    data = resp.json()
-    new_id = entry_id
-    if "redirect" in data:
-        new_id = int(data["redirect"].split("/")[-1])
-    updated = app_module.calendar_store.get(new_id)
-    assert len(updated.recurrences) == 1
-    assert updated.recurrences[0].type == RecurrenceType.OneTime
-
-
 def test_delete_recurrence(tmp_path, monkeypatch):
     app_module, client = setup_app(tmp_path, monkeypatch)
+    start = datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC"))
     entry = CalendarEntry(
         title="DelRec",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
-        duration_seconds=60,
         recurrences=[
-            Recurrence(type=RecurrenceType.Weekly),
-            Recurrence(type=RecurrenceType.MonthlyDayOfMonth),
+            Recurrence(
+                id=0,
+                type=RecurrenceType.Weekly,
+                first_start=start,
+                duration_seconds=60,
+            ),
+            Recurrence(
+                id=1,
+                type=RecurrenceType.MonthlyDayOfMonth,
+                first_start=start,
+                duration_seconds=60,
+            ),
         ],
         managers=["Admin"],
+        responsible=["Admin"],
     )
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id
@@ -117,7 +105,7 @@ def test_delete_recurrence(tmp_path, monkeypatch):
 
     resp = client.post(
         f"/calendar/{entry_id}/recurrence/delete",
-        json={"recurrence_index": 0},
+        json={"recurrence_id": 0},
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -131,6 +119,6 @@ def test_delete_recurrence(tmp_path, monkeypatch):
 
     comps_old = app_module.completion_store.list_for_entry(entry_id)
     assert len(comps_old) == 1
-    assert comps_old[0].recurrence_index == 1
+    assert comps_old[0].recurrence_id == 1
     comps_new = app_module.completion_store.list_for_entry(new_id)
     assert comps_new == []
