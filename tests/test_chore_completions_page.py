@@ -32,21 +32,27 @@ def test_chore_completions_sections(tmp_path, monkeypatch):
         title="Task",
         description="",
         type=app_module.CalendarEntryType.Chore,
-        first_start=fake_now - timedelta(days=5),
-        duration_seconds=60,
+        recurrences=[
+            app_module.Recurrence(
+                id=0,
+                type=app_module.RecurrenceType.OneTime,
+                first_start=fake_now - timedelta(days=5),
+                duration_seconds=60,
+            )
+        ],
         managers=["Admin"],
     )
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id
 
     app_module.completion_store.create(
-        entry_id, -1, -1, "Admin", completed_at=fake_now - timedelta(hours=1)
+        entry_id, 0, 0, "Admin", completed_at=fake_now - timedelta(hours=1)
     )
     app_module.completion_store.create(
-        entry_id, -1, -1, "Admin", completed_at=fake_now - timedelta(days=1, hours=1)
+        entry_id, 0, 0, "Admin", completed_at=fake_now - timedelta(days=1, hours=1)
     )
     app_module.completion_store.create(
-        entry_id, -1, -1, "Admin", completed_at=fake_now - timedelta(days=2)
+        entry_id, 0, 0, "Admin", completed_at=fake_now - timedelta(days=2)
     )
 
     response = client.get("/chore_completions")
@@ -79,15 +85,21 @@ def test_completions_page_shows_remove_icon(tmp_path, monkeypatch):
         title="Task",
         description="",
         type=app_module.CalendarEntryType.Chore,
-        first_start=fake_now - timedelta(days=1),
-        duration_seconds=60,
+        recurrences=[
+            app_module.Recurrence(
+                id=0,
+                type=app_module.RecurrenceType.OneTime,
+                first_start=fake_now - timedelta(days=1),
+                duration_seconds=60,
+            )
+        ],
         managers=["Admin"],
     )
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id
 
     app_module.completion_store.create(
-        entry_id, -1, -1, "Admin", completed_at=fake_now - timedelta(hours=1)
+        entry_id, 0, 0, "Admin", completed_at=fake_now - timedelta(hours=1)
     )
 
     response = client.get("/chore_completions")

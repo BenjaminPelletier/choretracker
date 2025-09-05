@@ -9,7 +9,12 @@ from fastapi.testclient import TestClient
 # Ensure project root is on path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from choretracker.calendar import CalendarEntry, CalendarEntryType
+from choretracker.calendar import (
+    CalendarEntry,
+    CalendarEntryType,
+    Recurrence,
+    RecurrenceType,
+)
 
 
 def test_duplicate_titles_disambiguated(tmp_path, monkeypatch):
@@ -24,16 +29,28 @@ def test_duplicate_titles_disambiguated(tmp_path, monkeypatch):
         title="Guinea salad",
         description="",
         type=CalendarEntryType.Event,
-        first_start=datetime(2025, 8, 22, 8, 0, 0, tzinfo=ZoneInfo("UTC")),
-        duration_seconds=60,
+        recurrences=[
+            Recurrence(
+                id=0,
+                type=RecurrenceType.OneTime,
+                first_start=datetime(2025, 8, 22, 8, 0, 0, tzinfo=ZoneInfo("UTC")),
+                duration_seconds=60,
+            )
+        ],
         managers=["Admin"],
     )
     second = CalendarEntry(
         title="Guinea salad",
         description="",
         type=CalendarEntryType.Event,
-        first_start=datetime(2025, 8, 23, 8, 0, 0, tzinfo=ZoneInfo("UTC")),
-        duration_seconds=60,
+        recurrences=[
+            Recurrence(
+                id=0,
+                type=RecurrenceType.OneTime,
+                first_start=datetime(2025, 8, 23, 8, 0, 0, tzinfo=ZoneInfo("UTC")),
+                duration_seconds=60,
+            )
+        ],
         managers=["Admin"],
     )
     app_module.calendar_store.create(first)
