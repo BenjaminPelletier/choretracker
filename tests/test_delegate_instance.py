@@ -9,7 +9,13 @@ from fastapi.testclient import TestClient
 # Ensure project root on path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from choretracker.calendar import CalendarEntry, CalendarEntryType, Recurrence, RecurrenceType, responsible_for
+from choretracker.calendar import (
+    CalendarEntry,
+    CalendarEntryType,
+    Recurrence,
+    RecurrenceType,
+    responsible_for,
+)
 
 
 def test_delegate_instance(tmp_path, monkeypatch):
@@ -52,11 +58,8 @@ def test_delegate_instance(tmp_path, monkeypatch):
     rec = entry.recurrences[0]
     if not isinstance(rec, Recurrence):
         rec = Recurrence.model_validate(rec)
-    from choretracker.calendar import Delegation
-    deleg = rec.delegations[0]
-    if not isinstance(deleg, Delegation):
-        deleg = Delegation.model_validate(deleg)
-    assert deleg.responsible == ["Bob"]
+    spec = rec.instance_specifics[0]
+    assert spec.responsible == ["Bob"]
     assert responsible_for(entry, 0, 0) == ["Bob"]
 
     page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
