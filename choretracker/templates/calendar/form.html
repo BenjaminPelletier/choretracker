@@ -158,6 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
         endInput.type = 'datetime-local';
         endInput.className = 'inline-input';
         endInput.style.display = 'none';
+        endInput.disabled = true;
         durationWrap.appendChild(toggleBtn);
         durationWrap.appendChild(durationFields);
         durationWrap.appendChild(endInput);
@@ -228,13 +229,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 modeIcon.src = durationUrl;
                 modeIcon.alt = 'Use duration';
                 durationFields.style.display = 'none';
+                [daysInput, hoursInput, minutesInput].forEach(inp => {
+                    inp.disabled = true;
+                    inp.setCustomValidity('');
+                });
                 endInput.style.display = '';
+                endInput.disabled = false;
                 updateEndFromInputs();
             } else {
                 modeIcon.src = endTimeUrl;
                 modeIcon.alt = 'Use end time';
                 durationFields.style.display = '';
+                [daysInput, hoursInput, minutesInput].forEach(inp => {
+                    inp.disabled = false;
+                });
                 endInput.style.display = 'none';
+                endInput.disabled = true;
+                endInput.setCustomValidity('');
                 updateInputsFromEnd();
             }
             validateDuration();
