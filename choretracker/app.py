@@ -248,6 +248,12 @@ templates.env.globals["time_range_summary"] = time_range_summary
 app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="static")
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon() -> Response:
+    data = (BASE_PATH / "static" / "favicon.txt").read_bytes()
+    return Response(base64.b64decode(data), media_type="image/x-icon")
+
+
 def entry_time_bounds(entry: CalendarEntry) -> tuple[datetime, datetime | None]:
     periods = enumerate_time_periods(entry)
     first = next(periods, None)

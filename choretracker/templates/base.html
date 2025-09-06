@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Chore Tracker{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}">
+    <link rel="icon" href="{{ url_for('favicon') }}">
     <script>
     const CSRF_TOKEN = "{{ request.session['csrf_token'] }}";
     const origFetch = window.fetch.bind(window);
