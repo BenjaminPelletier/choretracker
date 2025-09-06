@@ -251,8 +251,8 @@ app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="sta
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon() -> Response:
-    data = (BASE_PATH / "static" / "favicon.txt").read_bytes()
-    return Response(base64.b64decode(data), media_type="image/x-icon")
+    data = (BASE_PATH / "static" / "favicon.ico").read_bytes()
+    return Response(data, media_type="image/x-icon")
 
 
 def entry_time_bounds(entry: CalendarEntry) -> tuple[datetime, datetime | None]:
