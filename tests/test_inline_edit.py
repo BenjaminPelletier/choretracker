@@ -9,7 +9,12 @@ from fastapi.testclient import TestClient
 # Ensure project root on path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from choretracker.calendar import CalendarEntry, CalendarEntryType
+from choretracker.calendar import (
+    CalendarEntry,
+    CalendarEntryType,
+    Recurrence,
+    RecurrenceType,
+)
 
 
 def _setup_app(tmp_path, monkeypatch):
@@ -26,21 +31,34 @@ def test_inline_update(tmp_path, monkeypatch):
     client = TestClient(app_module.app)
     client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
 
+    rec = Recurrence(
+        id=0,
+        type=RecurrenceType.OneTime,
+        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
+        duration_seconds=60,
+    )
     entry = CalendarEntry(
         title="Old",
         description="Old desc",
         type=CalendarEntryType.Event,
-        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
-        duration_seconds=60,
+        recurrences=[rec],
         managers=["Admin"],
     )
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id
 
-    # Update first_start and description
+    # Update first_start via recurrence endpoint
+    resp = client.post(
+        f"/calendar/{entry_id}/recurrence/update",
+        json={"recurrence_id": 0, "first_start": "2000-02-01T00:00"},
+    )
+    data = resp.json()
+    if "redirect" in data:
+        entry_id = int(data["redirect"].split("/")[-1])
+    # Update description
     resp = client.post(
         f"/calendar/{entry_id}/update",
-        json={"first_start": "2000-02-01T00:00", "description": "New desc"},
+        json={"description": "New desc"},
     )
     data = resp.json()
     if "redirect" in data:
@@ -65,12 +83,17 @@ def test_title_edit_redirects_after_split(tmp_path, monkeypatch):
     client = TestClient(app_module.app)
     client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
 
+    rec = Recurrence(
+        id=0,
+        type=RecurrenceType.OneTime,
+        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
+        duration_seconds=60,
+    )
     entry = CalendarEntry(
         title="Old",
         description="",
         type=CalendarEntryType.Event,
-        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
-        duration_seconds=60,
+        recurrences=[rec],
         managers=["Admin"],
     )
     app_module.calendar_store.create(entry)
@@ -95,14 +118,19 @@ def test_type_edit_redirects_after_split(tmp_path, monkeypatch):
         "/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False
     )
 
+    rec = Recurrence(
+        id=0,
+        type=RecurrenceType.OneTime,
+        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
+        duration_seconds=60,
+    )
     entry = CalendarEntry(
         title="Foo",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
-        duration_seconds=60,
-        recurrences=[],
+        recurrences=[rec],
         managers=["Admin"],
+        responsible=["Admin"],
     )
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id

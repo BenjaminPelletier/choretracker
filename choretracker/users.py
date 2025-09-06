@@ -20,7 +20,7 @@ from passlib.context import CryptContext
 from sqlmodel import Field, Session, SQLModel, select
 from sqlalchemy import Column, JSON, LargeBinary, text, func
 
-from .calendar import CalendarEntry, Recurrence, ChoreCompletion
+from .calendar import CalendarEntry, Recurrence, ChoreCompletion, InstanceSpecifics
 from sqlalchemy.exc import OperationalError
 from alembic import command
 from alembic.config import Config
@@ -186,12 +186,15 @@ class UserStore:
                                 for u in rec_obj.responsible
                             ]
                             rec_changed = True
-                        for deleg in rec_obj.delegations:
-                            if old_username in deleg.responsible:
-                                deleg.responsible = [
+                        for spec_idx, spec in rec_obj.instance_specifics.items():
+                            if not isinstance(spec, InstanceSpecifics):
+                                spec = InstanceSpecifics.model_validate(spec)
+                            if spec.responsible and old_username in spec.responsible:
+                                spec.responsible = [
                                     new_username if u == old_username else u
-                                    for u in deleg.responsible
+                                    for u in spec.responsible
                                 ]
+                                rec_obj.instance_specifics[spec_idx] = spec
                                 rec_changed = True
                         recurrences.append(rec_obj)
                         if rec_changed:

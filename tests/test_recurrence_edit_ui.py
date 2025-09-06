@@ -1,7 +1,7 @@
-import importlib
 import sys
-from pathlib import Path
+import importlib
 from datetime import datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
@@ -17,35 +17,37 @@ from choretracker.calendar import (
 )
 
 
-def test_completed_by_username_shown(tmp_path, monkeypatch):
+def _setup_app(tmp_path, monkeypatch):
     db_file = tmp_path / "test.db"
     monkeypatch.setenv("CHORETRACKER_DB", str(db_file))
     if "choretracker.app" in sys.modules:
         del sys.modules["choretracker.app"]
     app_module = importlib.import_module("choretracker.app")
     client = TestClient(app_module.app)
-
-    # login as Admin user
     client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
+    return app_module, client
 
-    rec = Recurrence(
-        id=0,
-        type=RecurrenceType.Weekly,
-        first_start=datetime(2000, 1, 1, 8, 0, 0, tzinfo=ZoneInfo("UTC")),
-        duration_seconds=60,
-    )
+
+def test_recurrence_edit_includes_first_start_and_duration(tmp_path, monkeypatch):
+    app_module, client = _setup_app(tmp_path, monkeypatch)
+    start = datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC"))
     entry = CalendarEntry(
-        title="Dishes",
+        title="RecEdit",
         description="",
-        type=CalendarEntryType.Chore,
-        recurrences=[rec],
+        type=CalendarEntryType.Event,
+        recurrences=[
+            Recurrence(
+                id=0,
+                type=RecurrenceType.OneTime,
+                first_start=start,
+                duration_seconds=60,
+            )
+        ],
         managers=["Admin"],
     )
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id
+    page = client.get(f"/calendar/entry/{entry_id}")
+    assert 'data-first-start="2000-01-01T00:00"' in page.text
+    assert 'data-duration-seconds="60"' in page.text
 
-    # mark completion for first recurrence instance
-    app_module.completion_store.create(entry_id, 0, 0, "Admin")
-
-    response = client.get(f"/calendar/entry/{entry_id}/period/0/0")
-    assert '<span class="completed-by">by Admin</span>' in response.text

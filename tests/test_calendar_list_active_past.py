@@ -9,7 +9,12 @@ from fastapi.testclient import TestClient
 # Ensure project root is on path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from choretracker.calendar import CalendarEntry, CalendarEntryType
+from choretracker.calendar import (
+    CalendarEntry,
+    CalendarEntryType,
+    Recurrence,
+    RecurrenceType,
+)
 
 
 def test_list_active_and_past(tmp_path, monkeypatch):
@@ -25,32 +30,56 @@ def test_list_active_and_past(tmp_path, monkeypatch):
         title="Future 2",
         description="",
         type=CalendarEntryType.Event,
-        first_start=now + timedelta(days=2),
-        duration_seconds=60,
+        recurrences=[
+            Recurrence(
+                id=0,
+                type=RecurrenceType.OneTime,
+                first_start=now + timedelta(days=2),
+                duration_seconds=60,
+            )
+        ],
         managers=["Admin"],
     )
     active_older = CalendarEntry(
         title="Future 1",
         description="",
         type=CalendarEntryType.Event,
-        first_start=now + timedelta(days=1),
-        duration_seconds=60,
+        recurrences=[
+            Recurrence(
+                id=0,
+                type=RecurrenceType.OneTime,
+                first_start=now + timedelta(days=1),
+                duration_seconds=60,
+            )
+        ],
         managers=["Admin"],
     )
     past_newer = CalendarEntry(
         title="Past 1",
         description="",
         type=CalendarEntryType.Event,
-        first_start=now - timedelta(days=1),
-        duration_seconds=60,
+        recurrences=[
+            Recurrence(
+                id=0,
+                type=RecurrenceType.OneTime,
+                first_start=now - timedelta(days=1),
+                duration_seconds=60,
+            )
+        ],
         managers=["Admin"],
     )
     past_older = CalendarEntry(
         title="Past 2",
         description="",
         type=CalendarEntryType.Event,
-        first_start=now - timedelta(days=2),
-        duration_seconds=60,
+        recurrences=[
+            Recurrence(
+                id=0,
+                type=RecurrenceType.OneTime,
+                first_start=now - timedelta(days=2),
+                duration_seconds=60,
+            )
+        ],
         managers=["Admin"],
     )
     app_module.calendar_store.create(active_newer)

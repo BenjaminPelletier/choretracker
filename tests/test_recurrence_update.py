@@ -1,7 +1,7 @@
 import importlib
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
@@ -15,7 +15,6 @@ from choretracker.calendar import (
     CalendarEntryType,
     Recurrence,
     RecurrenceType,
-    Offset,
 )
 
 
@@ -33,20 +32,22 @@ def test_update_recurrence_responsible_and_offset(tmp_path, monkeypatch):
         follow_redirects=False,
     )
 
+    start = datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC"))
     entry = CalendarEntry(
         title="RecTest",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
-        duration_seconds=60,
         recurrences=[
             Recurrence(
+                id=0,
                 type=RecurrenceType.Weekly,
-                offset=Offset(exact_duration_seconds=3600),
+                first_start=start,
+                duration_seconds=3600,
                 responsible=["Alice"],
             )
         ],
         managers=["Admin"],
+        responsible=["Admin"],
     )
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id
@@ -54,11 +55,10 @@ def test_update_recurrence_responsible_and_offset(tmp_path, monkeypatch):
     resp = client.post(
         f"/calendar/{entry_id}/recurrence/update",
         json={
-            "recurrence_index": 0,
+            "recurrence_id": 0,
             "type": "Weekly",
-            "offset_days": 0,
-            "offset_hours": 2,
-            "offset_minutes": 30,
+            "first_start": (start + timedelta(hours=2, minutes=30)).isoformat(),
+            "duration_seconds": 7200,
             "responsible": ["Bob"],
         },
     )
@@ -70,5 +70,6 @@ def test_update_recurrence_responsible_and_offset(tmp_path, monkeypatch):
     updated = app_module.calendar_store.get(entry_id)
     rec = updated.recurrences[0]
     assert rec.responsible == ["Bob"]
-    assert rec.offset and rec.offset.exact_duration_seconds == 2 * 3600 + 30 * 60
+    assert rec.first_start == start + timedelta(hours=2, minutes=30)
+    assert rec.duration_seconds == 7200
 

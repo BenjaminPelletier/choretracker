@@ -12,15 +12,15 @@
     {% if entry.type == CalendarEntryType.Chore %}
         {% if period.end <= now %}
             {% if not completion and user_has(request.session.get('user'), 'chores.complete_overdue') %}
-            <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ period.recurrence_index }}" data-iindex="{{ period.instance_index }}" data-action="add" />
+            <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rid="{{ period.recurrence_id }}" data-iindex="{{ period.instance_index }}" data-action="add" />
             {% elif completion %}
-            <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ period.recurrence_index }}" data-iindex="{{ period.instance_index }}" {% if completion.completed_by == request.session.get('user') or user_has(request.session.get('user'), 'chores.override_complete') %}data-action="remove"{% endif %} />
+            <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rid="{{ period.recurrence_id }}" data-iindex="{{ period.instance_index }}" {% if completion.completed_by == request.session.get('user') or user_has(request.session.get('user'), 'chores.override_complete') %}data-action="remove"{% endif %} />
             {% endif %}
         {% elif period.start <= now %}
             {% if completion %}
-            <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ period.recurrence_index }}" data-iindex="{{ period.instance_index }}" {% if completion.completed_by == request.session.get('user') or user_has(request.session.get('user'), 'chores.override_complete') %}data-action="remove"{% endif %} />
+            <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rid="{{ period.recurrence_id }}" data-iindex="{{ period.instance_index }}" {% if completion.completed_by == request.session.get('user') or user_has(request.session.get('user'), 'chores.override_complete') %}data-action="remove"{% endif %} />
             {% elif user_has(request.session.get('user'), 'chores.complete_on_time') %}
-            <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rindex="{{ period.recurrence_index }}" data-iindex="{{ period.instance_index }}" data-action="add" />
+            <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rid="{{ period.recurrence_id }}" data-iindex="{{ period.instance_index }}" data-action="add" />
             {% endif %}
         {% endif %}
         {% if completion %}
@@ -31,7 +31,7 @@
 <div class="description">{{ entry.description|markdown|safe }}</div>
 {% if can_edit %}
 <form method="post" action="{{ url_for(is_skipped and 'unskip_instance' or 'skip_instance', entry_id=entry.id) }}">
-    <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
+    <input type="hidden" name="recurrence_id" value="{{ period.recurrence_id }}" />
     <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
     <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
     <button type="submit" class="skip-button">{{ 'Do not skip this instance' if is_skipped else 'Skip this instance' }}</button>
@@ -44,7 +44,7 @@
         {% if duration_override %}
             <button type="button" id="edit-duration" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
             <form method="post" action="{{ url_for('remove_instance_duration', entry_id=entry.id) }}" style="display:inline" id="delete-duration-form">
-                <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
+                <input type="hidden" name="recurrence_id" value="{{ period.recurrence_id }}" />
                 <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
                 <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
                 <button type="submit" class="icon-button"><img src="{{ url_for('static', path='trash.svg') }}" alt="Delete" class="icon"></button>
@@ -57,7 +57,7 @@
     <div id="duration-display" class="duration-display" data-duration-seconds="{{ duration_override.total_seconds()|int }}">{{ duration_override|format_duration }}</div>
     {% endif %}
     <form method="post" action="{{ url_for('set_instance_duration', entry_id=entry.id) }}" id="duration-editor" style="display:none">
-        <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
+        <input type="hidden" name="recurrence_id" value="{{ period.recurrence_id }}" />
         <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
         <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
         <div class="duration-inputs">
@@ -86,7 +86,7 @@
             {% if can_edit %}
             <button type="button" id="edit-note" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
             <form method="post" action="{{ url_for('remove_instance_note', entry_id=entry.id) }}" style="display:inline" id="delete-note-form">
-                <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
+                <input type="hidden" name="recurrence_id" value="{{ period.recurrence_id }}" />
                 <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
                 <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
                 <button type="submit" class="icon-button"><img src="{{ url_for('static', path='trash.svg') }}" alt="Delete" class="icon"></button>
@@ -101,7 +101,7 @@
     {% endif %}
     {% if can_edit %}
     <form method="post" action="{{ url_for('add_instance_note', entry_id=entry.id) }}" id="note-editor" style="display:none">
-        <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
+        <input type="hidden" name="recurrence_id" value="{{ period.recurrence_id }}" />
         <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
         <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
         <textarea name="note" rows="4" cols="40">{{ note or '' }}</textarea>
@@ -119,7 +119,7 @@
     {% if delegation and can_edit %}
     <button type="button" id="edit-delegation" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
     <form method="post" action="{{ url_for('remove_delegation', entry_id=entry.id) }}" style="display:inline">
-        <input type="hidden" name="recurrence_index" value="{{ period.recurrence_index }}" />
+        <input type="hidden" name="recurrence_id" value="{{ period.recurrence_id }}" />
         <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
         <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
         <button type="submit" class="icon-button"><img src="{{ url_for('static', path='trash.svg') }}" alt="Delete" class="icon"></button>
@@ -143,21 +143,21 @@
 document.querySelectorAll('.checkbox-icon[data-action]').forEach(el => {
     el.addEventListener('click', async () => {
         const entry = el.dataset.entry;
-        const r = parseInt(el.dataset.rindex);
+        const r = parseInt(el.dataset.rid);
         const i = parseInt(el.dataset.iindex);
         const url = el.dataset.action === 'add' ? `/calendar/${entry}/completion` : `/calendar/${entry}/completion/remove`;
         await fetch(url, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             credentials: 'same-origin',
-            body: JSON.stringify({recurrence_index: r, instance_index: i})
+            body: JSON.stringify({recurrence_id: r, instance_index: i})
         });
         location.reload();
     });
 });
 document.addEventListener('DOMContentLoaded', () => {
     const entryId = {{ entry.id }};
-    const rindex = {{ period.recurrence_index }};
+    const rid = {{ period.recurrence_id }};
     const iindex = {{ period.instance_index }};
     const csrfToken = {{ request.session.get('csrf_token', '')|tojson }};
     const allUsers = {{ all_users()|selectattr('username','ne','Viewer')|map(attribute='username')|list|tojson }};
@@ -176,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelNoteBtn = document.getElementById('cancel-note');
 
     const durationExists = {{ 'true' if duration_override else 'false' }};
-    const defaultDurationSeconds = {{ entry.duration.total_seconds()|int }};
+    const defaultDurationSeconds = {{ base_duration.total_seconds()|int if base_duration else 0 }};
     const addDurationBtn = document.getElementById('add-duration');
     const editDurationBtn = document.getElementById('edit-duration');
     const deleteDurationForm = document.getElementById('delete-duration-form');
@@ -391,7 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             const form = new FormData();
-            form.append('recurrence_index', rindex);
+            form.append('recurrence_id', rid);
             form.append('instance_index', iindex);
             form.append('csrf_token', csrfToken);
             delegates.forEach(u => form.append('responsible[]', u));

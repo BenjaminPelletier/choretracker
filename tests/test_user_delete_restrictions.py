@@ -8,7 +8,12 @@ from fastapi.testclient import TestClient
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from choretracker.calendar import CalendarEntry, CalendarEntryType
+from choretracker.calendar import (
+    CalendarEntry,
+    CalendarEntryType,
+    Recurrence,
+    RecurrenceType,
+)
 
 
 def test_user_deletion_restricted(tmp_path, monkeypatch):
@@ -19,18 +24,24 @@ def test_user_deletion_restricted(tmp_path, monkeypatch):
     app_module = importlib.import_module("choretracker.app")
 
     app_module.user_store.create("Bob", "bob", None, set())
+    start = get_now() + timedelta(days=1)
+    rec = Recurrence(
+        id=0,
+        type=RecurrenceType.OneTime,
+        first_start=start,
+        duration_seconds=60,
+    )
     entry = CalendarEntry(
         title="Test",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=get_now() + timedelta(days=1),
-        duration_seconds=60,
+        recurrences=[rec],
         responsible=["Bob"],
         managers=["Bob"],
     )
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id
-    app_module.completion_store.create(entry_id, -1, -1, "Bob")
+    app_module.completion_store.create(entry_id, 0, 0, "Bob")
 
     client = TestClient(app_module.app)
     client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)

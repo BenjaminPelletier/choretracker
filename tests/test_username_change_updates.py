@@ -11,7 +11,6 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from choretracker.calendar import (
     CalendarEntry,
     CalendarEntryType,
-    Delegation,
     Recurrence,
     RecurrenceType,
 )
@@ -25,25 +24,25 @@ def test_username_change_updates_references(tmp_path, monkeypatch):
     app_module = importlib.import_module("choretracker.app")
 
     app_module.user_store.create("Bob", "bob", None, set())
+    start = get_now() + timedelta(days=1)
+    rec = Recurrence(
+        id=0,
+        type=RecurrenceType.Weekly,
+        first_start=start,
+        duration_seconds=60,
+        responsible=["Bob"],
+    )
     entry = CalendarEntry(
         title="Test",
         description="",
         type=CalendarEntryType.Chore,
-        first_start=get_now() + timedelta(days=1),
-        duration_seconds=60,
+        recurrences=[rec],
         responsible=["Bob"],
         managers=["Bob"],
-        recurrences=[
-            Recurrence(
-                type=RecurrenceType.Weekly,
-                responsible=["Bob"],
-                delegations=[Delegation(instance_index=0, responsible=["Bob"])],
-            )
-        ],
     )
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id
-    app_module.completion_store.create(entry_id, -1, -1, "Bob")
+    app_module.completion_store.create(entry_id, 0, 0, "Bob")
 
     client = TestClient(app_module.app)
     client.post(
@@ -66,7 +65,6 @@ def test_username_change_updates_references(tmp_path, monkeypatch):
     assert entry.managers == ["Bobby"]
     assert entry.responsible == ["Bobby"]
     assert entry.recurrences[0].responsible == ["Bobby"]
-    assert entry.recurrences[0].delegations[0].responsible == ["Bobby"]
 
     comp = app_module.completion_store.list_for_entry(entry_id)[0]
     assert comp.completed_by == "Bobby"

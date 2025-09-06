@@ -8,7 +8,7 @@
 <h2>Completions</h2>
 <ul>
     {% for entry, comp, has_note in completions %}
-    <li><a href="{{ url_for('view_time_period', entry_id=comp.entry_id, rindex=comp.recurrence_index, iindex=comp.instance_index) }}">{{ entry.title }}{% if has_note %}<span class="note-marker">*</span>{% endif %} {{ comp.completed_at|format_datetime(True) }}</a></li>
+    <li><a href="{{ url_for('view_time_period', entry_id=comp.entry_id, recurrence_id=comp.recurrence_id, iindex=comp.instance_index) }}">{{ entry.title }}{% if has_note %}<span class="note-marker">*</span>{% endif %} {{ comp.completed_at|format_datetime(True) }}</a></li>
     {% else %}
     <li>No completions found.</li>
     {% endfor %}

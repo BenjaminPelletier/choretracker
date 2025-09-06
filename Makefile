@@ -1,5 +1,7 @@
 .PHONY: docker-start docker-stop docker-rebuild test
 
+PYTHON ?= python
+
 docker-start:
 	docker compose up --no-build -d
 
@@ -11,4 +13,4 @@ docker-rebuild:
 	docker compose up -d
 
 test:
-	./scripts/test.sh
+	$(PYTHON) scripts/test.py
