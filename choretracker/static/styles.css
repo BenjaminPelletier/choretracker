@@ -119,6 +119,14 @@ textarea {
     font-family: inherit;
 }
 
+.time-range {
+    margin: 0;
+}
+
+#title-type {
+    margin-bottom: 0;
+}
+
 .login-container {
     min-height: 100vh;
     display: flex;

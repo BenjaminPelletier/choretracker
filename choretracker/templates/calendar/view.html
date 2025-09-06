@@ -16,7 +16,14 @@
     {% endif %}
     {% endif %}
 </h1>
-<p class="time-range">{{ time_range_summary(entry_start, entry_end) }}</p>
+<p class="time-range" id="none-before-line" data-current="{{ entry.none_before.strftime('%Y-%m-%dT%H:%M') if entry.none_before else '' }}">
+    🟢 <span id="none-before-display">{{ entry_start_display }}</span>
+    {% if can_edit %}<button type="button" id="edit-none-before" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>{% endif %}
+</p>
+<p class="time-range" id="none-after-line" data-current="{{ entry.none_after.strftime('%Y-%m-%dT%H:%M') if entry.none_after else '' }}">
+    🛑 <span id="none-after-display">{{ entry_end_display }}</span>
+    {% if can_edit %}<button type="button" id="edit-none-after" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>{% endif %}
+</p>
 {% if prev_entry %}
 <p class="time-range">Previous: <a href="{{ url_for('view_calendar_entry', entry_id=prev_entry.id) }}">{{ time_range_summary(prev_start, prev_end) }}</a></p>
 {% endif %}
@@ -38,9 +45,6 @@
         <button type="button" id="edit-managers" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
         {% endif %}
     </span></dt>
-    {% if entry.none_before %}
-    <dt>None before: <span id="none-before-text">{{ entry.none_before|format_datetime(include_day=True) }}</span></dt>
-    {% endif %}
     <dt>Responsible: <span id="entry-responsible-container" data-responsible='{{ entry.responsible|tojson }}'>
         {% for user in entry.responsible %}
         <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
@@ -70,18 +74,6 @@
         None
         {% endif %}
     </dd>
-    {% if entry.recurrences %}
-        <dt id="none-after-row" data-current="{{ entry.none_after.strftime('%Y-%m-%dT%H:%M') if entry.none_after else '' }}">
-            {% if entry.none_after %}
-            None after: <span id="none-after-text">{{ entry.none_after|format_datetime(include_day=True) }}</span>
-            {% else %}
-            Repeats forever
-            {% endif %}
-            {% if can_edit %}
-            <button type="button" id="edit-none-after" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
-            {% endif %}
-        </dt>
-    {% endif %}
 </dl>
 {% if past_instances or upcoming_instances %}
 <h2>Instances</h2>
@@ -160,16 +152,14 @@ document.addEventListener('DOMContentLoaded', () => {
         return b;
     }
 
-    
-
-    const naEdit = document.getElementById('edit-none-after');
-    if (naEdit) {
-        naEdit.addEventListener('click', () => {
-            const row = document.getElementById('none-after-row');
-            const current = row.dataset.current;
-            row.innerHTML = '';
+    const nbEdit = document.getElementById('edit-none-before');
+    if (nbEdit) {
+        nbEdit.addEventListener('click', () => {
+            const line = document.getElementById('none-before-line');
+            const current = line.dataset.current;
+            line.innerHTML = '🟢 ';
             const label = document.createElement('span');
-            label.textContent = 'Never after: ';
+            label.textContent = 'None before: ';
             const input = document.createElement('input');
             input.type = 'datetime-local';
             if (current) {
@@ -185,12 +175,70 @@ document.addEventListener('DOMContentLoaded', () => {
             const clearBtn = makeBtn(trashUrl, 'Clear');
             const save = makeBtn(diskUrl, 'Save');
             const cancel = makeBtn(xUrl, 'Cancel');
-            row.appendChild(label);
-            row.appendChild(input);
-            row.appendChild(clearBtn);
-            row.appendChild(save);
-            row.appendChild(cancel);
-            clearBtn.addEventListener('click', () => { input.value = ''; });
+            line.appendChild(label);
+            line.appendChild(input);
+            line.appendChild(clearBtn);
+            line.appendChild(save);
+            line.appendChild(cancel);
+            clearBtn.addEventListener('click', async () => {
+                await fetch(`/calendar/${entryId}/update`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ none_before: '' })
+                });
+                location.reload();
+            });
+            save.addEventListener('click', async () => {
+                await fetch(`/calendar/${entryId}/update`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ none_before: input.value })
+                });
+                location.reload();
+            });
+            cancel.addEventListener('click', () => location.reload());
+        });
+    }
+
+    const naEdit = document.getElementById('edit-none-after');
+    if (naEdit) {
+        naEdit.addEventListener('click', () => {
+            const line = document.getElementById('none-after-line');
+            const current = line.dataset.current;
+            line.innerHTML = '🛑 ';
+            const label = document.createElement('span');
+            label.textContent = 'None after: ';
+            const input = document.createElement('input');
+            input.type = 'datetime-local';
+            if (current) {
+                input.value = current;
+            } else {
+                const now = new Date();
+                const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+                    .toISOString()
+                    .slice(0, 16);
+                input.value = local;
+            }
+            input.className = 'inline-input';
+            const clearBtn = makeBtn(trashUrl, 'Clear');
+            const save = makeBtn(diskUrl, 'Save');
+            const cancel = makeBtn(xUrl, 'Cancel');
+            line.appendChild(label);
+            line.appendChild(input);
+            line.appendChild(clearBtn);
+            line.appendChild(save);
+            line.appendChild(cancel);
+            clearBtn.addEventListener('click', async () => {
+                await fetch(`/calendar/${entryId}/update`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ none_after: '' })
+                });
+                location.reload();
+            });
             save.addEventListener('click', async () => {
                 await fetch(`/calendar/${entryId}/update`, {
                     method: 'POST',
