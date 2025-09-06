@@ -54,7 +54,7 @@
         {% if entry.recurrences %}
         <ul id="recurrence-list">
             {% for rec in entry.recurrences %}
-            <li class="recurrence-item" data-rid="{{ rec.id }}" data-type="{{ rec.type.value }}" data-responsible='{{ rec.responsible|tojson }}'>
+            <li class="recurrence-item" data-rid="{{ rec.id }}" data-type="{{ rec.type.value }}" data-responsible='{{ rec.responsible|tojson }}' data-first-start="{{ rec.first_start.strftime('%Y-%m-%dT%H:%M') }}" data-duration-seconds="{{ rec.duration_seconds }}">
                 <span class="recurrence-text">{{ rec.type.value }}</span>
                 {% for user in rec.responsible %}
                 <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
@@ -145,8 +145,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const profileUrlTemplate = "{{ url_for('profile_picture', username='__user__') }}";
     const allUsers = {{ all_users()|selectattr('username','ne','Viewer')|map(attribute='username')|list|tojson }};
     const recurrenceTypes = {{ RecurrenceType|map(attribute='value')|list|tojson }};
-    const defaultFirstStart = "{{ entry.recurrences[0].first_start.strftime('%Y-%m-%dT%H:%M') if entry.recurrences else '' }}";
-    const defaultDurationSeconds = {{ entry.recurrences[0].duration_seconds if entry.recurrences else 0 }};
+    const durationUrl = "{{ url_for('static', path='duration.svg') }}";
+    const endTimeUrl = "{{ url_for('static', path='endtime.svg') }}";
 
     function makeBtn(url, alt) {
         const b = document.createElement('button');
@@ -369,7 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const recContainer = document.getElementById('recurrence-container');
     let recList = document.getElementById('recurrence-list');
 
-    function setupRecurrenceEditor(li, rid, originalType, originalResp, isNew) {
+    function setupRecurrenceEditor(li, rid, originalType, originalResp, originalFirstStart, originalDuration, isNew) {
         if (isNew && addRecurrence) {
             addRecurrence.style.display = 'none';
         }
@@ -383,6 +383,156 @@ document.addEventListener('DOMContentLoaded', () => {
             opt.textContent = t;
             if (t === originalType) opt.selected = true;
             typeSelect.appendChild(opt);
+        });
+
+        const startInput = document.createElement('input');
+        startInput.type = 'datetime-local';
+        startInput.className = 'inline-input';
+        startInput.required = true;
+        if (originalFirstStart) {
+            startInput.value = originalFirstStart;
+        } else {
+            const now = new Date();
+            if (now.getMinutes() > 0 || now.getSeconds() > 0 || now.getMilliseconds() > 0) {
+                now.setHours(now.getHours() + 1);
+            }
+            now.setMinutes(0, 0, 0);
+            const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+                .toISOString()
+                .slice(0, 16);
+            startInput.value = local;
+        }
+
+        const durationWrap = document.createElement('span');
+        durationWrap.className = 'duration-inputs';
+        const toggleBtn = makeBtn(endTimeUrl, 'Use end time');
+        const modeIcon = toggleBtn.querySelector('img');
+        const durationFields = document.createElement('span');
+        const daysInput = document.createElement('input');
+        daysInput.type = 'number';
+        daysInput.placeholder = 'Days';
+        daysInput.min = '0';
+        daysInput.className = 'inline-input';
+        const hoursInput = document.createElement('input');
+        hoursInput.type = 'number';
+        hoursInput.placeholder = 'Hours';
+        hoursInput.min = '0';
+        hoursInput.className = 'inline-input';
+        const minutesInput = document.createElement('input');
+        minutesInput.type = 'number';
+        minutesInput.placeholder = 'Minutes';
+        minutesInput.min = '0';
+        minutesInput.max = '59';
+        minutesInput.className = 'inline-input';
+        durationFields.appendChild(daysInput);
+        durationFields.appendChild(hoursInput);
+        durationFields.appendChild(minutesInput);
+        const endInput = document.createElement('input');
+        endInput.type = 'datetime-local';
+        endInput.className = 'inline-input';
+        endInput.style.display = 'none';
+        endInput.disabled = true;
+        durationWrap.appendChild(toggleBtn);
+        durationWrap.appendChild(durationFields);
+        durationWrap.appendChild(endInput);
+
+        if (originalDuration) {
+            const d = Math.floor(originalDuration / 86400);
+            const h = Math.floor((originalDuration % 86400) / 3600);
+            const m = Math.floor((originalDuration % 3600) / 60);
+            if (d) daysInput.value = d;
+            if (h) hoursInput.value = h;
+            if (m) minutesInput.value = m;
+        }
+
+        let useEndTime = false;
+        function computeDuration() {
+            if (useEndTime) {
+                const start = new Date(startInput.value);
+                const end = new Date(endInput.value);
+                return (end - start) / 1000;
+            } else {
+                const d = Number(daysInput.value) || 0;
+                const h = Number(hoursInput.value) || 0;
+                const m = Number(minutesInput.value) || 0;
+                return d * 86400 + h * 3600 + m * 60;
+            }
+        }
+        function validateDuration() {
+            const total = computeDuration();
+            const targets = useEndTime ? [endInput] : [daysInput, hoursInput, minutesInput];
+            targets.forEach(inp => {
+                if (total <= 0) {
+                    inp.setCustomValidity('Duration must be greater than 0');
+                } else {
+                    inp.setCustomValidity('');
+                }
+            });
+            return total > 0;
+        }
+        function updateEndFromInputs() {
+            const start = new Date(startInput.value);
+            const d = Number(daysInput.value) || 0;
+            const h = Number(hoursInput.value) || 0;
+            const m = Number(minutesInput.value) || 0;
+            const end = new Date(start.getTime() + (d * 86400 + h * 3600 + m * 60) * 1000);
+            const local = new Date(end.getTime() - end.getTimezoneOffset() * 60000)
+                .toISOString()
+                .slice(0, 16);
+            endInput.value = local;
+        }
+        function updateInputsFromEnd() {
+            const start = new Date(startInput.value);
+            const end = new Date(endInput.value);
+            let diff = Math.floor((end - start) / 1000);
+            const d = Math.floor(diff / 86400);
+            diff -= d * 86400;
+            const h = Math.floor(diff / 3600);
+            diff -= h * 3600;
+            const m = Math.floor(diff / 60);
+            daysInput.value = d || '';
+            hoursInput.value = h || '';
+            minutesInput.value = m || '';
+        }
+
+        toggleBtn.addEventListener('click', () => {
+            useEndTime = !useEndTime;
+            if (useEndTime) {
+                modeIcon.src = durationUrl;
+                modeIcon.alt = 'Use duration';
+                durationFields.style.display = 'none';
+                [daysInput, hoursInput, minutesInput].forEach(inp => {
+                    inp.disabled = true;
+                    inp.setCustomValidity('');
+                });
+                endInput.style.display = '';
+                endInput.disabled = false;
+                updateEndFromInputs();
+            } else {
+                modeIcon.src = endTimeUrl;
+                modeIcon.alt = 'Use end time';
+                durationFields.style.display = '';
+                [daysInput, hoursInput, minutesInput].forEach(inp => {
+                    inp.disabled = false;
+                });
+                endInput.style.display = 'none';
+                endInput.disabled = true;
+                endInput.setCustomValidity('');
+                updateInputsFromEnd();
+            }
+            validateDuration();
+        });
+
+        [daysInput, hoursInput, minutesInput].forEach(inp =>
+            inp.addEventListener('input', () => { if (!useEndTime) validateDuration(); })
+        );
+        endInput.addEventListener('input', () => { if (useEndTime) validateDuration(); });
+        startInput.addEventListener('input', () => {
+            if (useEndTime) {
+                validateDuration();
+            } else {
+                updateEndFromInputs();
+            }
         });
 
         const respContainer = document.createElement('span');
@@ -444,21 +594,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const cancel = makeBtn(xUrl, 'Cancel');
 
         li.appendChild(typeSelect);
+        li.appendChild(startInput);
+        li.appendChild(durationWrap);
         li.appendChild(respContainer);
         li.appendChild(addWrap);
         li.appendChild(save);
         li.appendChild(cancel);
 
         save.addEventListener('click', async () => {
+            if (!validateDuration()) {
+                return;
+            }
             const url = isNew ? `/calendar/${entryId}/recurrence/add` : `/calendar/${entryId}/recurrence/update`;
             const payload = {
                 type: typeSelect.value,
+                first_start: startInput.value,
+                duration_seconds: computeDuration(),
                 responsible: responsible
             };
-            if (isNew) {
-                payload.first_start = defaultFirstStart;
-                payload.duration_seconds = defaultDurationSeconds;
-            } else {
+            if (!isNew) {
                 payload.recurrence_id = rid;
             }
             const resp = await fetch(url, {
@@ -499,7 +653,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const rid = parseInt(li.dataset.rid);
             const originalType = li.dataset.type;
             const originalResp = JSON.parse(li.dataset.responsible || '[]');
-            setupRecurrenceEditor(li, rid, originalType, originalResp, false);
+            const originalFirstStart = li.dataset.firstStart;
+            const originalDuration = parseInt(li.dataset.durationSeconds || '0');
+            setupRecurrenceEditor(li, rid, originalType, originalResp, originalFirstStart, originalDuration, false);
         });
     });
 
@@ -538,7 +694,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const li = document.createElement('li');
             li.className = 'recurrence-item';
             recList.appendChild(li);
-            setupRecurrenceEditor(li, -1, recurrenceTypes[0], [], true);
+            setupRecurrenceEditor(li, -1, recurrenceTypes[0], [], null, null, true);
         });
     }
 
