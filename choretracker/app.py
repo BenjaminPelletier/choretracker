@@ -1023,11 +1023,6 @@ async def view_calendar_entry(
     next_entry = (
         calendar_store.get(entry.next_entry) if entry.next_entry else None
     )
-    prev_start = prev_end = next_start = next_end = None
-    if prev_entry:
-        prev_start, prev_end = entry_time_bounds(prev_entry)
-    if next_entry:
-        next_start, next_end = entry_time_bounds(next_entry)
     current_user = request.session.get("user")
     now = get_now()
     historical = entry_end is not None and ensure_tz(entry_end) < now
@@ -1118,10 +1113,6 @@ async def view_calendar_entry(
             "entry_end_display": entry_end_display,
             "prev_entry": prev_entry,
             "next_entry": next_entry,
-            "prev_start": prev_start,
-            "prev_end": prev_end,
-            "next_start": next_start,
-            "next_end": next_end,
             "historical": historical,
         },
     )

@@ -27,11 +27,12 @@
     🛑 <span id="none-after-display">{{ entry_end_display }}</span>
     {% if can_edit %}<button type="button" id="edit-none-after" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>{% endif %}
 </p>
-{% if prev_entry %}
-<p class="time-range">Previous: <a href="{{ url_for('view_calendar_entry', entry_id=prev_entry.id) }}">{{ time_range_summary(prev_start, prev_end) }}</a></p>
-{% endif %}
-{% if next_entry %}
-<p class="time-range">Next: <a href="{{ url_for('view_calendar_entry', entry_id=next_entry.id) }}">{{ time_range_summary(next_start, next_end) }}</a></p>
+{% if prev_entry or next_entry %}
+<p class="time-range">
+    {% if prev_entry %}<a href="{{ url_for('view_calendar_entry', entry_id=prev_entry.id) }}">←Previous</a>{% endif %}
+    {% if prev_entry and next_entry %} ― {% endif %}
+    {% if next_entry %}<a href="{{ url_for('view_calendar_entry', entry_id=next_entry.id) }}">Next→</a>{% endif %}
+</p>
 {% endif %}
 <div class="description" id="description-container">
     <div id="description-text">{{ entry.description|markdown|safe }}</div>
