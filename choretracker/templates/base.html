@@ -130,7 +130,7 @@
                 <button class="key pin-key" data-value="7"><span class="num">7</span><span class="letters">PQRS</span></button>
                 <button class="key pin-key" data-value="8"><span class="num">8</span><span class="letters">TUV</span></button>
                 <button class="key pin-key" data-value="9"><span class="num">9</span><span class="letters">WXYZ</span></button>
-                <div></div>
+                <button class="key clear" id="pin-clear">Clear</button>
                 <button class="key pin-key" data-value="0"><span class="num">0</span><span class="letters"></span></button>
                 <button class="key enter" id="pin-enter">&#x2192;</button>
             </div>
@@ -204,11 +204,15 @@
         var currentNext = '';
         var pinValue = '';
 
+        function clearPinDigits() {
+            pinValue = '';
+            pinDisplay.textContent = '';
+        }
+
         function openPinModal(user, next) {
             currentUser = user;
             currentNext = next;
-            pinValue = '';
-            pinDisplay.textContent = '';
+            clearPinDigits();
             pinError.textContent = '';
             pinModal.style.display = 'flex';
         }
@@ -225,6 +229,10 @@
                 pinValue += this.dataset.value;
                 pinDisplay.textContent = pinValue.replace(/./g, '•');
             });
+        });
+        document.getElementById('pin-clear').addEventListener('click', function () {
+            clearPinDigits();
+            pinError.textContent = '';
         });
         document.getElementById('pin-enter').addEventListener('click', function () {
             performSwitch(currentUser, currentNext, pinValue);
@@ -260,10 +268,12 @@
                     } else {
                         resp.json().then(function (data) {
                             pinError.textContent = data.error || 'Invalid PIN';
+                            clearPinDigits();
                         });
                     }
                 }).catch(function () {
                     pinError.textContent = 'Network error';
+                    clearPinDigits();
                 });
             } else {
                 var xhr = new XMLHttpRequest();
@@ -281,10 +291,12 @@
                         window.location.href = data.redirect;
                     } else {
                         pinError.textContent = data.error || 'Invalid PIN';
+                        clearPinDigits();
                     }
                 };
                 xhr.onerror = function () {
                     pinError.textContent = 'Network error';
+                    clearPinDigits();
                 };
                 xhr.send('pin=' + encodeURIComponent(pin));
             }

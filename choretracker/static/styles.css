@@ -454,6 +454,10 @@ textarea {
     grid-column: 3;
 }
 
+.keypad .clear {
+    grid-column: 1;
+}
+
 #pin-display {
     min-height: 1.5rem;
     margin-bottom: 0.5rem;
