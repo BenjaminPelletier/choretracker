@@ -1431,7 +1431,10 @@ async def delete_calendar_entry(request: Request, entry_id: int):
         raise HTTPException(status_code=404)
     require_entry_write_permission(request, entry)
     if not calendar_store.delete(entry_id):
-        raise HTTPException(status_code=400, detail="Entry has completions or delegations")
+        raise HTTPException(
+            status_code=400,
+            detail="Entry has completions, delegations, or linked entries",
+        )
     return RedirectResponse(
         url=relative_url_for(request, "list_calendar_entries", entry_type=entry.type.value),
         status_code=303,

@@ -1,6 +1,7 @@
 import importlib
 import sys
 from pathlib import Path
+from datetime import timedelta
 from choretracker.time_utils import get_now
 
 from fastapi.testclient import TestClient
@@ -128,3 +129,32 @@ def test_list_hides_delete_for_undeletable(tmp_path, monkeypatch):
     text = resp.text
     assert f"../{comp_id}/delete" not in text
     assert f"../{del_id}/delete" in text
+
+
+def test_entry_not_deleted_when_linked(tmp_path, monkeypatch):
+    db_file = tmp_path / "test.db"
+    monkeypatch.setenv("CHORETRACKER_DB", str(db_file))
+    if "choretracker.app" in sys.modules:
+        del sys.modules["choretracker.app"]
+    app_module = importlib.import_module("choretracker.app")
+    now = get_now()
+    rec = Recurrence(
+        id=0,
+        type=RecurrenceType.OneTime,
+        first_start=now,
+        duration_seconds=60,
+    )
+    entry = CalendarEntry(
+        title="Original",
+        description="",
+        type=CalendarEntryType.Chore,
+        recurrences=[rec],
+        managers=["Admin"],
+        responsible=["Admin"],
+    )
+    app_module.calendar_store.create(entry)
+    entry_id = app_module.calendar_store.list_entries()[0].id
+    split_time = now + timedelta(days=1)
+    app_module.calendar_store.split(entry_id, split_time)
+    assert not app_module.calendar_store.delete(entry_id)
+    assert app_module.calendar_store.get(entry_id) is not None
