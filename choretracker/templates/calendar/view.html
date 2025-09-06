@@ -4,6 +4,9 @@
 
 {% block content %}
 <h1 id="title-type">
+    {% if historical %}
+    <img src="{{ url_for('static', path='historical.svg') }}" alt="Historical" class="icon historical-icon">
+    {% endif %}
     <span id="title-text">{{ entry.title }}</span>
     <span id="type-text">{{ entry.type.value }}</span>
     {% if can_edit %}

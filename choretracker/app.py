@@ -1029,6 +1029,8 @@ async def view_calendar_entry(
     if next_entry:
         next_start, next_end = entry_time_bounds(next_entry)
     current_user = request.session.get("user")
+    now = get_now()
+    historical = entry_end is not None and ensure_tz(entry_end) < now
     comps_list = completion_store.list_for_entry(entry_id)
     comp_map = {(c.recurrence_id, c.instance_index): c for c in comps_list}
     completion_periods: list[
@@ -1055,7 +1057,6 @@ async def view_calendar_entry(
         completion_periods.append(
             (period, comp, can_remove, is_skipped, responsible, has_note)
         )
-    now = get_now()
     past_noncompleted: list[
         tuple[TimePeriod, ChoreCompletion | None, bool, bool, list[str], bool]
     ] = []
@@ -1121,6 +1122,7 @@ async def view_calendar_entry(
             "prev_end": prev_end,
             "next_start": next_start,
             "next_end": next_end,
+            "historical": historical,
         },
     )
 
@@ -1158,6 +1160,7 @@ async def view_time_period(
         timedelta(seconds=dur_obj.duration_seconds) if dur_obj else None
     )
     current_user = request.session.get("user")
+    now = get_now()
     return templates.TemplateResponse(
         request,
         "calendar/timeperiod.html",
@@ -1167,13 +1170,14 @@ async def view_time_period(
             "completion": completion,
             "is_skipped": is_skipped,
             "can_edit": can_edit_entry(current_user, entry),
-            "now": get_now(),
+            "now": now,
             "CalendarEntryType": CalendarEntryType,
             "responsible": responsible_for(entry, recurrence_id, iindex),
             "delegation": delegation,
             "note": note,
             "duration_override": dur_override,
             "base_duration": base_duration,
+            "historical": ensure_tz(period.end) < now,
         },
     )
 

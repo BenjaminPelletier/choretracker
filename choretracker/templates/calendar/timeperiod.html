@@ -3,7 +3,12 @@
 {% block title %}{{ entry.title }} instance - Chore Tracker{% endblock %}
 
 {% block content %}
-<h1><a href="{{ url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a> instance</h1>
+<h1>
+    {% if historical %}
+    <img src="{{ url_for('static', path='historical.svg') }}" alt="Historical" class="icon historical-icon">
+    {% endif %}
+    <a href="{{ url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a> instance
+</h1>
 <div class="time-range">
     <span>{{ time_range_summary(period.start, period.end) }}</span>
     {% for user in responsible %}
