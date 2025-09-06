@@ -333,12 +333,17 @@ def split_entry_if_past(entry_id: int, entry: CalendarEntry, now: datetime | Non
     if now is None:
         now = get_now()
     has_past = False
+    has_future = False
     for period in enumerate_time_periods(entry):
         if period.start < now:
             has_past = True
         else:
+            has_future = True
             break
-    if has_past:
+    # Only split if there are instances both before and after ``now``;
+    # otherwise, one of the resulting entries would have zero instances and
+    # the split would be pointless.
+    if has_past and has_future:
         new_entry = calendar_store.split(entry_id, now)
         if not new_entry:
             raise HTTPException(status_code=404)
@@ -1161,6 +1166,8 @@ async def update_calendar_entry(request: Request, entry_id: int):
     if not existing:
         raise HTTPException(status_code=404)
     require_entry_write_permission(request, existing)
+    # Split off past instances so edits only affect future occurrences.
+    entry_id, existing, _ = split_entry_if_past(entry_id, existing)
     current_user = request.session.get("user")
 
     form = await request.form()

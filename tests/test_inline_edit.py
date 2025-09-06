@@ -1,7 +1,7 @@
 import importlib
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
@@ -31,10 +31,11 @@ def test_inline_update(tmp_path, monkeypatch):
     client = TestClient(app_module.app)
     client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
 
+    now = datetime.now(ZoneInfo("UTC"))
     rec = Recurrence(
         id=0,
-        type=RecurrenceType.OneTime,
-        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
+        type=RecurrenceType.Weekly,
+        first_start=now - timedelta(days=7),
         duration_seconds=60,
     )
     entry = CalendarEntry(
@@ -63,8 +64,10 @@ def test_inline_update(tmp_path, monkeypatch):
     data = resp.json()
     if "redirect" in data:
         entry_id = int(data["redirect"].split("/")[-1])
+    # Verify recurrence first_start was updated
+    rec = app_module.calendar_store.get(entry_id).recurrences[0]
+    assert rec.first_start == datetime(2000, 2, 1, 0, 0, tzinfo=ZoneInfo("UTC"))
     page = client.get(f"/calendar/entry/{entry_id}")
-    assert "2000-02-01 00:00" in page.text
     assert "New desc" in page.text
 
     # Update title and type
@@ -83,10 +86,11 @@ def test_title_edit_redirects_after_split(tmp_path, monkeypatch):
     client = TestClient(app_module.app)
     client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
 
+    now = datetime.now(ZoneInfo("UTC"))
     rec = Recurrence(
         id=0,
-        type=RecurrenceType.OneTime,
-        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
+        type=RecurrenceType.Weekly,
+        first_start=now - timedelta(days=7),
         duration_seconds=60,
     )
     entry = CalendarEntry(
@@ -118,10 +122,11 @@ def test_type_edit_redirects_after_split(tmp_path, monkeypatch):
         "/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False
     )
 
+    now = datetime.now(ZoneInfo("UTC"))
     rec = Recurrence(
         id=0,
-        type=RecurrenceType.OneTime,
-        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
+        type=RecurrenceType.Weekly,
+        first_start=now - timedelta(days=7),
         duration_seconds=60,
     )
     entry = CalendarEntry(
