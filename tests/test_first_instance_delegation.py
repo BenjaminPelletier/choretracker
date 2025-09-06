@@ -58,8 +58,8 @@ def test_delegate_first_instance(tmp_path, monkeypatch):
     assert responsible_for(entry, 0, 0) == ["Bob"]
 
     page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
-    assert "trash.svg" in page.text
-    assert "pen.svg" in page.text
+    assert 'class="icon-button remove-resp"' in page.text
+    assert 'id="add-resp-btn"' in page.text
 
     resp = client.post(
         f"/calendar/{entry_id}/delegation/remove",
@@ -71,7 +71,8 @@ def test_delegate_first_instance(tmp_path, monkeypatch):
     entry = app_module.calendar_store.get(entry_id)
     assert responsible_for(entry, 0, 0) == ["Admin"]
     page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
-    assert 'id="delegate-this-instance"' in page.text
+    assert 'class="icon-button remove-resp"' not in page.text
+    assert 'id="add-resp-btn"' in page.text
 
     resp = client.post(
         f"/calendar/{entry_id}/delegation",
@@ -91,8 +92,8 @@ def test_delegate_first_instance(tmp_path, monkeypatch):
     assert responsible_for(entry, 0, 0) == ["Admin"]
     assert is_instance_skipped(entry, 0, 0) is True
     page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
-    assert 'id="delegate-this-instance"' not in page.text
-    assert 'id="edit-delegation"' not in page.text
+    assert 'id="add-resp-btn"' not in page.text
+    assert 'class="icon-button remove-resp"' not in page.text
 
     client.post(
         f"/calendar/{entry_id}/skip/remove",
@@ -100,4 +101,4 @@ def test_delegate_first_instance(tmp_path, monkeypatch):
         follow_redirects=False,
     )
     page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
-    assert 'id="delegate-this-instance"' in page.text
+    assert 'id="add-resp-btn"' in page.text
