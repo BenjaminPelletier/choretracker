@@ -412,15 +412,18 @@ document.addEventListener('DOMContentLoaded', () => {
         daysInput.type = 'number';
         daysInput.placeholder = 'Days';
         daysInput.min = '0';
+        daysInput.className = 'inline-input';
         const hoursInput = document.createElement('input');
         hoursInput.type = 'number';
         hoursInput.placeholder = 'Hours';
         hoursInput.min = '0';
+        hoursInput.className = 'inline-input';
         const minutesInput = document.createElement('input');
         minutesInput.type = 'number';
         minutesInput.placeholder = 'Minutes';
         minutesInput.min = '0';
         minutesInput.max = '59';
+        minutesInput.className = 'inline-input';
         durationFields.appendChild(daysInput);
         durationFields.appendChild(hoursInput);
         durationFields.appendChild(minutesInput);
