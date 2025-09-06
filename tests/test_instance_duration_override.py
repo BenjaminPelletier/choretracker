@@ -60,11 +60,13 @@ def test_instance_duration_override(tmp_path, monkeypatch):
     assert resp.status_code == 303
 
     page = client.get(f"/calendar/entry/{entry_id}/period/0/0")
-    assert "Duration" in page.text
-    assert "2:00" in page.text
+    assert 'id="edit-duration"' in page.text
+    assert 'id="delete-duration-form"' in page.text
 
     entry = app_module.calendar_store.get(entry_id)
     period = next(enumerate_time_periods(entry))
+    end_display = app_module.format_range_end(period.start, period.end)
+    assert end_display in page.text
     assert (period.end - period.start) == timedelta(hours=2)
 
     home = client.get("/")
