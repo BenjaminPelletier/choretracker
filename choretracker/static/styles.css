@@ -296,12 +296,22 @@ textarea {
 }
 
 .duration-inputs {
-    display: flex;
-    flex-wrap: wrap;
+    display: inline-flex;
+    align-items: center;
 }
 
 .duration-inputs input {
     margin-right: 0.25rem;
+}
+
+.duration-inputs label {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 0.25rem;
+}
+
+.duration-inputs label input {
+    margin-right: 0.1rem;
 }
 
 .duration-inputs input[type="number"] {

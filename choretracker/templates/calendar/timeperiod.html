@@ -85,23 +85,23 @@
         <input type="hidden" name="recurrence_id" value="{{ period.recurrence_id }}" />
         <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
         <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
-        <div class="duration-inputs">
+        <span class="duration-inputs">
             <button type="button" id="toggle-duration-mode" class="icon-button">
                 <img id="duration-mode-icon" src="{{ url_for('static', path='endtime.svg') }}" alt="Use end time" class="icon">
             </button>
             <span id="duration-fields">
-                <input type="number" class="inline-input" name="duration_days" placeholder="Days" min="0">
-                <input type="number" class="inline-input" name="duration_hours" placeholder="Hours" min="0">
-                <input type="number" class="inline-input" name="duration_minutes" placeholder="Minutes" min="0" max="59">
+                <label><input type="number" class="inline-input" name="duration_days" placeholder="Days" min="0">d</label>
+                <label><input type="number" class="inline-input" name="duration_hours" placeholder="Hours" min="0">h</label>
+                <label><input type="number" class="inline-input" name="duration_minutes" placeholder="Minutes" min="0" max="59">m</label>
             </span>
             <input type="datetime-local" name="end_time" id="end_time" class="inline-input" style="display:none">
-        </div>
+        </span>
         {% if duration_override %}
         <button type="submit" formaction="{{ url_for('remove_instance_duration', entry_id=entry.id) }}" class="icon-button"><img src="{{ url_for('static', path='trash.svg') }}" alt="Delete" class="icon"></button>
         {% endif %}
         <button type="submit" class="icon-button"><img src="{{ url_for('static', path='disk.svg') }}" alt="Save" class="icon"></button>
+        <button type="button" id="cancel-duration" class="icon-button"><img src="{{ url_for('static', path='x.svg') }}" alt="Cancel" class="icon"></button>
     </form>
-    <button type="button" id="cancel-duration" class="icon-button"><img src="{{ url_for('static', path='x.svg') }}" alt="Cancel" class="icon"></button>
 </div>
 <div class="description">{{ entry.description|markdown|safe }}</div>
 {% if can_edit %}
