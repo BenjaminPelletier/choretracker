@@ -9,7 +9,7 @@
     {% endif %}
     <a href="{{ url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a> instance
 </h1>
-<p class="time-range">
+<p class="time-range responsible-line">
     {% for user in responsible %}
     <span class="responsible-item">
         <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
@@ -21,7 +21,7 @@
     {% if can_edit and not is_skipped %}
     <span class="responsible-selector" id="add-resp-wrap">
         <button type="button" id="add-resp-btn" class="icon-button"><img src="{{ url_for('static', path='plus.svg') }}" alt="Add" class="icon"></button>
-        <div class="dropdown" id="add-resp-dropdown" style="display:none"></div>
+        <div class="dropdown" id="add-resp-dropdown" style="display:none; position:absolute; left:0; right:auto; top:100%"></div>
     </span>
     {% endif %}
     {% if entry.type == CalendarEntryType.Chore %}

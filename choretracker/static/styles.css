@@ -322,13 +322,19 @@ textarea {
     width: 16rem;
 }
 
+.responsible-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
 .responsible-selector {
     position: relative;
     display: inline-block;
-    margin-bottom: 0.25rem;
 }
 
 .responsible-selector .dropdown {
+    position: absolute;
     left: 0;
     right: auto;
     top: 100%;
