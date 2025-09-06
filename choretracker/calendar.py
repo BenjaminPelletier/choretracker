@@ -218,7 +218,16 @@ class CalendarEntryStore:
                 ).first()
                 is not None
             )
-            if has_delegations or has_completions:
+            linked = (
+                session.exec(
+                    select(CalendarEntry.id).where(
+                        (CalendarEntry.previous_entry == entry_id)
+                        | (CalendarEntry.next_entry == entry_id)
+                    )
+                ).first()
+                is not None
+            )
+            if has_delegations or has_completions or linked:
                 return False
             session.delete(entry)
             session.commit()
