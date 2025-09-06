@@ -113,6 +113,12 @@ h1 .icon {
     font-size: inherit;
 }
 
+/* Match textarea text size to surrounding content */
+textarea {
+    font-size: 1rem;
+    font-family: inherit;
+}
+
 .login-container {
     min-height: 100vh;
     display: flex;
@@ -382,6 +388,27 @@ h1 .icon {
 .note-marker {
     color: #b91c1c;
     margin-left: 0.2rem;
+}
+
+.time-suffix {
+    padding: 0 0.25rem;
+    border-radius: 0.25rem;
+}
+
+.due-soon {
+    background-color: #fee2e2; /* light red */
+}
+
+.due-today {
+    background-color: #fef9c3; /* light yellow */
+}
+
+.due-week {
+    background-color: #dcfce7; /* light green */
+}
+
+.due-later {
+    background-color: #dbeafe; /* light blue */
 }
 
 .pin-modal {
