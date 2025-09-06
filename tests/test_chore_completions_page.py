@@ -1,4 +1,5 @@
 import importlib
+import re
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -13,6 +14,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 def _setup_app(tmp_path, monkeypatch, fake_now):
     db_file = tmp_path / "test.db"
     monkeypatch.setenv("CHORETRACKER_DB", str(db_file))
+    monkeypatch.setenv("CHORETRACKER_SECRET_KEY", "test")
     if "choretracker.app" in sys.modules:
         del sys.modules["choretracker.app"]
     app_module = importlib.import_module("choretracker.app")
@@ -20,7 +22,14 @@ def _setup_app(tmp_path, monkeypatch, fake_now):
     import choretracker.calendar as calendar_module
     monkeypatch.setattr(calendar_module, "get_now", lambda: fake_now)
     client = TestClient(app_module.app)
-    client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
+    login_page = client.get("/login")
+    match = re.search(r'name="csrf_token" value="([^"]*)"', login_page.text)
+    token = match.group(1) if match else ""
+    client.post(
+        "/login",
+        data={"username": "Admin", "password": "admin", "csrf_token": token},
+        follow_redirects=False,
+    )
     return app_module, client
 
 
