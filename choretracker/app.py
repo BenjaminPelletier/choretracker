@@ -1208,6 +1208,12 @@ async def view_time_period(
     )
     current_user = request.session.get("user")
     now = get_now()
+    period_start_display = format_range_start(period.start)
+    period_end_display = (
+        format_range_end(period.start, period.end)
+        if period.end is not None
+        else "Never"
+    )
     return templates.TemplateResponse(
         request,
         "calendar/timeperiod.html",
@@ -1225,6 +1231,8 @@ async def view_time_period(
             "duration_override": dur_override,
             "base_duration": base_duration,
             "historical": ensure_tz(period.end) < now,
+            "period_start_display": period_start_display,
+            "period_end_display": period_end_display,
         },
     )
 
