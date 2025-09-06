@@ -322,16 +322,16 @@ textarea {
     width: 16rem;
 }
 
+.responsible-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 0.25rem;
+}
+
 .responsible-selector {
     position: relative;
     display: inline-block;
-    margin-bottom: 0.25rem;
-}
-
-.responsible-selector .dropdown {
-    left: 0;
-    right: auto;
-    top: 100%;
 }
 
 #responsible-list {
