@@ -347,7 +347,14 @@ document.addEventListener('DOMContentLoaded', () => {
             li,
             validate: () => {
                 const ok = validateDuration();
-                if (ok && useEndTime) updateInputsFromEnd();
+                if (useEndTime) {
+                    if (ok) {
+                        updateInputsFromEnd();
+                    }
+                    [daysInput, hoursInput, minutesInput].forEach(inp => {
+                        inp.disabled = false;
+                    });
+                }
                 return { ok, focus: useEndTime ? endInput : daysInput };
             }
         };
