@@ -41,6 +41,11 @@ class InstanceDuration(SQLModel):
     instance_index: int
     duration_seconds: int = Field(gt=0)
 
+
+class InstanceStart(SQLModel):
+    instance_index: int
+    start: datetime
+
 class Recurrence(SQLModel):
     id: int
     type: RecurrenceType
@@ -84,6 +89,7 @@ class InstanceSpecifics(SQLModel, table=True):
         default=None, sa_column=Column(JSON)
     )
     note: Optional[str] = None
+    start: Optional[datetime] = None
 
 Recurrence.model_rebuild()
 
@@ -97,9 +103,9 @@ def _load_instance_specifics(session: Session, entry: CalendarEntry) -> None:
         rec = rec_map.get(spec.recurrence_id)
         if not rec:
             continue
-        rec.instance_specifics[spec.instance_index] = InstanceSpecifics.model_validate(
-            spec.model_dump()
-        )
+        loaded = InstanceSpecifics.model_validate(spec.model_dump())
+        loaded.start = ensure_tz(loaded.start)
+        rec.instance_specifics[spec.instance_index] = loaded
 
 
 def _store_instance_specifics(session: Session, entry: CalendarEntry) -> None:
@@ -121,6 +127,8 @@ def _store_instance_specifics(session: Session, entry: CalendarEntry) -> None:
                 db_spec.note = spec.note
             if spec.duration_seconds is not None:
                 db_spec.duration_seconds = spec.duration_seconds
+            if spec.start is not None:
+                db_spec.start = spec.start
             session.add(db_spec)
 
 
@@ -503,17 +511,23 @@ def _recurrence_generator(
     instance = 0
     specs = rec.instance_specifics
     while start and (not none_after or start <= none_after):
+        spec = specs.get(instance)
+        start_override = start
+        if spec:
+            if not isinstance(spec, InstanceSpecifics):
+                spec = InstanceSpecifics.model_validate(spec)
+            start_override = spec.start or start
         if (
             (not none_before or start >= none_before)
             and (
                 include_skipped
-                or not (specs.get(instance) and specs[instance].skip)
+                or not (spec and spec.skip)
             )
         ):
             dur = duration_for(entry, rec.id, instance)
             yield TimePeriod(
-                start=start,
-                end=start + dur,
+                start=start_override,
+                end=start_override + dur,
                 recurrence_id=rec.id,
                 instance_index=instance,
             )
@@ -652,6 +666,24 @@ def find_instance_duration(
                 return InstanceDuration(
                     instance_index=instance_index,
                     duration_seconds=spec.duration_seconds,
+                )
+    return None
+
+
+def find_instance_start(
+    entry: CalendarEntry, recurrence_id: int, instance_index: int
+) -> Optional[InstanceStart]:
+    rec = next((r for r in entry.recurrences if r.id == recurrence_id), None)
+    if rec:
+        if not isinstance(rec, Recurrence):
+            rec = Recurrence.model_validate(rec)
+        spec = rec.instance_specifics.get(instance_index)
+        if spec:
+            if not isinstance(spec, InstanceSpecifics):
+                spec = InstanceSpecifics.model_validate(spec)
+            if spec.start is not None:
+                return InstanceStart(
+                    instance_index=instance_index, start=ensure_tz(spec.start)
                 )
     return None
 

@@ -32,7 +32,39 @@
         {% endif %}
     {% endif %}
 </p>
-<p class="time-range">🟢 {{ period_start_display }}</p>
+<p class="time-range" id="start-display-line">
+    🟢 <span id="start-display">{{ period_start_display }}</span>
+    {% if can_edit_start %}
+        <button type="button" id="edit-start" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
+        {% if start_override and can_remove_start %}
+        <form method="post" action="{{ url_for('remove_instance_start', entry_id=entry.id) }}" style="display:inline" class="delete-start-form">
+            <input type="hidden" name="recurrence_id" value="{{ period.recurrence_id }}" />
+            <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
+            <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
+            <button type="submit" class="icon-button"><img src="{{ url_for('static', path='trash.svg') }}" alt="Delete" class="icon"></button>
+        </form>
+        {% endif %}
+    {% endif %}
+</p>
+<div class="time-range" id="start-editor" style="display:none">
+    🟢
+    <form method="post" action="{{ url_for('set_instance_start', entry_id=entry.id) }}" style="display:inline" id="start-edit-form">
+        <input type="hidden" name="recurrence_id" value="{{ period.recurrence_id }}" />
+        <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
+        <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
+        <input type="datetime-local" name="start_time" id="start-input" value="{{ period.start.strftime('%Y-%m-%dT%H:%M') }}" class="inline-input">
+        <button type="submit" class="icon-button"><img src="{{ url_for('static', path='disk.svg') }}" alt="Save" class="icon"></button>
+    </form>
+    {% if start_override and can_remove_start %}
+    <form method="post" action="{{ url_for('remove_instance_start', entry_id=entry.id) }}" style="display:inline" class="delete-start-form">
+        <input type="hidden" name="recurrence_id" value="{{ period.recurrence_id }}" />
+        <input type="hidden" name="instance_index" value="{{ period.instance_index }}" />
+        <input type="hidden" name="csrf_token" value="{{ request.session['csrf_token'] }}" />
+        <button type="submit" class="icon-button"><img src="{{ url_for('static', path='trash.svg') }}" alt="Delete" class="icon"></button>
+    </form>
+    {% endif %}
+    <button type="button" id="cancel-start" class="icon-button"><img src="{{ url_for('static', path='x.svg') }}" alt="Cancel" class="icon"></button>
+</div>
 <p class="time-range">🛑 {{ period_end_display }}</p>
 <div class="description">{{ entry.description|markdown|safe }}</div>
 {% if can_edit %}
@@ -190,6 +222,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const durationDisplay = document.getElementById('duration-display');
     const cancelDurationBtn = document.getElementById('cancel-duration');
 
+    const editStartBtn = document.getElementById('edit-start');
+    const startDisplayLine = document.getElementById('start-display-line');
+    const startEditor = document.getElementById('start-editor');
+    const cancelStartBtn = document.getElementById('cancel-start');
+
     function openNoteEditor() {
         if (noteEditor) noteEditor.style.display = 'block';
         if (noteDisplay) noteDisplay.style.display = 'none';
@@ -209,6 +246,37 @@ document.addEventListener('DOMContentLoaded', () => {
             addNoteBtn.style.display = '';
         }
     });
+
+    if (editStartBtn) {
+        editStartBtn.addEventListener('click', () => {
+            if (startDisplayLine) startDisplayLine.style.display = 'none';
+            if (startEditor) startEditor.style.display = '';
+        });
+    }
+    if (cancelStartBtn) {
+        cancelStartBtn.addEventListener('click', () => {
+            if (startEditor) startEditor.style.display = 'none';
+            if (startDisplayLine) startDisplayLine.style.display = '';
+        });
+    }
+
+    const startEditForm = document.getElementById('start-edit-form');
+    if (startEditForm) {
+        startEditForm.addEventListener('submit', e => {
+            e.preventDefault();
+            fetch(startEditForm.action, {
+                method: 'POST',
+                body: new FormData(startEditForm),
+                credentials: 'same-origin'
+            }).then(resp => {
+                if (resp.ok) {
+                    location.reload();
+                } else {
+                    resp.text().then(text => alert(text));
+                }
+            });
+        });
+    }
 
     if (durationEditor) {
     const toggleMode = document.getElementById('toggle-duration-mode');

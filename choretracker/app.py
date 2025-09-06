@@ -13,7 +13,14 @@ import logging
 
 from fastapi import FastAPI, HTTPException, Request
 from starlette.requests import Request as StarletteRequest
-from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse, JSONResponse
+from fastapi.responses import (
+    HTMLResponse,
+    RedirectResponse,
+    Response,
+    FileResponse,
+    JSONResponse,
+    PlainTextResponse,
+)
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -48,12 +55,14 @@ from .calendar import (
     Recurrence,
     RecurrenceType,
     TimePeriod,
+    duration_for,
     enumerate_time_periods,
     has_single_instance,
     is_instance_skipped,
     find_time_period,
     find_delegation,
     find_instance_duration,
+    find_instance_start,
     find_instance_note,
     responsible_for,
 )
@@ -1206,6 +1215,8 @@ async def view_time_period(
     dur_override = (
         timedelta(seconds=dur_obj.duration_seconds) if dur_obj else None
     )
+    start_obj = find_instance_start(entry, recurrence_id, iindex)
+    start_override = ensure_tz(start_obj.start) if start_obj else None
     current_user = request.session.get("user")
     now = get_now()
     period_start_display = format_range_start(period.start)
@@ -1214,6 +1225,25 @@ async def view_time_period(
         if period.end is not None
         else "Never"
     )
+    can_edit_start = (
+        can_edit_entry(current_user, entry) and ensure_tz(period.end) > now
+    )
+    can_remove_start = False
+    if can_edit_start and start_override is not None:
+        rec = next((r for r in entry.recurrences if r.id == recurrence_id), None)
+        if rec:
+            spec = rec.instance_specifics.get(iindex)
+            if spec:
+                if not isinstance(spec, InstanceSpecifics):
+                    spec = InstanceSpecifics.model_validate(spec)
+                orig = spec.start
+                spec.start = None
+                base_period = find_time_period(
+                    entry, recurrence_id, iindex, include_skipped=True
+                )
+                spec.start = orig
+                if base_period and ensure_tz(base_period.end) > now:
+                    can_remove_start = True
     return templates.TemplateResponse(
         request,
         "calendar/timeperiod.html",
@@ -1233,6 +1263,9 @@ async def view_time_period(
             "historical": ensure_tz(period.end) < now,
             "period_start_display": period_start_display,
             "period_end_display": period_end_display,
+            "start_override": start_override,
+            "can_edit_start": can_edit_start,
+            "can_remove_start": can_remove_start,
         },
     )
 
@@ -1696,6 +1729,168 @@ async def remove_delegation(request: Request, entry_id: int):
             and spec.duration_seconds is None
             and spec.responsible is None
             and spec.note is None
+            and spec.start is None
+        ):
+            del specs[iindex]
+        else:
+            specs[iindex] = spec
+    rec.instance_specifics = specs
+    calendar_store.update(entry_id, entry)
+    referer = request.headers.get(
+        "referer",
+        str(
+            relative_url_for(
+                request,
+                "view_time_period",
+                entry_id=entry_id,
+                recurrence_id=rid,
+                iindex=iindex,
+            )
+        ),
+    )
+    return RedirectResponse(url=referer, status_code=303)
+
+
+@app.post("/calendar/{entry_id}/start")
+async def set_instance_start(request: Request, entry_id: int):
+    entry = calendar_store.get(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404)
+    require_entry_write_permission(request, entry)
+    form = await request.form()
+    rid = int(form.get("recurrence_id", -1))
+    iindex = int(form.get("instance_index", -1))
+    start_str = form.get("start_time")
+    if not start_str:
+        raise HTTPException(status_code=400)
+    new_start = parse_datetime(start_str)
+    period = find_time_period(entry, rid, iindex, include_skipped=True)
+    if not period or ensure_tz(period.end) <= get_now():
+        raise HTTPException(status_code=400)
+    dur = duration_for(entry, rid, iindex)
+    if new_start + dur <= get_now():
+        raise HTTPException(status_code=400)
+    gen = enumerate_time_periods(entry, include_skipped=True)
+    prev_any = None
+    prev_same = None
+    current_period = None
+    for p in gen:
+        if p.recurrence_id == rid and p.instance_index == iindex:
+            current_period = p
+            break
+        if p.recurrence_id == rid:
+            prev_same = p
+        prev_any = p
+    if current_period is None:
+        raise HTTPException(status_code=400)
+    next_any = next(gen, None)
+    next_same = None
+    lookahead = next_any
+    while lookahead and next_same is None:
+        if lookahead.recurrence_id == rid:
+            next_same = lookahead
+        else:
+            lookahead = next(gen, None)
+    fmt = "%a %Y-%m-%d %H:%M"
+    if prev_same and new_start < prev_same.start:
+        return PlainTextResponse(
+            f"Cannot start this instance before the previous instance's start of {prev_same.start.strftime(fmt)}",
+            status_code=400,
+        )
+    if prev_any and new_start < prev_any.start:
+        return PlainTextResponse(
+            f"Cannot start this instance before the previous instance's start of {prev_any.start.strftime(fmt)}",
+            status_code=400,
+        )
+    if next_same and new_start > next_same.start:
+        return PlainTextResponse(
+            f"Cannot start this instance after the next instance's start of {next_same.start.strftime(fmt)}",
+            status_code=400,
+        )
+    if next_any and new_start > next_any.start:
+        return PlainTextResponse(
+            f"Cannot start this instance after the next instance's start of {next_any.start.strftime(fmt)}",
+            status_code=400,
+        )
+    rec = next((r for r in entry.recurrences if r.id == rid), None)
+    if rec is None:
+        raise HTTPException(status_code=400)
+    if not isinstance(rec, Recurrence):
+        rec = Recurrence.model_validate(rec)
+        for idx, r in enumerate(entry.recurrences):
+            if r.id == rid:
+                entry.recurrences[idx] = rec
+                break
+    specs = rec.instance_specifics
+    spec = specs.get(iindex)
+    if spec:
+        if not isinstance(spec, InstanceSpecifics):
+            spec = InstanceSpecifics.model_validate(spec)
+        spec.start = new_start
+    else:
+        spec = InstanceSpecifics(
+            entry_id=entry_id,
+            recurrence_id=rid,
+            instance_index=iindex,
+            start=new_start,
+        )
+    specs[iindex] = spec
+    rec.instance_specifics = specs
+    calendar_store.update(entry_id, entry)
+    referer = request.headers.get(
+        "referer",
+        str(
+            relative_url_for(
+                request,
+                "view_time_period",
+                entry_id=entry_id,
+                recurrence_id=rid,
+                iindex=iindex,
+            )
+        ),
+    )
+    return RedirectResponse(url=referer, status_code=303)
+
+
+@app.post("/calendar/{entry_id}/start/remove")
+async def remove_instance_start(request: Request, entry_id: int):
+    entry = calendar_store.get(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404)
+    require_entry_write_permission(request, entry)
+    form = await request.form()
+    rid = int(form.get("recurrence_id", -1))
+    iindex = int(form.get("instance_index", -1))
+    period = find_time_period(entry, rid, iindex, include_skipped=True)
+    if not period or ensure_tz(period.end) <= get_now():
+        raise HTTPException(status_code=400)
+    rec = next((r for r in entry.recurrences if r.id == rid), None)
+    if rec is None:
+        raise HTTPException(status_code=400)
+    if not isinstance(rec, Recurrence):
+        rec = Recurrence.model_validate(rec)
+        for idx, r in enumerate(entry.recurrences):
+            if r.id == rid:
+                entry.recurrences[idx] = rec
+                break
+    specs = rec.instance_specifics
+    spec = specs.get(iindex)
+    if spec:
+        if not isinstance(spec, InstanceSpecifics):
+            spec = InstanceSpecifics.model_validate(spec)
+        orig_start = spec.start
+        spec.start = None
+        base_period = find_time_period(entry, rid, iindex, include_skipped=True)
+        spec.start = orig_start
+        if base_period and ensure_tz(base_period.end) <= get_now():
+            raise HTTPException(status_code=400)
+        spec.start = None
+        if (
+            not spec.skip
+            and spec.duration_seconds is None
+            and spec.responsible is None
+            and spec.note is None
+            and spec.start is None
         ):
             del specs[iindex]
         else:
@@ -1809,6 +2004,7 @@ async def remove_instance_duration(request: Request, entry_id: int):
             and spec.duration_seconds is None
             and spec.responsible is None
             and spec.note is None
+            and spec.start is None
         ):
             del specs[iindex]
         else:
@@ -1911,6 +2107,7 @@ async def remove_instance_note(request: Request, entry_id: int):
             and spec.duration_seconds is None
             and spec.responsible is None
             and spec.note is None
+            and spec.start is None
         ):
             del specs[iindex]
         else:
@@ -1991,7 +2188,12 @@ async def unskip_instance(request: Request, entry_id: int):
     if spec:
         if not isinstance(spec, InstanceSpecifics):
             spec = InstanceSpecifics.model_validate(spec)
-        if spec.responsible or spec.note or spec.duration_seconds is not None:
+        if (
+            spec.responsible
+            or spec.note
+            or spec.duration_seconds is not None
+            or spec.start is not None
+        ):
             spec.skip = False
             specs[iindex] = spec
         else:
