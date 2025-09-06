@@ -218,17 +218,22 @@ class CalendarEntryStore:
                 ).first()
                 is not None
             )
-            linked = (
-                session.exec(
-                    select(CalendarEntry.id).where(
-                        (CalendarEntry.previous_entry == entry_id)
-                        | (CalendarEntry.next_entry == entry_id)
-                    )
-                ).first()
-                is not None
-            )
-            if has_delegations or has_completions or linked:
+            if has_delegations or has_completions:
                 return False
+            prev_id = entry.previous_entry
+            next_id = entry.next_entry
+            affected_prev = session.exec(
+                select(CalendarEntry).where(CalendarEntry.previous_entry == entry_id)
+            ).all()
+            for e in affected_prev:
+                e.previous_entry = prev_id
+                session.add(e)
+            affected_next = session.exec(
+                select(CalendarEntry).where(CalendarEntry.next_entry == entry_id)
+            ).all()
+            for e in affected_next:
+                e.next_entry = next_id
+                session.add(e)
             session.delete(entry)
             session.commit()
             return True
