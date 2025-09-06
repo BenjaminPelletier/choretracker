@@ -9,8 +9,7 @@
     {% endif %}
     <a href="{{ url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a> instance
 </h1>
-<div class="time-range">
-    <span>{{ time_range_summary(period.start, period.end) }}</span>
+<p class="time-range">
     {% for user in responsible %}
     <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
     {% endfor %}
@@ -32,7 +31,9 @@
         <span class="completed-by">by {{ completion.completed_by }}</span>
         {% endif %}
     {% endif %}
-</div>
+</p>
+<p class="time-range">🟢 {{ period_start_display }}</p>
+<p class="time-range">🛑 {{ period_end_display }}</p>
 <div class="description">{{ entry.description|markdown|safe }}</div>
 {% if can_edit %}
 <form method="post" action="{{ url_for(is_skipped and 'unskip_instance' or 'skip_instance', entry_id=entry.id) }}">
