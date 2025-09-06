@@ -48,8 +48,8 @@ def test_edit_permissions(tmp_path, monkeypatch):
 
     # Manager cannot edit past entries
     client.post("/login", data={"username": "Manager", "password": "manager"}, follow_redirects=False)
-    resp = client.post(f"/calendar/{entry_id}/update", json={"title": "Updated"})
-    assert resp.status_code == 400
+    resp = client.post(f"/calendar/{entry_id}/update", json={"title": "Updated"}, follow_redirects=False)
+    assert resp.status_code == 303
     assert app_module.calendar_store.get(entry_id).title == "Test"
 
     # Non-manager without admin cannot edit
@@ -60,12 +60,35 @@ def test_edit_permissions(tmp_path, monkeypatch):
     assert resp.status_code == 303
     assert app_module.calendar_store.get(entry_id).title == "Test"
 
-    # Admin can edit even if not manager
-    client.post("/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False)
-    resp = client.post(f"/calendar/{entry_id}/update", json={"title": "AdminUpdate"})
+    # Admin cannot edit past entries
+    client.post(
+        "/login", data={"username": "Admin", "password": "admin"}, follow_redirects=False
+    )
+    resp = client.post(
+        f"/calendar/{entry_id}/update", json={"title": "AdminUpdate"}, follow_redirects=False
+    )
+    assert resp.status_code == 303
+    assert app_module.calendar_store.get(entry_id).title == "Test"
+
+    # Admin can edit a future entry even if not manager
+    future_rec = Recurrence(
+        id=1,
+        type=RecurrenceType.OneTime,
+        first_start=datetime(2100, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
+        duration_seconds=60,
+    )
+    future_entry = CalendarEntry(
+        title="Future", description="", type=CalendarEntryType.Event,
+        recurrences=[future_rec], managers=["Manager"],
+    )
+    app_module.calendar_store.create(future_entry)
+    future_id = [e.id for e in app_module.calendar_store.list_entries() if e.title == "Future"][0]
+    resp = client.post(
+        f"/calendar/{future_id}/update", json={"title": "AdminUpdate"}
+    )
     assert resp.status_code == 200
     data = resp.json()
-    new_id = entry_id
+    new_id = future_id
     if "redirect" in data:
         new_id = int(data["redirect"].split("/")[-1])
     assert app_module.calendar_store.get(new_id).title == "AdminUpdate"
@@ -108,7 +131,7 @@ def test_update_rejects_empty_managers(tmp_path, monkeypatch):
     rec = Recurrence(
         id=0,
         type=RecurrenceType.OneTime,
-        first_start=datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC")),
+        first_start=datetime.now(ZoneInfo("UTC")),
         duration_seconds=60,
     )
     entry = CalendarEntry(

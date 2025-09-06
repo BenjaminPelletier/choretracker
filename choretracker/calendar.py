@@ -210,6 +210,11 @@ class CalendarEntryStore:
                 for rec in entry.recurrences
             ]
             _load_instance_specifics(session, entry)
+            first_period = next(
+                enumerate_time_periods(entry, include_skipped=True), None
+            )
+            if first_period and ensure_tz(first_period.end) <= get_now():
+                return False
             has_delegations = any(
                 any(spec.responsible for spec in rec.instance_specifics.values())
                 for rec in entry.recurrences
@@ -286,7 +291,7 @@ class CalendarEntryStore:
                 move_specs: dict[int, InstanceSpecifics] = {}
                 for sidx, spec in rec.instance_specifics.items():
                     period = find_time_period(original, rec.id, sidx, include_skipped=True)
-                    if period and period.start >= split_time:
+                    if period and ensure_tz(period.start) >= split_time:
                         move_specs[sidx] = spec
                     else:
                         keep_specs[sidx] = spec
@@ -294,8 +299,17 @@ class CalendarEntryStore:
                 new_rec.instance_specifics = move_specs
 
             # Adjust boundaries
-            entry.none_after = split_time - timedelta(minutes=1)
-
+            last_end = None
+            for period in enumerate_time_periods(
+                original, include_skipped=True
+            ):
+                start = ensure_tz(period.start)
+                if start < split_time:
+                    last_end = ensure_tz(period.end)
+                else:
+                    break
+            entry.none_after = last_end
+            
             session.add(entry)
             session.add(new_entry)
             session.commit()
@@ -483,9 +497,9 @@ def _advance(start: datetime, rtype: RecurrenceType) -> Optional[datetime]:
 def _recurrence_generator(
     entry: CalendarEntry, rec: Recurrence, include_skipped: bool
 ) -> Iterator[TimePeriod]:
-    none_after = entry.none_after
-    none_before = entry.none_before
-    start = rec.first_start
+    none_after = ensure_tz(entry.none_after)
+    none_before = ensure_tz(entry.none_before)
+    start = ensure_tz(rec.first_start)
     instance = 0
     specs = rec.instance_specifics
     while start and (not none_after or start <= none_after):
@@ -505,6 +519,7 @@ def _recurrence_generator(
             )
         instance += 1
         start = _advance(start, rec.type)
+        start = ensure_tz(start) if start else None
 
 
 def enumerate_time_periods(

@@ -49,9 +49,10 @@ def test_inline_update(tmp_path, monkeypatch):
     entry_id = app_module.calendar_store.list_entries()[0].id
 
     # Update first_start via recurrence endpoint
+    future_start = (now + timedelta(days=14)).isoformat()
     resp = client.post(
         f"/calendar/{entry_id}/recurrence/update",
-        json={"recurrence_id": 0, "first_start": "2000-02-01T00:00"},
+        json={"recurrence_id": 0, "first_start": future_start},
     )
     data = resp.json()
     if "redirect" in data:
@@ -66,7 +67,7 @@ def test_inline_update(tmp_path, monkeypatch):
         entry_id = int(data["redirect"].split("/")[-1])
     # Verify recurrence first_start was updated
     rec = app_module.calendar_store.get(entry_id).recurrences[0]
-    assert rec.first_start == datetime(2000, 2, 1, 0, 0, tzinfo=ZoneInfo("UTC"))
+    assert rec.first_start == datetime.fromisoformat(future_start)
     page = client.get(f"/calendar/entry/{entry_id}")
     assert "New desc" in page.text
 

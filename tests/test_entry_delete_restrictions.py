@@ -102,6 +102,12 @@ def test_list_hides_delete_for_undeletable(tmp_path, monkeypatch):
         first_start=now,
         duration_seconds=60,
     )
+    rec3 = Recurrence(
+        id=0,
+        type=RecurrenceType.Weekly,
+        first_start=now - timedelta(days=7),
+        duration_seconds=60,
+    )
     with_completion = CalendarEntry(
         title="With",
         description="",
@@ -118,17 +124,53 @@ def test_list_hides_delete_for_undeletable(tmp_path, monkeypatch):
         managers=["Admin"],
         responsible=["Admin"],
     )
+    past_entry = CalendarEntry(
+        title="Past",
+        description="",
+        type=CalendarEntryType.Chore,
+        recurrences=[rec3],
+        managers=["Admin"],
+        responsible=["Admin"],
+    )
     app_module.calendar_store.create(with_completion)
     app_module.calendar_store.create(without_completion)
+    app_module.calendar_store.create(past_entry)
     entries = app_module.calendar_store.list_entries()
     ids = {e.title: e.id for e in entries}
     comp_id = ids["With"]
     del_id = ids["Without"]
+    past_id = ids["Past"]
     app_module.completion_store.create(comp_id, 0, 0, "Admin")
     resp = client.get("/calendar/list/Chore")
     text = resp.text
     assert f"../{comp_id}/delete" not in text
     assert f"../{del_id}/delete" in text
+    assert f"../{past_id}/delete" not in text
+
+
+def test_entry_with_past_instances_not_deleted(tmp_path, monkeypatch):
+    db_file = tmp_path / "test.db"
+    monkeypatch.setenv("CHORETRACKER_DB", str(db_file))
+    if "choretracker.app" in sys.modules:
+        del sys.modules["choretracker.app"]
+    app_module = importlib.import_module("choretracker.app")
+    now = get_now()
+    rec = Recurrence(
+        id=0,
+        type=RecurrenceType.Weekly,
+        first_start=now - timedelta(days=7),
+        duration_seconds=60,
+    )
+    entry = CalendarEntry(
+        title="Past",
+        description="",
+        type=CalendarEntryType.Event,
+        recurrences=[rec],
+        managers=["Admin"],
+    )
+    app_module.calendar_store.create(entry)
+    entry_id = app_module.calendar_store.list_entries()[0].id
+    assert not app_module.calendar_store.delete(entry_id)
 
 
 def test_linked_entry_deletion_updates_previous(tmp_path, monkeypatch):
