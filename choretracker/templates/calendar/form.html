@@ -156,6 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
         durationFields.appendChild(minutesInput);
         const endInput = document.createElement('input');
         endInput.type = 'datetime-local';
+        endInput.className = 'inline-input';
         endInput.style.display = 'none';
         durationWrap.appendChild(toggleBtn);
         durationWrap.appendChild(durationFields);

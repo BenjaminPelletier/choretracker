@@ -288,7 +288,14 @@ h1 .icon {
 
 .duration-inputs input {
     margin-right: 0.25rem;
+}
+
+.duration-inputs input[type="number"] {
     width: 4rem;
+}
+
+.duration-inputs input[type="datetime-local"] {
+    width: 16rem;
 }
 
 .responsible-selector {
