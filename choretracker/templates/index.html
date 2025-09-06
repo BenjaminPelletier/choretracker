@@ -100,6 +100,16 @@ function updateTimes() {
         const diff = (end - now) / 1000;
         if (diff <= 0) refresh = true;
         el.textContent = `(Due in ${formatDuration(diff)})`;
+        el.classList.remove('due-soon', 'due-today', 'due-week', 'due-later');
+        if (diff <= 3600) {
+            el.classList.add('due-soon');
+        } else if (end.toDateString() === now.toDateString()) {
+            el.classList.add('due-today');
+        } else if (diff <= 604800) {
+            el.classList.add('due-week');
+        } else {
+            el.classList.add('due-later');
+        }
     });
     document.querySelectorAll('[data-kind="due-ago"]').forEach(el => {
         const end = new Date(parseFloat(el.dataset.end) * 1000);
