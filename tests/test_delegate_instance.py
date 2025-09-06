@@ -66,7 +66,21 @@ def test_delegate_instance(tmp_path, monkeypatch):
     assert "trash.svg" in page.text
     assert "pen.svg" in page.text
 
-    # Additional delegation scenarios tested elsewhere; removal not yet supported in new model
+    resp = client.post(
+        f"/calendar/{entry_id}/delegation/remove",
+        data={"recurrence_id": 0, "instance_index": 0},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+
+    entry = app_module.calendar_store.get(entry_id)
+    rec = entry.recurrences[0]
+    if not isinstance(rec, Recurrence):
+        rec = Recurrence.model_validate(rec)
+    assert 0 not in rec.instance_specifics
+    assert responsible_for(entry, 0, 0) == ["Admin"]
+
+    # Additional delegation scenarios tested elsewhere
 
 
 def test_delegate_instance_requires_user(tmp_path, monkeypatch):

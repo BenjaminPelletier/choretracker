@@ -1724,16 +1724,10 @@ async def remove_delegation(request: Request, entry_id: int):
         if not isinstance(spec, InstanceSpecifics):
             spec = InstanceSpecifics.model_validate(spec)
         spec.responsible = None
-        if (
-            not spec.skip
-            and spec.duration_seconds is None
-            and spec.responsible is None
-            and spec.note is None
-            and spec.start is None
-        ):
-            del specs[iindex]
-        else:
+        if spec.has_overrides():
             specs[iindex] = spec
+        else:
+            del specs[iindex]
     rec.instance_specifics = specs
     calendar_store.update(entry_id, entry)
     referer = request.headers.get(
@@ -1900,16 +1894,10 @@ async def remove_instance_start(request: Request, entry_id: int):
                 detail="Cannot move instance entirely into the past",
             )
         spec.start = None
-        if (
-            not spec.skip
-            and spec.duration_seconds is None
-            and spec.responsible is None
-            and spec.note is None
-            and spec.start is None
-        ):
-            del specs[iindex]
-        else:
+        if spec.has_overrides():
             specs[iindex] = spec
+        else:
+            del specs[iindex]
     rec.instance_specifics = specs
     calendar_store.update(entry_id, entry)
     referer = request.headers.get(
@@ -2014,16 +2002,10 @@ async def remove_instance_duration(request: Request, entry_id: int):
         if not isinstance(spec, InstanceSpecifics):
             spec = InstanceSpecifics.model_validate(spec)
         spec.duration_seconds = None
-        if (
-            not spec.skip
-            and spec.duration_seconds is None
-            and spec.responsible is None
-            and spec.note is None
-            and spec.start is None
-        ):
-            del specs[iindex]
-        else:
+        if spec.has_overrides():
             specs[iindex] = spec
+        else:
+            del specs[iindex]
     rec.instance_specifics = specs
     calendar_store.update(entry_id, entry)
     referer = request.headers.get(
@@ -2117,16 +2099,10 @@ async def remove_instance_note(request: Request, entry_id: int):
         if not isinstance(spec, InstanceSpecifics):
             spec = InstanceSpecifics.model_validate(spec)
         spec.note = None
-        if (
-            not spec.skip
-            and spec.duration_seconds is None
-            and spec.responsible is None
-            and spec.note is None
-            and spec.start is None
-        ):
-            del specs[iindex]
-        else:
+        if spec.has_overrides():
             specs[iindex] = spec
+        else:
+            del specs[iindex]
     rec.instance_specifics = specs
     calendar_store.update(entry_id, entry)
     referer = request.headers.get(
@@ -2203,13 +2179,8 @@ async def unskip_instance(request: Request, entry_id: int):
     if spec:
         if not isinstance(spec, InstanceSpecifics):
             spec = InstanceSpecifics.model_validate(spec)
-        if (
-            spec.responsible
-            or spec.note
-            or spec.duration_seconds is not None
-            or spec.start is not None
-        ):
-            spec.skip = False
+        spec.skip = False
+        if spec.has_overrides():
             specs[iindex] = spec
         else:
             specs.pop(iindex)
