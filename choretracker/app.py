@@ -739,26 +739,45 @@ async def create_calendar_entry(request: Request):
     }
     require_permission(request, perm_map[entry_type])
     current_user = request.session.get("user")
-    first_start_str = form.get("first_start")
-    if not first_start_str:
-        raise HTTPException(status_code=400, detail="first_start required")
-    first_start = parse_datetime(first_start_str)
 
-    duration = timedelta(
+    recurrence_types = form.getlist("recurrence_type[]")
+    rec_first_starts = form.getlist("recurrence_first_start[]")
+    rec_dur_days = form.getlist("recurrence_duration_days[]")
+    rec_dur_hours = form.getlist("recurrence_duration_hours[]")
+    rec_dur_minutes = form.getlist("recurrence_duration_minutes[]")
+    first_start_fallback = form.get("first_start")
+    duration_fallback = timedelta(
         days=int(form.get("duration_days") or 0),
         hours=int(form.get("duration_hours") or 0),
         minutes=int(form.get("duration_minutes") or 0),
     )
-    if duration <= timedelta(0):
+    use_fallback_duration = not (rec_dur_days or rec_dur_hours or rec_dur_minutes)
+    if use_fallback_duration and duration_fallback <= timedelta(0):
         raise HTTPException(status_code=400, detail="Duration must be greater than 0")
 
-    recurrence_types = form.getlist("recurrence_type[]")
     rec_resp_json = form.getlist("recurrence_responsible[]")
     rec_del_json = form.getlist("recurrence_delegations[]")
 
     recurrences = []
     for i, rtype in enumerate(recurrence_types):
-        start = first_start
+        start_str = (
+            rec_first_starts[i]
+            if i < len(rec_first_starts) and rec_first_starts[i]
+            else first_start_fallback
+        )
+        if not start_str:
+            raise HTTPException(status_code=400, detail="first_start required")
+        start = parse_datetime(start_str)
+
+        if use_fallback_duration:
+            dur = duration_fallback
+        else:
+            d = int(rec_dur_days[i]) if i < len(rec_dur_days) and rec_dur_days[i] else 0
+            h = int(rec_dur_hours[i]) if i < len(rec_dur_hours) and rec_dur_hours[i] else 0
+            m = int(rec_dur_minutes[i]) if i < len(rec_dur_minutes) and rec_dur_minutes[i] else 0
+            dur = timedelta(days=d, hours=h, minutes=m)
+        if dur <= timedelta(0):
+            raise HTTPException(status_code=400, detail="Duration must be greater than 0")
 
         responsible_users: list[str] = []
         if i < len(rec_resp_json) and rec_resp_json[i]:
@@ -772,7 +791,7 @@ async def create_calendar_entry(request: Request):
             id=i,
             type=RecurrenceType(rtype),
             first_start=start,
-            duration_seconds=int(duration.total_seconds()),
+            duration_seconds=int(dur.total_seconds()),
             responsible=responsible_users,
         )
         for d in delegations:
@@ -1103,10 +1122,6 @@ async def edit_calendar_entry(request: Request, entry_id: int):
     entry_data = json.loads(
         json.dumps(entry.model_dump(), default=pydantic_encoder)
     )
-    if entry.recurrences:
-        first_start = min(rec.first_start for rec in entry.recurrences)
-        entry_data["first_start"] = first_start.isoformat()
-        entry_data["duration_seconds"] = entry.recurrences[0].duration_seconds
     current_user = request.session.get("user")
     return templates.TemplateResponse(
         request,
@@ -1134,28 +1149,46 @@ async def update_calendar_entry(request: Request, entry_id: int):
     description = form.get("description", "").strip()
     entry_type = existing.type
 
-    first_start_str = form.get("first_start")
-    if not first_start_str:
-        raise HTTPException(status_code=400, detail="first_start required")
-    first_start = parse_datetime(first_start_str)
-
-    duration = timedelta(
+    recurrence_types = form.getlist("recurrence_type[]")
+    rec_ids = form.getlist("recurrence_id[]")
+    rec_first_starts = form.getlist("recurrence_first_start[]")
+    rec_dur_days = form.getlist("recurrence_duration_days[]")
+    rec_dur_hours = form.getlist("recurrence_duration_hours[]")
+    rec_dur_minutes = form.getlist("recurrence_duration_minutes[]")
+    first_start_fallback = form.get("first_start")
+    duration_fallback = timedelta(
         days=int(form.get("duration_days") or 0),
         hours=int(form.get("duration_hours") or 0),
         minutes=int(form.get("duration_minutes") or 0),
     )
-    if duration <= timedelta(0):
+    use_fallback_duration = not (rec_dur_days or rec_dur_hours or rec_dur_minutes)
+    if use_fallback_duration and duration_fallback <= timedelta(0):
         raise HTTPException(status_code=400, detail="Duration must be greater than 0")
 
-    recurrence_types = form.getlist("recurrence_type[]")
-    rec_ids = form.getlist("recurrence_id[]")
     rec_resp_json = form.getlist("recurrence_responsible[]")
     rec_del_json = form.getlist("recurrence_delegations[]")
 
     recurrences = []
     for i, rtype in enumerate(recurrence_types):
         rid = int(rec_ids[i]) if i < len(rec_ids) and rec_ids[i] else i
-        start = first_start
+        start_str = (
+            rec_first_starts[i]
+            if i < len(rec_first_starts) and rec_first_starts[i]
+            else first_start_fallback
+        )
+        if not start_str:
+            raise HTTPException(status_code=400, detail="first_start required")
+        start = parse_datetime(start_str)
+
+        if use_fallback_duration:
+            dur = duration_fallback
+        else:
+            d = int(rec_dur_days[i]) if i < len(rec_dur_days) and rec_dur_days[i] else 0
+            h = int(rec_dur_hours[i]) if i < len(rec_dur_hours) and rec_dur_hours[i] else 0
+            m = int(rec_dur_minutes[i]) if i < len(rec_dur_minutes) and rec_dur_minutes[i] else 0
+            dur = timedelta(days=d, hours=h, minutes=m)
+        if dur <= timedelta(0):
+            raise HTTPException(status_code=400, detail="Duration must be greater than 0")
 
         responsible_users: list[str] = []
         if i < len(rec_resp_json) and rec_resp_json[i]:
@@ -1169,7 +1202,7 @@ async def update_calendar_entry(request: Request, entry_id: int):
             id=rid,
             type=RecurrenceType(rtype),
             first_start=start,
-            duration_seconds=int(duration.total_seconds()),
+            duration_seconds=int(dur.total_seconds()),
             responsible=responsible_users,
         )
         for d in delegations:
