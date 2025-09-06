@@ -11,15 +11,19 @@
         {% for user in responsible %}
         <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
+        {% if entry.type == CalendarEntryType.Chore %}
+        <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon entry-icon" data-entry="{{ entry.id }}" data-rid="{{ period.recurrence_id }}" data-iindex="{{ period.instance_index }}" data-action="add" />
+        {% elif entry.type == CalendarEntryType.Reminder %}
+        <img src="{{ url_for('static', path='reminder.svg') }}" class="entry-icon" />
+        {% elif entry.type == CalendarEntryType.Event %}
+        <img src="{{ url_for('static', path='calendar.svg') }}" class="entry-icon" />
+        {% endif %}
         {% if single %}
         <a href="{{ url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a>
         {% else %}
         <a href="{{ url_for('view_time_period', entry_id=entry.id, recurrence_id=period.recurrence_id, iindex=period.instance_index) }}">{{ entry.title }}</a>
-        {% endif %}{% if has_note %}<span class="note-marker">*</span>{% endif %}
-        <span class="time-suffix" data-kind="due-ago" data-end="{{ period.end.timestamp() }}"></span>
-        {% if entry.type == CalendarEntryType.Chore %}
-        <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rid="{{ period.recurrence_id }}" data-iindex="{{ period.instance_index }}" data-action="add" />
         {% endif %}
+        <span class="time-suffix" data-kind="due-ago" data-end="{{ period.end.timestamp() }}"></span>
     </li>
     {% endfor %}
 </ul>
@@ -33,18 +37,24 @@
         {% for user in responsible %}
         <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
+        {% if entry.type == CalendarEntryType.Chore %}
+            {% if completion %}
+            <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon entry-icon" data-entry="{{ entry.id }}" data-rid="{{ period.recurrence_id }}" data-iindex="{{ period.instance_index }}" {% if completion.completed_by == request.session.get('user') or user_has(request.session.get('user'), 'chores.override_complete') %}data-action="remove"{% endif %} />
+            {% else %}
+            <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon entry-icon" data-entry="{{ entry.id }}" data-rid="{{ period.recurrence_id }}" data-iindex="{{ period.instance_index }}" data-action="add" />
+            {% endif %}
+        {% elif entry.type == CalendarEntryType.Reminder %}
+        <img src="{{ url_for('static', path='reminder.svg') }}" class="entry-icon" />
+        {% elif entry.type == CalendarEntryType.Event %}
+        <img src="{{ url_for('static', path='calendar.svg') }}" class="entry-icon" />
+        {% endif %}
         {% if single %}
         <a href="{{ url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a>
         {% else %}
         <a href="{{ url_for('view_time_period', entry_id=entry.id, recurrence_id=period.recurrence_id, iindex=period.instance_index) }}">{{ entry.title }}</a>
         {% endif %}{% if has_note %}<span class="note-marker">*</span>{% endif %}
-        {% if entry.type == CalendarEntryType.Chore %}
-        {% if completion %}
-        <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rid="{{ period.recurrence_id }}" data-iindex="{{ period.instance_index }}" {% if completion.completed_by == request.session.get('user') or user_has(request.session.get('user'), 'chores.override_complete') %}data-action="remove"{% endif %} />
-        {% else %}
+        {% if entry.type == CalendarEntryType.Chore and not completion %}
         <span class="time-suffix" data-kind="due-in" data-end="{{ period.end.timestamp() }}"></span>
-        <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rid="{{ period.recurrence_id }}" data-iindex="{{ period.instance_index }}" data-action="add" />
-        {% endif %}
         {% endif %}
     </li>
     {% endfor %}
@@ -59,6 +69,11 @@
         {% for user in responsible %}
         <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
+        {% if entry.type == CalendarEntryType.Reminder %}
+        <img src="{{ url_for('static', path='reminder.svg') }}" class="entry-icon" />
+        {% elif entry.type == CalendarEntryType.Event %}
+        <img src="{{ url_for('static', path='calendar.svg') }}" class="entry-icon" />
+        {% endif %}
         {% if single %}
         <a href="{{ url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a>
         {% else %}
