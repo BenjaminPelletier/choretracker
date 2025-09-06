@@ -300,10 +300,6 @@ textarea {
     flex-wrap: wrap;
 }
 
-.duration-display {
-    font-size: inherit;
-}
-
 .duration-inputs input {
     margin-right: 0.25rem;
 }
