@@ -35,7 +35,6 @@
 <p class="time-range" id="start-display-line">
     🟢 <span id="start-display">{{ period_start_display }}</span>
     {% if can_edit_start %}
-        <button type="button" id="edit-start" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
         {% if start_override and can_remove_start %}
         <form method="post" action="{{ url_for('remove_instance_start', entry_id=entry.id) }}" style="display:inline" class="delete-start-form">
             <input type="hidden" name="recurrence_id" value="{{ period.recurrence_id }}" />
@@ -44,6 +43,7 @@
             <button type="submit" class="icon-button"><img src="{{ url_for('static', path='trash.svg') }}" alt="Delete" class="icon"></button>
         </form>
         {% endif %}
+        <button type="button" id="edit-start" class="icon-button"><img src="{{ url_for('static', path='pen.svg') }}" alt="Edit" class="icon"></button>
     {% endif %}
 </p>
 <div class="time-range" id="start-editor" style="display:none">
@@ -268,11 +268,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 method: 'POST',
                 body: new FormData(startEditForm),
                 credentials: 'same-origin'
-            }).then(resp => {
+            }).then(async resp => {
                 if (resp.ok) {
                     location.reload();
                 } else {
-                    resp.text().then(text => alert(text));
+                    const ct = resp.headers.get('content-type') || '';
+                    let msg;
+                    if (ct.includes('application/json')) {
+                        try {
+                            const data = await resp.json();
+                            msg = data.detail || JSON.stringify(data);
+                        } catch {
+                            msg = await resp.text();
+                        }
+                    } else {
+                        msg = await resp.text();
+                    }
+                    alert(msg);
                 }
             });
         });

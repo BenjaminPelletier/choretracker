@@ -1762,14 +1762,16 @@ async def set_instance_start(request: Request, entry_id: int):
     iindex = int(form.get("instance_index", -1))
     start_str = form.get("start_time")
     if not start_str:
-        raise HTTPException(status_code=400)
+        raise HTTPException(status_code=400, detail="Start time required")
     new_start = parse_datetime(start_str)
     period = find_time_period(entry, rid, iindex, include_skipped=True)
-    if not period or ensure_tz(period.end) <= get_now():
-        raise HTTPException(status_code=400)
+    if not period:
+        raise HTTPException(status_code=400, detail="Instance not found")
+    if ensure_tz(period.end) <= get_now():
+        raise HTTPException(status_code=400, detail="Cannot edit an instance that has ended")
     dur = duration_for(entry, rid, iindex)
     if new_start + dur <= get_now():
-        raise HTTPException(status_code=400)
+        raise HTTPException(status_code=400, detail="Cannot move instance entirely into the past")
     gen = enumerate_time_periods(entry, include_skipped=True)
     prev_any = None
     prev_same = None
@@ -1782,7 +1784,7 @@ async def set_instance_start(request: Request, entry_id: int):
             prev_same = p
         prev_any = p
     if current_period is None:
-        raise HTTPException(status_code=400)
+        raise HTTPException(status_code=400, detail="Instance not found")
     next_any = next(gen, None)
     next_same = None
     lookahead = next_any
@@ -1793,28 +1795,36 @@ async def set_instance_start(request: Request, entry_id: int):
             lookahead = next(gen, None)
     fmt = "%a %Y-%m-%d %H:%M"
     if prev_same and new_start < prev_same.start:
-        return PlainTextResponse(
-            f"Cannot start this instance before the previous instance's start of {prev_same.start.strftime(fmt)}",
+        raise HTTPException(
             status_code=400,
+            detail=(
+                f"Cannot start this instance before the previous instance's start of {prev_same.start.strftime(fmt)}"
+            ),
         )
     if prev_any and new_start < prev_any.start:
-        return PlainTextResponse(
-            f"Cannot start this instance before the previous instance's start of {prev_any.start.strftime(fmt)}",
+        raise HTTPException(
             status_code=400,
+            detail=(
+                f"Cannot start this instance before the previous instance's start of {prev_any.start.strftime(fmt)}"
+            ),
         )
     if next_same and new_start > next_same.start:
-        return PlainTextResponse(
-            f"Cannot start this instance after the next instance's start of {next_same.start.strftime(fmt)}",
+        raise HTTPException(
             status_code=400,
+            detail=(
+                f"Cannot start this instance after the next instance's start of {next_same.start.strftime(fmt)}"
+            ),
         )
     if next_any and new_start > next_any.start:
-        return PlainTextResponse(
-            f"Cannot start this instance after the next instance's start of {next_any.start.strftime(fmt)}",
+        raise HTTPException(
             status_code=400,
+            detail=(
+                f"Cannot start this instance after the next instance's start of {next_any.start.strftime(fmt)}"
+            ),
         )
     rec = next((r for r in entry.recurrences if r.id == rid), None)
     if rec is None:
-        raise HTTPException(status_code=400)
+        raise HTTPException(status_code=400, detail="Recurrence not found")
     if not isinstance(rec, Recurrence):
         rec = Recurrence.model_validate(rec)
         for idx, r in enumerate(entry.recurrences):
@@ -1862,11 +1872,13 @@ async def remove_instance_start(request: Request, entry_id: int):
     rid = int(form.get("recurrence_id", -1))
     iindex = int(form.get("instance_index", -1))
     period = find_time_period(entry, rid, iindex, include_skipped=True)
-    if not period or ensure_tz(period.end) <= get_now():
-        raise HTTPException(status_code=400)
+    if not period:
+        raise HTTPException(status_code=400, detail="Instance not found")
+    if ensure_tz(period.end) <= get_now():
+        raise HTTPException(status_code=400, detail="Cannot edit an instance that has ended")
     rec = next((r for r in entry.recurrences if r.id == rid), None)
     if rec is None:
-        raise HTTPException(status_code=400)
+        raise HTTPException(status_code=400, detail="Recurrence not found")
     if not isinstance(rec, Recurrence):
         rec = Recurrence.model_validate(rec)
         for idx, r in enumerate(entry.recurrences):
@@ -1883,7 +1895,10 @@ async def remove_instance_start(request: Request, entry_id: int):
         base_period = find_time_period(entry, rid, iindex, include_skipped=True)
         spec.start = orig_start
         if base_period and ensure_tz(base_period.end) <= get_now():
-            raise HTTPException(status_code=400)
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot move instance entirely into the past",
+            )
         spec.start = None
         if (
             not spec.skip
