@@ -97,7 +97,9 @@ def _load_instance_specifics(session: Session, entry: CalendarEntry) -> None:
         rec = rec_map.get(spec.recurrence_id)
         if not rec:
             continue
-        rec.instance_specifics[spec.instance_index] = spec
+        rec.instance_specifics[spec.instance_index] = InstanceSpecifics.model_validate(
+            spec.model_dump()
+        )
 
 
 def _store_instance_specifics(session: Session, entry: CalendarEntry) -> None:
@@ -315,11 +317,7 @@ class CalendarEntryStore:
                 for r in new_entry.recurrences
             ]
 
-            # Store instance specifics
-            _store_instance_specifics(session, entry)
-            _store_instance_specifics(session, new_entry)
-
-            # Move completions
+            # Move completions before storing instance specifics
             comps = session.exec(
                 select(ChoreCompletion).where(ChoreCompletion.entry_id == entry_id)
             ).all()
@@ -330,6 +328,10 @@ class CalendarEntryStore:
                 if period and period.start >= split_time:
                     comp.entry_id = new_entry.id
                     session.add(comp)
+
+            # Store instance specifics
+            _store_instance_specifics(session, entry)
+            _store_instance_specifics(session, new_entry)
             session.commit()
 
             # Ensure recurrences are Recurrence objects for return
@@ -548,6 +550,17 @@ def find_time_period(
     instance_index: int,
     include_skipped: bool = False,
 ) -> Optional[TimePeriod]:
+    # Ensure instance specifics are detached models
+    for i, rec in enumerate(entry.recurrences):
+        if not isinstance(rec, Recurrence):
+            rec = Recurrence.model_validate(rec)
+            entry.recurrences[i] = rec
+        rec.instance_specifics = {
+            idx: InstanceSpecifics.model_validate(
+                spec.model_dump() if isinstance(spec, InstanceSpecifics) else spec
+            )
+            for idx, spec in rec.instance_specifics.items()
+        }
     for period in enumerate_time_periods(entry, include_skipped=include_skipped):
         if (
             period.recurrence_id == recurrence_id
