@@ -21,7 +21,7 @@
     {% if can_edit and not is_skipped %}
     <span class="responsible-selector" id="add-resp-wrap">
         <button type="button" id="add-resp-btn" class="icon-button"><img src="{{ url_for('static', path='plus.svg') }}" alt="Add" class="icon"></button>
-        <div class="dropdown" id="add-resp-dropdown" style="display:none; position:absolute; left:0; right:auto; top:100%"></div>
+        <div class="dropdown" id="add-resp-dropdown" style="display:none"></div>
     </span>
     {% endif %}
     {% if entry.type == CalendarEntryType.Chore %}
@@ -230,6 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let delegates = [...initialDelegates];
         const addBtn = document.getElementById('add-resp-btn');
         const dropdown = document.getElementById('add-resp-dropdown');
+        document.body.appendChild(dropdown);
 
         function sendDelegates() {
             if (delegates.length === 0) {
@@ -281,7 +282,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         addBtn.addEventListener('click', e => {
             e.stopPropagation();
-            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+            if (dropdown.style.display === 'block') {
+                dropdown.style.display = 'none';
+            } else {
+                const rect = addBtn.getBoundingClientRect();
+                dropdown.style.left = `${window.scrollX + rect.left}px`;
+                dropdown.style.top = `${window.scrollY + rect.bottom}px`;
+                dropdown.style.right = 'auto';
+                dropdown.style.display = 'block';
+            }
         });
         document.addEventListener('click', e => {
             if (!dropdown.contains(e.target) && e.target !== addBtn) dropdown.style.display = 'none';
