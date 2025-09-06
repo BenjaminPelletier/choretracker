@@ -49,6 +49,7 @@ from .calendar import (
     RecurrenceType,
     TimePeriod,
     enumerate_time_periods,
+    has_single_instance,
     is_instance_skipped,
     find_time_period,
     find_delegation,
@@ -448,14 +449,19 @@ app.add_middleware(SessionMiddleware, secret_key=session_secret)
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     now = get_now()
-    overdue: list[tuple[CalendarEntry, TimePeriod, list[str], bool]] = []
+    overdue: list[tuple[CalendarEntry, TimePeriod, list[str], bool, bool]] = []
     current: list[
-        tuple[CalendarEntry, TimePeriod, ChoreCompletion | None, list[str], bool]
+        tuple[CalendarEntry, TimePeriod, ChoreCompletion | None, list[str], bool, bool]
     ] = []
-    upcoming_heap: list[tuple[datetime, int, CalendarEntry, TimePeriod, Iterator[TimePeriod]]] = []
+    upcoming_heap: list[
+        tuple[datetime, int, CalendarEntry, TimePeriod, Iterator[TimePeriod]]
+    ] = []
     counter = count()
+    single_map: dict[int, bool] = {}
 
     for entry in calendar_store.list_entries():
+        single = has_single_instance(entry)
+        single_map[entry.id] = single
         gen = enumerate_time_periods(entry)
         for period in gen:
             completion = None
@@ -487,6 +493,7 @@ async def index(request: Request):
                                         period.instance_index,
                                     )
                                 ),
+                                single,
                             )
                         )
                         nxt = next(gen, None)
@@ -516,6 +523,7 @@ async def index(request: Request):
                                     period.instance_index,
                                 )
                             ),
+                            single,
                         )
                     )
             elif period.start <= now:
@@ -536,6 +544,7 @@ async def index(request: Request):
                                 period.instance_index,
                             )
                         ),
+                        single,
                     )
                 )
                 nxt = next(gen, None)
@@ -549,7 +558,7 @@ async def index(request: Request):
                 )
                 break
 
-    upcoming: list[tuple[CalendarEntry, TimePeriod, list[str], bool]] = []
+    upcoming: list[tuple[CalendarEntry, TimePeriod, list[str], bool, bool]] = []
     while upcoming_heap and len(upcoming) < MAX_UPCOMING:
         _, _, entry, period, gen = heappop(upcoming_heap)
         upcoming.append(
@@ -562,6 +571,7 @@ async def index(request: Request):
                         entry, period.recurrence_id, period.instance_index
                     )
                 ),
+                single_map.get(entry.id, has_single_instance(entry)),
             )
         )
         nxt = next(gen, None)
