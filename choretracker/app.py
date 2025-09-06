@@ -245,6 +245,24 @@ def time_range_summary(start: datetime, end: datetime | None) -> str:
     return f"{start_str} to {end_str}"
 
 
+def format_range_start(start: datetime) -> str:
+    start = start.replace(second=0, microsecond=0)
+    return start.strftime("%a %Y-%m-%d %H:%M")
+
+
+def format_range_end(start: datetime, end: datetime) -> str:
+    end = end.replace(second=0, microsecond=0)
+    if start.year != end.year:
+        end_fmt = "%a %Y-%m-%d"
+    elif start.month != end.month or start.day != end.day:
+        end_fmt = "%a %m-%d"
+    else:
+        end_fmt = ""
+    if start.hour != end.hour or start.minute != end.minute:
+        end_fmt = f"{end_fmt + ' ' if end_fmt else ''}%H:%M"
+    return end.strftime(end_fmt).strip()
+
+
 templates.env.globals["time_range_summary"] = time_range_summary
 app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="static")
 
@@ -995,6 +1013,10 @@ async def view_calendar_entry(
         raise HTTPException(status_code=404)
     require_entry_read_permission(request, entry.type)
     entry_start, entry_end = entry_time_bounds(entry)
+    entry_start_display = format_range_start(entry_start)
+    entry_end_display = (
+        format_range_end(entry_start, entry_end) if entry_end else "Never"
+    )
     prev_entry = (
         calendar_store.get(entry.previous_entry) if entry.previous_entry else None
     )
@@ -1091,6 +1113,8 @@ async def view_calendar_entry(
             "RecurrenceType": RecurrenceType,
             "entry_start": entry_start,
             "entry_end": entry_end,
+            "entry_start_display": entry_start_display,
+            "entry_end_display": entry_end_display,
             "prev_entry": prev_entry,
             "next_entry": next_entry,
             "prev_start": prev_start,
