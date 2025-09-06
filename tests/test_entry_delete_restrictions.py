@@ -131,7 +131,7 @@ def test_list_hides_delete_for_undeletable(tmp_path, monkeypatch):
     assert f"../{del_id}/delete" in text
 
 
-def test_entry_not_deleted_when_linked(tmp_path, monkeypatch):
+def test_linked_entry_deletion_updates_previous(tmp_path, monkeypatch):
     db_file = tmp_path / "test.db"
     monkeypatch.setenv("CHORETRACKER_DB", str(db_file))
     if "choretracker.app" in sys.modules:
@@ -155,6 +155,42 @@ def test_entry_not_deleted_when_linked(tmp_path, monkeypatch):
     app_module.calendar_store.create(entry)
     entry_id = app_module.calendar_store.list_entries()[0].id
     split_time = now + timedelta(days=1)
-    app_module.calendar_store.split(entry_id, split_time)
-    assert not app_module.calendar_store.delete(entry_id)
-    assert app_module.calendar_store.get(entry_id) is not None
+    new_entry = app_module.calendar_store.split(entry_id, split_time)
+    assert app_module.calendar_store.delete(entry_id)
+    assert app_module.calendar_store.get(entry_id) is None
+    remaining = app_module.calendar_store.get(new_entry.id)
+    assert remaining.previous_entry is None
+
+
+def test_delete_middle_entry_relinks_neighbors(tmp_path, monkeypatch):
+    db_file = tmp_path / "test.db"
+    monkeypatch.setenv("CHORETRACKER_DB", str(db_file))
+    if "choretracker.app" in sys.modules:
+        del sys.modules["choretracker.app"]
+    app_module = importlib.import_module("choretracker.app")
+    now = get_now()
+    rec = Recurrence(
+        id=0,
+        type=RecurrenceType.OneTime,
+        first_start=now,
+        duration_seconds=60,
+    )
+    entry = CalendarEntry(
+        title="Start",
+        description="",
+        type=CalendarEntryType.Chore,
+        recurrences=[rec],
+        managers=["Admin"],
+        responsible=["Admin"],
+    )
+    app_module.calendar_store.create(entry)
+    entry_id = app_module.calendar_store.list_entries()[0].id
+    split1 = now + timedelta(days=1)
+    second = app_module.calendar_store.split(entry_id, split1)
+    split2 = now + timedelta(days=2)
+    third = app_module.calendar_store.split(second.id, split2)
+    assert app_module.calendar_store.delete(second.id)
+    first = app_module.calendar_store.get(entry_id)
+    last = app_module.calendar_store.get(third.id)
+    assert first.next_entry == last.id
+    assert last.previous_entry == first.id
