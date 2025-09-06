@@ -63,7 +63,7 @@
         <ul id="recurrence-list">
             {% for rec in entry.recurrences %}
             <li class="recurrence-item" data-rid="{{ rec.id }}" data-type="{{ rec.type.value }}" data-responsible='{{ rec.responsible|tojson }}' data-first-start="{{ rec.first_start.strftime('%Y-%m-%dT%H:%M') }}" data-duration-seconds="{{ rec.duration_seconds }}">
-                <span class="recurrence-text">{{ rec.type.value }}</span>
+                <span class="recurrence-text">{{ recurrence_summary(rec) }}</span>
                 {% for user in rec.responsible %}
                 <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
                 {% endfor %}
