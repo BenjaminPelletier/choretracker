@@ -263,7 +263,63 @@ def format_range_end(start: datetime, end: datetime) -> str:
     return end.strftime(end_fmt).strip()
 
 
+def _ordinal(n: int) -> str:
+    if 10 <= n % 100 <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
+def _ordinal_word(n: int) -> str:
+    return {
+        1: "first",
+        2: "second",
+        3: "third",
+        4: "fourth",
+        5: "fifth",
+    }.get(n, f"{n}th")
+
+
+def recurrence_summary(rec: Recurrence) -> str:
+    start = rec.first_start
+    end = start + timedelta(seconds=rec.duration_seconds)
+    rtype = rec.type.value
+    if rec.type == RecurrenceType.OneTime:
+        return f"{rtype}, {format_range_start(start)} to {format_range_end(start, end)}"
+    if rec.type == RecurrenceType.Weekly:
+        start_day = start.strftime("%a")
+        if start.date() == end.date():
+            return f"{rtype}, {start_day} {start.strftime('%H:%M')}-{end.strftime('%H:%M')}"
+        return f"{rtype}, {start_day} {start.strftime('%H:%M')} to {end.strftime('%a %H:%M')}"
+    if rec.type == RecurrenceType.MonthlyDayOfMonth:
+        day = _ordinal(start.day)
+        if start.date() == end.date():
+            times = f"{start.strftime('%H:%M')}-{end.strftime('%H:%M')}"
+        else:
+            times = f"{start.strftime('%H:%M')} to {end.strftime('%a %H:%M')}"
+        return f"{rtype}, {day} {times}"
+    if rec.type == RecurrenceType.MonthlyDayOfWeek:
+        week_num = (start.day - 1) // 7 + 1
+        week_word = _ordinal_word(week_num)
+        day_name = start.strftime("%a")
+        if start.date() == end.date():
+            times = f"{start.strftime('%H:%M')}-{end.strftime('%H:%M')}"
+        else:
+            times = f"{start.strftime('%H:%M')} to {end.strftime('%a %H:%M')}"
+        return f"{rtype}, {week_word} {day_name} {times}"
+    if rec.type == RecurrenceType.AnnualDayOfMonth:
+        month_day = f"{start.strftime('%B')} {start.day}"
+        if start.date() == end.date():
+            times = f"{start.strftime('%H:%M')}-{end.strftime('%H:%M')}"
+        else:
+            times = f"{start.strftime('%H:%M')} to {end.strftime('%a %H:%M')}"
+        return f"{rtype}, {month_day} {times}"
+    return rtype
+
+
 templates.env.globals["time_range_summary"] = time_range_summary
+templates.env.globals["recurrence_summary"] = recurrence_summary
 app.mount("/static", StaticFiles(directory=str(BASE_PATH / "static")), name="static")
 
 
