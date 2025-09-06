@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, tzinfo
+from datetime import datetime, tzinfo, timedelta
 from zoneinfo import ZoneInfo
 
 
@@ -40,4 +40,9 @@ def ensure_tz(dt: datetime | None) -> datetime | None:
     if dt is not None and dt.tzinfo is None:
         return dt.replace(tzinfo=_configured_tz())
     return dt
+
+
+def end_of_day(dt: datetime) -> datetime:
+    """Return the start of the next day in ``dt``'s timezone."""
+    return dt.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
 
