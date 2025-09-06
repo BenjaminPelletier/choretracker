@@ -28,7 +28,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from sqlmodel import create_engine, Session, select
 from sqlalchemy import event
-from pydantic.json import pydantic_encoder
+from pydantic_core import to_jsonable_python
 from markdown import markdown as md
 from markupsafe import Markup
 import bleach
@@ -76,7 +76,7 @@ db_path = os.getenv("CHORETRACKER_DB", "choretracker.db")
 engine = create_engine(
     f"sqlite:///{db_path}",
     connect_args={"check_same_thread": False},
-    json_serializer=lambda obj: json.dumps(obj, default=pydantic_encoder),
+    json_serializer=lambda obj: json.dumps(obj, default=to_jsonable_python),
 )
 @event.listens_for(engine, "connect")
 def _set_sqlite_pragma(dbapi_connection, connection_record):
