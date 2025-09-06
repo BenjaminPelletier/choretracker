@@ -29,7 +29,7 @@ import base64
 import posixpath
 from jinja2 import pass_context
 
-from .time_utils import get_now, parse_datetime, ensure_tz
+from .time_utils import get_now, parse_datetime, ensure_tz, end_of_day
 from .users import (
     UserStore,
     init_db,
@@ -458,7 +458,10 @@ async def index(request: Request):
                     entry.id, period.recurrence_id, period.instance_index
                 )
                 if completion:
-                    if period.end <= now:
+                    visible_end = min(
+                        period.end, end_of_day(completion.completed_at)
+                    )
+                    if visible_end <= now:
                         continue
                     if period.start <= now:
                         current.append(
