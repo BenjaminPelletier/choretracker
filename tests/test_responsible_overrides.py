@@ -42,4 +42,4 @@ def test_responsible_hierarchy():
     entry.recurrences[0].instance_specifics[3] = InstanceSpecifics(
         entry_id=0, recurrence_id=0, instance_index=3, responsible=[]
     )
-    assert responsible_for(entry, 0, 3) == []
+    assert responsible_for(entry, 0, 3) == ["carol"]

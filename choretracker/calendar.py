@@ -91,6 +91,15 @@ class InstanceSpecifics(SQLModel, table=True):
     note: Optional[str] = None
     start: Optional[datetime] = None
 
+    def has_overrides(self) -> bool:
+        return (
+            self.skip
+            or self.duration_seconds is not None
+            or bool(self.responsible)
+            or self.note is not None
+            or self.start is not None
+        )
+
 Recurrence.model_rebuild()
 
 
@@ -114,6 +123,8 @@ def _store_instance_specifics(session: Session, entry: CalendarEntry) -> None:
         for spec in rec.instance_specifics.values():
             if not isinstance(spec, InstanceSpecifics):
                 spec = InstanceSpecifics.model_validate(spec)
+            if not spec.has_overrides():
+                continue
             db_spec = InstanceSpecifics(
                 entry_id=entry.id,
                 recurrence_id=rec.id,
@@ -121,7 +132,7 @@ def _store_instance_specifics(session: Session, entry: CalendarEntry) -> None:
             )
             if spec.skip:
                 db_spec.skip = True
-            if spec.responsible is not None:
+            if spec.responsible:
                 db_spec.responsible = spec.responsible
             if spec.note is not None:
                 db_spec.note = spec.note
@@ -610,7 +621,7 @@ def responsible_for(
         if spec:
             if not isinstance(spec, InstanceSpecifics):
                 spec = InstanceSpecifics.model_validate(spec)
-            if spec.responsible is not None:
+            if spec.responsible:
                 return spec.responsible
         if rec.responsible:
             return rec.responsible
@@ -628,7 +639,7 @@ def find_delegation(
         if spec:
             if not isinstance(spec, InstanceSpecifics):
                 spec = InstanceSpecifics.model_validate(spec)
-            if spec.responsible is not None:
+            if spec.responsible:
                 return Delegation(
                     instance_index=instance_index, responsible=spec.responsible
                 )
