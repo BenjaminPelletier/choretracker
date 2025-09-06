@@ -21,7 +21,6 @@
     {% if can_edit and not is_skipped %}
     <span class="responsible-selector" id="add-resp-wrap">
         <button type="button" id="add-resp-btn" class="icon-button"><img src="{{ url_for('static', path='plus.svg') }}" alt="Add" class="icon"></button>
-        <div class="dropdown" id="add-resp-dropdown" style="display:none"></div>
     </span>
     {% endif %}
     {% if entry.type == CalendarEntryType.Chore %}
@@ -43,6 +42,7 @@
         {% endif %}
     {% endif %}
 </p>
+<div class="dropdown" id="add-resp-dropdown" style="display:none"></div>
 <div class="time-range" id="start-display-line">
     🟢 <span id="start-display">{{ period_start_display }}</span>
     {% if can_edit_start %}
