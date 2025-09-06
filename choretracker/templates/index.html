@@ -6,12 +6,16 @@
 {% if overdue %}
 <h2>Overdue</h2>
 <ul class="time-list">
-    {% for entry, period, responsible, has_note in overdue %}
+{% for entry, period, responsible, has_note, single in overdue %}
     <li>
         {% for user in responsible %}
         <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
-        <a href="{{ url_for('view_time_period', entry_id=entry.id, recurrence_id=period.recurrence_id, iindex=period.instance_index) }}">{{ entry.title }}</a>{% if has_note %}<span class="note-marker">*</span>{% endif %}
+        {% if single %}
+        <a href="{{ url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a>
+        {% else %}
+        <a href="{{ url_for('view_time_period', entry_id=entry.id, recurrence_id=period.recurrence_id, iindex=period.instance_index) }}">{{ entry.title }}</a>
+        {% endif %}{% if has_note %}<span class="note-marker">*</span>{% endif %}
         <span class="time-suffix" data-kind="due-ago" data-end="{{ period.end.timestamp() }}"></span>
         {% if entry.type == CalendarEntryType.Chore %}
         <img src="{{ url_for('static', path='checkbox-empty.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rid="{{ period.recurrence_id }}" data-iindex="{{ period.instance_index }}" data-action="add" />
@@ -24,12 +28,16 @@
 {% if now_periods %}
 <h2>Now</h2>
 <ul class="time-list">
-    {% for entry, period, completion, responsible, has_note in now_periods %}
+{% for entry, period, completion, responsible, has_note, single in now_periods %}
     <li>
         {% for user in responsible %}
         <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
-        <a href="{{ url_for('view_time_period', entry_id=entry.id, recurrence_id=period.recurrence_id, iindex=period.instance_index) }}">{{ entry.title }}</a>{% if has_note %}<span class="note-marker">*</span>{% endif %}
+        {% if single %}
+        <a href="{{ url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a>
+        {% else %}
+        <a href="{{ url_for('view_time_period', entry_id=entry.id, recurrence_id=period.recurrence_id, iindex=period.instance_index) }}">{{ entry.title }}</a>
+        {% endif %}{% if has_note %}<span class="note-marker">*</span>{% endif %}
         {% if entry.type == CalendarEntryType.Chore %}
         {% if completion %}
         <img src="{{ url_for('static', path='checkbox-checked.svg') }}" class="checkbox-icon" data-entry="{{ entry.id }}" data-rid="{{ period.recurrence_id }}" data-iindex="{{ period.instance_index }}" {% if completion.completed_by == request.session.get('user') or user_has(request.session.get('user'), 'chores.override_complete') %}data-action="remove"{% endif %} />
@@ -46,12 +54,16 @@
 {% if upcoming %}
 <h2>Upcoming</h2>
 <ul class="time-list">
-    {% for entry, period, responsible, has_note in upcoming %}
+{% for entry, period, responsible, has_note, single in upcoming %}
     <li>
         {% for user in responsible %}
         <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
-        <a href="{{ url_for('view_time_period', entry_id=entry.id, recurrence_id=period.recurrence_id, iindex=period.instance_index) }}">{{ entry.title }}</a>{% if has_note %}<span class="note-marker">*</span>{% endif %}
+        {% if single %}
+        <a href="{{ url_for('view_calendar_entry', entry_id=entry.id) }}">{{ entry.title }}</a>
+        {% else %}
+        <a href="{{ url_for('view_time_period', entry_id=entry.id, recurrence_id=period.recurrence_id, iindex=period.instance_index) }}">{{ entry.title }}</a>
+        {% endif %}{% if has_note %}<span class="note-marker">*</span>{% endif %}
         <span class="time-suffix" data-kind="starts-in" data-start="{{ period.start.timestamp() }}"></span>
     </li>
     {% endfor %}

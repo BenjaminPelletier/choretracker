@@ -525,6 +525,23 @@ def enumerate_time_periods(
             heappush(heap, (nxt.start, rid, gen, nxt))
 
 
+def has_single_instance(entry: CalendarEntry) -> bool:
+    """Return ``True`` if ``entry`` has only a single instance.
+
+    This checks the number of generated time periods for the entry and treats
+    skipped instances as still counting toward the total.  Only a single
+    ``next`` call is made after the first period to avoid generating the entire
+    sequence.
+    """
+
+    gen = enumerate_time_periods(entry, include_skipped=True)
+    first = next(gen, None)
+    if not first:
+        return True
+    second = next(gen, None)
+    return second is None
+
+
 def find_time_period(
     entry: CalendarEntry,
     recurrence_id: int,
