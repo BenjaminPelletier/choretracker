@@ -32,7 +32,7 @@ def test_update_recurrence_responsible_and_offset(tmp_path, monkeypatch):
         follow_redirects=False,
     )
 
-    start = datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC"))
+    start = datetime.now(ZoneInfo("UTC"))
     entry = CalendarEntry(
         title="RecTest",
         description="",

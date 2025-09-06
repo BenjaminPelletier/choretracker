@@ -60,8 +60,14 @@ def test_edit_redirects_to_new_entry(tmp_path, monkeypatch):
     # Should redirect to view the new entry id after splitting
     new_id = int(data["redirect"].rstrip("/").split("/")[-1])
     assert new_id != original_id
-    assert app_module.calendar_store.get(new_id).title == "New"
-    assert app_module.calendar_store.get(original_id).title == "Old"
+    new_entry = app_module.calendar_store.get(new_id)
+    old_entry = app_module.calendar_store.get(original_id)
+    assert new_entry.title == "New"
+    assert old_entry.title == "Old"
+    past_end = now - timedelta(days=7) + timedelta(seconds=60)
+    future_start = now
+    assert old_entry.none_after == past_end
+    assert new_entry.none_before == future_start
 
 
 def test_no_split_when_no_future_instances(tmp_path, monkeypatch):
@@ -87,8 +93,7 @@ def test_no_split_when_no_future_instances(tmp_path, monkeypatch):
     resp = client.post(
         f"/calendar/{entry_id}/update",
         json={"title": "Updated"},
+        follow_redirects=False,
     )
-    data = resp.json()
-    assert data["status"] == "ok"
-    assert "redirect" not in data
-    assert app_module.calendar_store.get(entry_id).title == "Updated"
+    assert resp.status_code == 303
+    assert app_module.calendar_store.get(entry_id).title == "Past"

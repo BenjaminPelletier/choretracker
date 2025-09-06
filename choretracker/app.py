@@ -274,13 +274,25 @@ def entry_time_bounds(entry: CalendarEntry) -> tuple[datetime, datetime | None]:
     return (start, end)
 
 
-def has_past_instances(entry: CalendarEntry, now: datetime | None = None) -> bool:
+def has_finished_instances(entry: CalendarEntry, now: datetime | None = None) -> bool:
     if now is None:
         now = get_now()
     for period in enumerate_time_periods(entry, include_skipped=True):
-        if period.start < now:
+        end = ensure_tz(period.end)
+        start = ensure_tz(period.start)
+        if end <= now:
             return True
-        break
+        if start > now:
+            break
+    return False
+
+
+def has_unfinished_instances(entry: CalendarEntry, now: datetime | None = None) -> bool:
+    if now is None:
+        now = get_now()
+    for period in enumerate_time_periods(entry, include_skipped=True):
+        if ensure_tz(period.end) > now:
+            return True
     return False
 
 
@@ -317,34 +329,34 @@ def server_version() -> str:
 
 
 def can_edit_entry(username: str, entry: CalendarEntry) -> bool:
-    if not username:
+    if not username or not has_unfinished_instances(entry):
         return False
     if username in entry.managers:
         return True
     return user_store.has_permission(username, "admin")
 
 
-def split_entry_if_past(entry_id: int, entry: CalendarEntry, now: datetime | None = None) -> tuple[int, CalendarEntry, bool]:
-    """Split ``entry`` at ``now`` if it has instances in the past.
+def split_entry_if_past(
+    entry_id: int, entry: CalendarEntry, now: datetime | None = None
+) -> tuple[int, CalendarEntry, bool]:
+    """Split ``entry`` at the start of the first unfinished instance.
 
     Returns ``(new_id, entry_obj, did_split)`` where ``entry_obj`` is the
     original entry if no split occurred or the new entry if it did.
     """
     if now is None:
         now = get_now()
-    has_past = False
-    has_future = False
-    for period in enumerate_time_periods(entry):
-        if period.start < now:
-            has_past = True
-        else:
-            has_future = True
-            break
-    # Only split if there are instances both before and after ``now``;
-    # otherwise, one of the resulting entries would have zero instances and
-    # the split would be pointless.
-    if has_past and has_future:
-        new_entry = calendar_store.split(entry_id, now)
+    past_found = False
+    split_time: datetime | None = None
+    for period in enumerate_time_periods(entry, include_skipped=True):
+        end = ensure_tz(period.end)
+        if end <= now:
+            past_found = True
+            continue
+        split_time = ensure_tz(period.start)
+        break
+    if past_found and split_time is not None:
+        new_entry = calendar_store.split(entry_id, split_time)
         if not new_entry:
             raise HTTPException(status_code=404)
         return new_entry.id, new_entry, True
@@ -854,7 +866,10 @@ async def create_calendar_entry(request: Request):
         responsible=responsible,
         managers=managers,
     )
-    if not user_store.has_permission(current_user, "admin") and has_past_instances(entry):
+    if (
+        not user_store.has_permission(current_user, "admin")
+        and has_finished_instances(entry)
+    ):
         raise HTTPException(status_code=400, detail="Cannot create entry in the past")
     calendar_store.create(entry)
     return RedirectResponse(url=relative_url_for(request, "index"), status_code=303)
@@ -883,6 +898,7 @@ async def list_calendar_entries(request: Request, entry_type: str):
                 any(spec.responsible for spec in rec.instance_specifics.values())
                 for rec in entry.recurrences
             )
+            and not has_finished_instances(entry)
         )
         if counts[entry.title] > 1:
             entry.title = f"{entry.title} ({time_range_summary(start, end)})"
@@ -1058,6 +1074,7 @@ async def view_calendar_entry(
             any(spec.responsible for spec in rec.instance_specifics.values())
             for rec in entry.recurrences
         )
+        and not has_finished_instances(entry)
     )
     return templates.TemplateResponse(
         request,
@@ -1265,7 +1282,7 @@ async def update_calendar_entry(request: Request, entry_id: int):
         responsible=responsible,
         managers=managers,
     )
-    if not user_store.has_permission(current_user, "admin") and has_past_instances(new_entry):
+    if has_finished_instances(new_entry):
         raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
     for comp in completion_store.list_for_entry(entry_id):
         old_period = find_time_period(
@@ -1301,9 +1318,7 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
     if not entry:
         raise HTTPException(status_code=404)
     require_entry_write_permission(request, entry)
-    username = request.session.get("user")
-    is_admin = user_store.has_permission(username, "admin")
-    if not is_admin and has_past_instances(entry):
+    if not has_unfinished_instances(entry):
         raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
     data = await request.json()
     split_fields = {
@@ -1334,7 +1349,7 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
         if not managers:
             raise HTTPException(status_code=400, detail="At least one manager required")
         entry.managers = managers
-    if not is_admin and has_past_instances(entry):
+    if has_finished_instances(entry):
         raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
     calendar_store.update(entry_id, entry)
     resp = {"status": "ok"}
@@ -1351,9 +1366,7 @@ async def update_recurrence(request: Request, entry_id: int):
     if not entry:
         raise HTTPException(status_code=404)
     require_entry_write_permission(request, entry)
-    username = request.session.get("user")
-    is_admin = user_store.has_permission(username, "admin")
-    if not is_admin and has_past_instances(entry):
+    if not has_unfinished_instances(entry):
         raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
     data = await request.json()
     rid = int(data.get("recurrence_id", -1))
@@ -1372,7 +1385,7 @@ async def update_recurrence(request: Request, entry_id: int):
         rec.duration_seconds = int(data["duration_seconds"])
     if "responsible" in data:
         rec.responsible = list(data["responsible"])
-    if not is_admin and has_past_instances(entry):
+    if has_finished_instances(entry):
         raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
     calendar_store.update(entry_id, entry)
     resp = {"status": "ok"}
@@ -1389,9 +1402,7 @@ async def add_recurrence(request: Request, entry_id: int):
     if not entry:
         raise HTTPException(status_code=404)
     require_entry_write_permission(request, entry)
-    username = request.session.get("user")
-    is_admin = user_store.has_permission(username, "admin")
-    if not is_admin and has_past_instances(entry):
+    if not has_unfinished_instances(entry):
         raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
     data = await request.json()
     if "type" not in data or "first_start" not in data or "duration_seconds" not in data:
@@ -1406,7 +1417,7 @@ async def add_recurrence(request: Request, entry_id: int):
         responsible=list(data.get("responsible") or []),
     )
     entry.recurrences.append(rec)
-    if not is_admin and has_past_instances(entry):
+    if has_finished_instances(entry):
         raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
     calendar_store.update(entry_id, entry)
     resp = {"status": "ok", "recurrence_id": rid}
@@ -1423,9 +1434,7 @@ async def delete_recurrence(request: Request, entry_id: int):
     if not entry:
         raise HTTPException(status_code=404)
     require_entry_write_permission(request, entry)
-    username = request.session.get("user")
-    is_admin = user_store.has_permission(username, "admin")
-    if not is_admin and has_past_instances(entry):
+    if not has_unfinished_instances(entry):
         raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
     data = await request.json()
     rid = int(data.get("recurrence_id", -1))
@@ -1434,7 +1443,7 @@ async def delete_recurrence(request: Request, entry_id: int):
         raise HTTPException(status_code=400)
     entry_id, entry, did_split = split_entry_if_past(entry_id, entry)
     entry.recurrences = [r for r in entry.recurrences if r.id != rid]
-    if not is_admin and has_past_instances(entry):
+    if has_finished_instances(entry):
         raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
     calendar_store.update(entry_id, entry)
     # Remove completions for this recurrence
@@ -1456,6 +1465,8 @@ async def delete_calendar_entry(request: Request, entry_id: int):
     if not entry:
         raise HTTPException(status_code=404)
     require_entry_write_permission(request, entry)
+    if has_finished_instances(entry):
+        raise HTTPException(status_code=400, detail="Cannot delete entry with past instances")
     if not calendar_store.delete(entry_id):
         raise HTTPException(
             status_code=400,

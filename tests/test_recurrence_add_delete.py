@@ -34,7 +34,7 @@ def setup_app(tmp_path, monkeypatch):
 
 def test_add_recurrence(tmp_path, monkeypatch):
     app_module, client = setup_app(tmp_path, monkeypatch)
-    start = datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC"))
+    start = datetime.now(ZoneInfo("UTC"))
     entry = CalendarEntry(
         title="AddRec",
         description="",
@@ -77,7 +77,7 @@ def test_add_recurrence(tmp_path, monkeypatch):
     assert rec.responsible == ["Bob"]
 def test_delete_recurrence(tmp_path, monkeypatch):
     app_module, client = setup_app(tmp_path, monkeypatch)
-    start = datetime(2000, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC"))
+    start = datetime.now(ZoneInfo("UTC"))
     entry = CalendarEntry(
         title="DelRec",
         description="",
@@ -117,8 +117,6 @@ def test_delete_recurrence(tmp_path, monkeypatch):
     assert len(updated.recurrences) == 1
     assert updated.recurrences[0].type == RecurrenceType.MonthlyDayOfMonth
 
-    comps_old = app_module.completion_store.list_for_entry(entry_id)
-    assert len(comps_old) == 1
-    assert comps_old[0].recurrence_id == 1
-    comps_new = app_module.completion_store.list_for_entry(new_id)
-    assert comps_new == []
+    comps = app_module.completion_store.list_for_entry(new_id)
+    assert len(comps) == 1
+    assert comps[0].recurrence_id == 1
