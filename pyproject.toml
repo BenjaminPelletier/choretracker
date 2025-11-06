@@ -18,4 +18,5 @@ dependencies = [
     "passlib[bcrypt]>=1.7.4",
     "bcrypt>=4.1",
     "Pillow>=10.0.0",
+    "tzdata>=2024.1",
 ]
