@@ -27,19 +27,24 @@ def parse_datetime(value: str) -> datetime:
     """Parse an ISO formatted datetime string.
 
     If ``value`` lacks timezone information, apply the timezone configured
-    via ``CHORETRACKER_TZ`` (default system timezone).
+    via ``CHORETRACKER_TZ`` (default system timezone).  If ``value`` already
+    includes timezone information, convert it into the configured timezone so
+    that subsequent arithmetic reflects future daylight-saving transitions.
     """
-    dt = datetime.fromisoformat(value)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=_configured_tz())
-    return dt
+    return ensure_tz(datetime.fromisoformat(value))
 
 
 def ensure_tz(dt: datetime | None) -> datetime | None:
     """Ensure ``dt`` is timezone-aware using the configured timezone."""
-    if dt is not None and dt.tzinfo is None:
-        return dt.replace(tzinfo=_configured_tz())
-    return dt
+    if dt is None:
+        return None
+
+    tz = _configured_tz()
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=tz)
+    if dt.tzinfo == tz:
+        return dt
+    return dt.astimezone(tz)
 
 
 def end_of_day(dt: datetime) -> datetime:
