@@ -24,6 +24,7 @@ RUN rm -f /etc/apt/apt.conf.d/docker-clean \
         liblcms2-dev \
         libffi-dev \
         libssl-dev \
+        tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv after required build tools are available
