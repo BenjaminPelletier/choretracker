@@ -303,14 +303,24 @@ class CalendarEntryStore:
                 Recurrence.model_validate(r.model_dump()) for r in entry.recurrences
             ]
 
+            split_indexes: dict[int, int] = {}
+            for rec in original.recurrences:
+                if not isinstance(rec, Recurrence):
+                    rec = Recurrence.model_validate(rec)
+                gen = _recurrence_generator(original, rec, include_skipped=True)
+                for period in gen:
+                    if ensure_tz(period.start) >= split_time:
+                        split_indexes[rec.id] = period.instance_index
+                        break
+
             # Move instance specifics
             for idx, rec in enumerate(entry.recurrences):
                 new_rec = new_entry.recurrences[idx]
                 keep_specs: dict[int, InstanceSpecifics] = {}
                 move_specs: dict[int, InstanceSpecifics] = {}
+                split_index = split_indexes.get(rec.id)
                 for sidx, spec in rec.instance_specifics.items():
-                    period = find_time_period(original, rec.id, sidx, include_skipped=True)
-                    if period and ensure_tz(period.start) >= split_time:
+                    if split_index is not None and sidx >= split_index:
                         move_specs[sidx] = spec
                     else:
                         keep_specs[sidx] = spec
@@ -726,4 +736,3 @@ def duration_for(
             rec = Recurrence.model_validate(rec)
         return timedelta(seconds=rec.duration_seconds)
     return timedelta(0)
-
