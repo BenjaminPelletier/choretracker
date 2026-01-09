@@ -1457,7 +1457,9 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
         raise HTTPException(status_code=404)
     require_entry_write_permission(request, entry)
     if not has_unfinished_instances(entry):
-        raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
+        return JSONResponse(
+            {"error": "Cannot modify entry with past instances"}, status_code=400
+        )
     data = await request.json()
     split_fields = {
         "description",
@@ -1476,19 +1478,34 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
         entry.type = CalendarEntryType(data["type"])
     if "none_after" in data:
         na = data["none_after"]
-        entry.none_after = parse_datetime(na) if na else None
+        try:
+            entry.none_after = parse_datetime(na) if na else None
+        except ValueError:
+            return JSONResponse({"error": "Invalid none-after time"}, status_code=400)
     if "none_before" in data:
         nb = data["none_before"]
-        entry.none_before = parse_datetime(nb) if nb else None
+        try:
+            entry.none_before = parse_datetime(nb) if nb else None
+        except ValueError:
+            return JSONResponse({"error": "Invalid none-before time"}, status_code=400)
     if "responsible" in data:
-        entry.responsible = data["responsible"]
+        responsible = list(data["responsible"])
+        if entry.type == CalendarEntryType.Chore and not responsible:
+            return JSONResponse(
+                {"error": "At least one responsible user required"}, status_code=400
+            )
+        entry.responsible = responsible
     if "managers" in data:
         managers = list(data["managers"])
         if not managers:
-            raise HTTPException(status_code=400, detail="At least one manager required")
+            return JSONResponse(
+                {"error": "At least one manager required"}, status_code=400
+            )
         entry.managers = managers
     if has_finished_instances(entry):
-        raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
+        return JSONResponse(
+            {"error": "Cannot modify entry with past instances"}, status_code=400
+        )
     calendar_store.update(entry_id, entry)
     resp = {"status": "ok"}
     if did_split:
