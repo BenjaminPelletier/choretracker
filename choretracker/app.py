@@ -1303,6 +1303,17 @@ async def update_calendar_entry(request: Request, entry_id: int):
     entry_id, existing, _ = split_entry_if_past(entry_id, existing)
     current_user = request.session.get("user")
 
+    def form_error(message: str) -> None:
+        request.session["flash"] = message
+        raise HTTPException(
+            status_code=303,
+            headers={
+                "Location": str(
+                    relative_url_for(request, "edit_calendar_entry", entry_id=entry_id)
+                )
+            },
+        )
+
     form = await request.form()
     title = form.get("title", "").strip()
     description = form.get("description", "").strip()
@@ -1322,7 +1333,7 @@ async def update_calendar_entry(request: Request, entry_id: int):
     )
     use_fallback_duration = not (rec_dur_days or rec_dur_hours or rec_dur_minutes)
     if use_fallback_duration and duration_fallback <= timedelta(0):
-        raise HTTPException(status_code=400, detail="Duration must be greater than 0")
+        form_error("Duration must be greater than 0")
 
     rec_resp_json = form.getlist("recurrence_responsible[]")
     rec_del_json = form.getlist("recurrence_delegations[]")
@@ -1336,8 +1347,11 @@ async def update_calendar_entry(request: Request, entry_id: int):
             else first_start_fallback
         )
         if not start_str:
-            raise HTTPException(status_code=400, detail="first_start required")
-        start = parse_datetime(start_str)
+            form_error("Start time required")
+        try:
+            start = parse_datetime(start_str)
+        except ValueError:
+            form_error("Invalid start time")
 
         if use_fallback_duration:
             dur = duration_fallback
@@ -1347,7 +1361,7 @@ async def update_calendar_entry(request: Request, entry_id: int):
             m = int(rec_dur_minutes[i]) if i < len(rec_dur_minutes) and rec_dur_minutes[i] else 0
             dur = timedelta(days=d, hours=h, minutes=m)
         if dur <= timedelta(0):
-            raise HTTPException(status_code=400, detail="Duration must be greater than 0")
+            form_error("Duration must be greater than 0")
 
         responsible_users: list[str] = []
         if i < len(rec_resp_json) and rec_resp_json[i]:
@@ -1374,19 +1388,27 @@ async def update_calendar_entry(request: Request, entry_id: int):
         recurrences.append(rec)
 
     none_after_str = form.get("none_after")
-    none_after = parse_datetime(none_after_str) if none_after_str else None
     none_before_str = form.get("none_before")
-    none_before = parse_datetime(none_before_str) if none_before_str else None
+    try:
+        none_after = parse_datetime(none_after_str) if none_after_str else None
+    except ValueError:
+        form_error("Invalid none-after time")
+    try:
+        none_before = parse_datetime(none_before_str) if none_before_str else None
+    except ValueError:
+        form_error("Invalid none-before time")
 
     responsible = form.getlist("responsible")
     managers = form.getlist("managers")
+    if not managers:
+        form_error("At least one manager required")
     if entry_type == CalendarEntryType.Chore and not responsible:
-        raise HTTPException(status_code=400, detail="At least one responsible user required")
+        form_error("At least one responsible user required")
     if entry_type == CalendarEntryType.Chore:
         for rec in recurrences:
             for spec in rec.instance_specifics.values():
                 if spec.responsible is not None and not spec.responsible:
-                    raise HTTPException(status_code=400, detail="Delegations must have responsible users")
+                    form_error("Delegations must have responsible users")
 
     new_entry = CalendarEntry(
         title=title,
@@ -1399,7 +1421,7 @@ async def update_calendar_entry(request: Request, entry_id: int):
         managers=managers,
     )
     if has_finished_instances(new_entry):
-        raise HTTPException(status_code=400, detail="Cannot modify entry with past instances")
+        form_error("Cannot modify entry with past instances")
     for comp in completion_store.list_for_entry(entry_id):
         old_period = find_time_period(
             existing, comp.recurrence_id, comp.instance_index
@@ -2425,4 +2447,3 @@ async def delete_user(request: Request, username: str):
             raise HTTPException(status_code=303, headers={"Location": relative_url_for(request, "list_users")})
     user_store.delete(username)
     return RedirectResponse(url=relative_url_for(request, "list_users"), status_code=303)
-
