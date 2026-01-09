@@ -314,6 +314,8 @@ class CalendarEntryStore:
                         break
 
             # Move instance specifics
+            entry_specs: dict[int, dict[int, InstanceSpecifics]] = {}
+            new_specs: dict[int, dict[int, InstanceSpecifics]] = {}
             for idx, rec in enumerate(entry.recurrences):
                 new_rec = new_entry.recurrences[idx]
                 keep_specs: dict[int, InstanceSpecifics] = {}
@@ -326,6 +328,8 @@ class CalendarEntryStore:
                         keep_specs[sidx] = spec
                 rec.instance_specifics = keep_specs
                 new_rec.instance_specifics = move_specs
+                entry_specs[rec.id] = keep_specs
+                new_specs[rec.id] = move_specs
 
             # Adjust boundaries
             last_end = None
@@ -359,6 +363,10 @@ class CalendarEntryStore:
                 r if isinstance(r, Recurrence) else Recurrence.model_validate(r)
                 for r in new_entry.recurrences
             ]
+            for rec in entry.recurrences:
+                rec.instance_specifics = entry_specs.get(rec.id, {})
+            for rec in new_entry.recurrences:
+                rec.instance_specifics = new_specs.get(rec.id, {})
 
             # Move completions before storing instance specifics
             comps = session.exec(
