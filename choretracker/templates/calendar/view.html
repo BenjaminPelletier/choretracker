@@ -156,6 +156,63 @@ document.addEventListener('DOMContentLoaded', () => {
         return b;
     }
 
+    function showInlineError(message) {
+        const content = document.querySelector('.content');
+        if (!content) return;
+        const flash = document.createElement('div');
+        flash.className = 'flash';
+        flash.textContent = message || 'Something went wrong.';
+        const existing = content.querySelector('.flash');
+        if (existing) {
+            existing.replaceWith(flash);
+        } else {
+            content.prepend(flash);
+        }
+    }
+
+    async function parseErrorMessage(resp) {
+        try {
+            const data = await resp.json();
+            if (data && data.error) {
+                return data.error;
+            }
+            if (data && data.detail) {
+                return data.detail;
+            }
+        } catch (err) {
+            // fall through to text
+        }
+        try {
+            const text = await resp.text();
+            if (text) {
+                return text;
+            }
+        } catch (err) {
+            // ignore
+        }
+        return 'Something went wrong.';
+    }
+
+    async function updateEntry(payload) {
+        const resp = await fetch(`/calendar/${entryId}/update`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
+            body: JSON.stringify(payload)
+        });
+        if (resp.ok) {
+            const data = await resp.json();
+            if (data.redirect) {
+                window.location = data.redirect;
+                return;
+            }
+            location.reload();
+            return;
+        }
+        const message = await parseErrorMessage(resp);
+        showInlineError(message);
+    }
+
     const nbEdit = document.getElementById('edit-none-before');
     if (nbEdit) {
         nbEdit.addEventListener('click', () => {
@@ -185,22 +242,10 @@ document.addEventListener('DOMContentLoaded', () => {
             line.appendChild(save);
             line.appendChild(cancel);
             clearBtn.addEventListener('click', async () => {
-                await fetch(`/calendar/${entryId}/update`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    credentials: 'same-origin',
-                    body: JSON.stringify({ none_before: '' })
-                });
-                location.reload();
+                await updateEntry({ none_before: '' });
             });
             save.addEventListener('click', async () => {
-                await fetch(`/calendar/${entryId}/update`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    credentials: 'same-origin',
-                    body: JSON.stringify({ none_before: input.value })
-                });
-                location.reload();
+                await updateEntry({ none_before: input.value });
             });
             cancel.addEventListener('click', () => location.reload());
         });
@@ -235,22 +280,10 @@ document.addEventListener('DOMContentLoaded', () => {
             line.appendChild(save);
             line.appendChild(cancel);
             clearBtn.addEventListener('click', async () => {
-                await fetch(`/calendar/${entryId}/update`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    credentials: 'same-origin',
-                    body: JSON.stringify({ none_after: '' })
-                });
-                location.reload();
+                await updateEntry({ none_after: '' });
             });
             save.addEventListener('click', async () => {
-                await fetch(`/calendar/${entryId}/update`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    credentials: 'same-origin',
-                    body: JSON.stringify({ none_after: input.value })
-                });
-                location.reload();
+                await updateEntry({ none_after: input.value });
             });
             cancel.addEventListener('click', () => location.reload());
         });
@@ -325,13 +358,7 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(cancel);
 
             save.addEventListener('click', async () => {
-                await fetch(`/calendar/${entryId}/update`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    credentials: 'same-origin',
-                    body: JSON.stringify({managers: managers})
-                });
-                location.reload();
+                await updateEntry({managers: managers});
             });
             cancel.addEventListener('click', () => location.reload());
         });
@@ -406,13 +433,7 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(cancel);
 
             save.addEventListener('click', async () => {
-                await fetch(`/calendar/${entryId}/update`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    credentials: 'same-origin',
-                    body: JSON.stringify({responsible: responsible})
-                });
-                location.reload();
+                await updateEntry({responsible: responsible});
             });
             cancel.addEventListener('click', () => location.reload());
         });
@@ -767,18 +788,7 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(save);
             container.appendChild(cancel);
             save.addEventListener('click', async () => {
-                const resp = await fetch(`/calendar/${entryId}/update`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    credentials: 'same-origin',
-                    body: JSON.stringify({description: textarea.value})
-                });
-                const data = await resp.json();
-                if (data.redirect) {
-                    window.location = data.redirect;
-                } else {
-                    location.reload();
-                }
+                await updateEntry({description: textarea.value});
             });
             cancel.addEventListener('click', () => location.reload());
         });
@@ -809,18 +819,7 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(save);
             container.appendChild(cancel);
             save.addEventListener('click', async () => {
-                const resp = await fetch(`/calendar/${entryId}/update`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    credentials: 'same-origin',
-                    body: JSON.stringify({title: titleInput.value, type: typeSelect.value})
-                });
-                const data = await resp.json();
-                if (data.redirect) {
-                    window.location = data.redirect;
-                } else {
-                    location.reload();
-                }
+                await updateEntry({title: titleInput.value, type: typeSelect.value});
             });
             cancel.addEventListener('click', () => location.reload());
         });

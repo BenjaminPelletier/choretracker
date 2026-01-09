@@ -303,19 +303,33 @@ class CalendarEntryStore:
                 Recurrence.model_validate(r.model_dump()) for r in entry.recurrences
             ]
 
+            split_indexes: dict[int, int] = {}
+            for rec in original.recurrences:
+                if not isinstance(rec, Recurrence):
+                    rec = Recurrence.model_validate(rec)
+                gen = _recurrence_generator(original, rec, include_skipped=True)
+                for period in gen:
+                    if ensure_tz(period.start) >= split_time:
+                        split_indexes[rec.id] = period.instance_index
+                        break
+
             # Move instance specifics
+            entry_specs: dict[int, dict[int, InstanceSpecifics]] = {}
+            new_specs: dict[int, dict[int, InstanceSpecifics]] = {}
             for idx, rec in enumerate(entry.recurrences):
                 new_rec = new_entry.recurrences[idx]
                 keep_specs: dict[int, InstanceSpecifics] = {}
                 move_specs: dict[int, InstanceSpecifics] = {}
+                split_index = split_indexes.get(rec.id)
                 for sidx, spec in rec.instance_specifics.items():
-                    period = find_time_period(original, rec.id, sidx, include_skipped=True)
-                    if period and ensure_tz(period.start) >= split_time:
+                    if split_index is not None and sidx >= split_index:
                         move_specs[sidx] = spec
                     else:
                         keep_specs[sidx] = spec
                 rec.instance_specifics = keep_specs
                 new_rec.instance_specifics = move_specs
+                entry_specs[rec.id] = keep_specs
+                new_specs[rec.id] = move_specs
 
             # Adjust boundaries
             last_end = None
@@ -349,6 +363,10 @@ class CalendarEntryStore:
                 r if isinstance(r, Recurrence) else Recurrence.model_validate(r)
                 for r in new_entry.recurrences
             ]
+            for rec in entry.recurrences:
+                rec.instance_specifics = entry_specs.get(rec.id, {})
+            for rec in new_entry.recurrences:
+                rec.instance_specifics = new_specs.get(rec.id, {})
 
             # Move completions before storing instance specifics
             comps = session.exec(
@@ -368,10 +386,16 @@ class CalendarEntryStore:
             session.commit()
 
             # Ensure recurrences are Recurrence objects for return
+            entry.recurrences = [
+                r if isinstance(r, Recurrence) else Recurrence.model_validate(r)
+                for r in entry.recurrences
+            ]
             new_entry.recurrences = [
                 r if isinstance(r, Recurrence) else Recurrence.model_validate(r)
                 for r in new_entry.recurrences
             ]
+            _load_instance_specifics(session, entry)
+            _load_instance_specifics(session, new_entry)
             return new_entry
 
 
@@ -726,4 +750,3 @@ def duration_for(
             rec = Recurrence.model_validate(rec)
         return timedelta(seconds=rec.duration_seconds)
     return timedelta(0)
-
