@@ -1467,7 +1467,12 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
         "type",
     }
     did_split = False
-    if split_fields & set(data.keys()):
+    data_keys = set(data.keys())
+    has_past_instances = has_finished_instances(entry)
+    only_none_after = data_keys == {"none_after"}
+    if has_past_instances and not only_none_after:
+        entry_id, entry, did_split = split_entry_if_past(entry_id, entry)
+    elif split_fields & data_keys:
         entry_id, entry, did_split = split_entry_if_past(entry_id, entry)
 
     if "description" in data:
@@ -1479,9 +1484,26 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
     if "none_after" in data:
         na = data["none_after"]
         try:
-            entry.none_after = parse_datetime(na) if na else None
+            none_after = parse_datetime(na) if na else None
         except ValueError:
             return JSONResponse({"error": "Invalid none-after time"}, status_code=400)
+        if has_past_instances and only_none_after and none_after is not None:
+            last_past_start = None
+            for period in enumerate_time_periods(entry, include_skipped=True):
+                if ensure_tz(period.end) <= get_now():
+                    last_past_start = ensure_tz(period.start)
+                else:
+                    break
+            if last_past_start and ensure_tz(none_after) < last_past_start:
+                return JSONResponse(
+                    {
+                        "error": (
+                            "None-after time cannot be before the last completed instance"
+                        )
+                    },
+                    status_code=400,
+                )
+        entry.none_after = none_after
     if "none_before" in data:
         nb = data["none_before"]
         try:
@@ -1502,7 +1524,7 @@ async def inline_update_calendar_entry(request: Request, entry_id: int):
                 {"error": "At least one manager required"}, status_code=400
             )
         entry.managers = managers
-    if has_finished_instances(entry):
+    if not (has_past_instances and only_none_after) and has_finished_instances(entry):
         return JSONResponse(
             {"error": "Cannot modify entry with past instances"}, status_code=400
         )
