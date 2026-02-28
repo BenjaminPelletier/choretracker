@@ -1,5 +1,7 @@
 # choretracker
 
+See the [user manual](user_manual.md) for end-user information.
+
 ## Execution
 
 The application stores information in a SQLite database. By default, the database
