@@ -690,6 +690,11 @@ async def index(request: Request):
     overdue.sort(key=lambda x: (x[1].end, x[0].title))
     current.sort(key=lambda x: (x[2] is not None, x[1].end, x[0].title))
 
+    current_user = request.session.get("user")
+    can_bulk_skip = user_store.has_permission(current_user, "admin") or any(
+        current_user in entry.managers for entry in calendar_store.list_entries()
+    )
+
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -699,6 +704,7 @@ async def index(request: Request):
             "upcoming": upcoming,
             "CalendarEntryType": CalendarEntryType,
             "now_ts": now.timestamp(),
+            "can_bulk_skip": can_bulk_skip,
         },
     )
 
@@ -2230,6 +2236,41 @@ async def skip_instance(request: Request, entry_id: int):
         ),
     )
     return RedirectResponse(url=referer, status_code=303)
+
+
+@app.post("/bulk-skip-overdue")
+async def bulk_skip_overdue(request: Request):
+    username = request.session.get("user")
+    if not username:
+        raise HTTPException(status_code=401)
+    data = await request.json()
+    instances = data.get("instances", [])
+    for inst in instances:
+        entry_id = int(inst["entry_id"])
+        rid = int(inst["recurrence_id"])
+        iindex = int(inst["instance_index"])
+        entry = calendar_store.get(entry_id)
+        if not entry or not can_edit_entry(username, entry):
+            continue
+        rec = next((r for r in entry.recurrences if r.id == rid), None)
+        if rec is None:
+            continue
+        specs = rec.instance_specifics
+        spec = specs.get(iindex)
+        if not spec:
+            spec = InstanceSpecifics(
+                entry_id=entry_id, recurrence_id=rid, instance_index=iindex, skip=True
+            )
+        else:
+            if not isinstance(spec, InstanceSpecifics):
+                spec = InstanceSpecifics.model_validate(spec)
+            spec.skip = True
+            spec.responsible = None
+            spec.note = None
+        specs[iindex] = spec
+        rec.instance_specifics = specs
+        calendar_store.update(entry_id, entry)
+    return JSONResponse({"ok": True})
 
 
 @app.post("/calendar/{entry_id}/skip/remove")

@@ -2,12 +2,33 @@
 
 {% block title %}Home - Chore Tracker{% endblock %}
 
+{% block gear_menu_extra %}
+{% if can_bulk_skip %}
+<button type="button" class="icon-button" id="bulk-skip-btn" title="Bulk skip overdue">
+    <img src="{{ url_for('static', path='triple-check.svg') }}" alt="Bulk skip overdue" class="icon">
+</button>
+{% endif %}
+{% endblock %}
+
 {% block content %}
 {% if overdue %}
 <h2>Overdue</h2>
+<div id="bulk-skip-controls" style="display:none; margin-bottom:0.5rem">
+    <button type="button" id="do-bulk-skip" class="bulk-action-btn">Skip</button>
+    <button type="button" id="cancel-bulk-skip" class="bulk-action-btn">Cancel</button>
+    <img id="bulk-skip-select-all" class="checkbox-icon entry-icon" style="cursor:pointer" data-checked="true"
+        src="{{ url_for('static', path='checkbox-checked.svg') }}" title="Select/deselect all">
+</div>
 <ul class="time-list">
 {% for entry, period, responsible, has_note, single in overdue %}
+    {% set current_user = request.session.get('user') %}
+    {% set can_skip = current_user in entry.managers or user_has(current_user, 'admin') %}
     <li>
+        <img class="bulk-skip-cb checkbox-icon entry-icon" style="display:none{% if not can_skip %}; opacity:0.4{% endif %}"
+            data-entry="{{ entry.id }}" data-rid="{{ period.recurrence_id }}" data-iindex="{{ period.instance_index }}"
+            data-enabled="{{ 'true' if can_skip else 'false' }}" data-checked="{{ 'true' if can_skip else 'false' }}"
+            src="{{ url_for('static', path='checkbox-checked.svg' if can_skip else 'checkbox-empty.svg') }}"
+            {% if can_skip %}title="Click to toggle"{% endif %}>
         {% for user in responsible %}
         <img src="{{ url_for('profile_picture', username=user) }}" alt="{{ user }}" class="profile-icon" />
         {% endfor %}
@@ -157,6 +178,95 @@ function updateTimes() {
 }
 updateTimes();
 setInterval(updateTimes, 1000);
+
+const CHECKBOX_CHECKED_SRC = "{{ url_for('static', path='checkbox-checked.svg') }}";
+const CHECKBOX_EMPTY_SRC = "{{ url_for('static', path='checkbox-empty.svg') }}";
+
+const bulkSkipBtn = document.getElementById('bulk-skip-btn');
+const bulkSkipControls = document.getElementById('bulk-skip-controls');
+const doBulkSkip = document.getElementById('do-bulk-skip');
+const cancelBulkSkip = document.getElementById('cancel-bulk-skip');
+const selectAllImg = document.getElementById('bulk-skip-select-all');
+
+function syncSelectAll() {
+    if (!selectAllImg) return;
+    const eligible = document.querySelectorAll('.bulk-skip-cb[data-enabled="true"]');
+    const checkedCount = [...eligible].filter(img => img.dataset.checked === 'true').length;
+    const allChecked = eligible.length > 0 && checkedCount === eligible.length;
+    selectAllImg.dataset.checked = allChecked ? 'true' : 'false';
+    selectAllImg.src = allChecked ? CHECKBOX_CHECKED_SRC : CHECKBOX_EMPTY_SRC;
+}
+
+function enterBulkSkipMode() {
+    document.querySelectorAll('.bulk-skip-cb').forEach(img => {
+        img.style.display = '';
+        if (img.dataset.enabled === 'true') img.style.cursor = 'pointer';
+    });
+    if (bulkSkipControls) bulkSkipControls.style.display = '';
+    syncSelectAll();
+    const settingsDropdown = document.getElementById('settings-dropdown');
+    if (settingsDropdown) settingsDropdown.classList.remove('show');
+}
+
+function exitBulkSkipMode() {
+    document.querySelectorAll('.bulk-skip-cb').forEach(img => { img.style.display = 'none'; });
+    if (bulkSkipControls) bulkSkipControls.style.display = 'none';
+}
+
+document.querySelectorAll('.bulk-skip-cb').forEach(img => {
+    if (img.dataset.enabled !== 'true') return;
+    img.addEventListener('click', () => {
+        const isChecked = img.dataset.checked === 'true';
+        img.dataset.checked = isChecked ? 'false' : 'true';
+        img.src = isChecked ? CHECKBOX_EMPTY_SRC : CHECKBOX_CHECKED_SRC;
+        syncSelectAll();
+    });
+});
+
+if (selectAllImg) {
+    selectAllImg.addEventListener('click', () => {
+        const isChecked = selectAllImg.dataset.checked === 'true';
+        const newChecked = !isChecked;
+        selectAllImg.dataset.checked = newChecked ? 'true' : 'false';
+        selectAllImg.src = newChecked ? CHECKBOX_CHECKED_SRC : CHECKBOX_EMPTY_SRC;
+        document.querySelectorAll('.bulk-skip-cb[data-enabled="true"]').forEach(img => {
+            img.dataset.checked = newChecked ? 'true' : 'false';
+            img.src = newChecked ? CHECKBOX_CHECKED_SRC : CHECKBOX_EMPTY_SRC;
+        });
+    });
+}
+
+if (bulkSkipBtn) {
+    bulkSkipBtn.addEventListener('click', enterBulkSkipMode);
+}
+
+if (cancelBulkSkip) {
+    cancelBulkSkip.addEventListener('click', exitBulkSkipMode);
+}
+
+if (doBulkSkip) {
+    doBulkSkip.addEventListener('click', async () => {
+        const instances = [];
+        document.querySelectorAll('.bulk-skip-cb[data-enabled="true"][data-checked="true"]').forEach(img => {
+            instances.push({
+                entry_id: parseInt(img.dataset.entry),
+                recurrence_id: parseInt(img.dataset.rid),
+                instance_index: parseInt(img.dataset.iindex),
+            });
+        });
+        if (instances.length === 0) {
+            exitBulkSkipMode();
+            return;
+        }
+        await fetch('/bulk-skip-overdue', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
+            body: JSON.stringify({instances}),
+        });
+        location.reload();
+    });
+}
 
 document.querySelectorAll('.checkbox-icon[data-action]').forEach(el => {
     el.addEventListener('click', async () => {

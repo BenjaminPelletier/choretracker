@@ -96,6 +96,7 @@
                     {% if user_has(current_user, 'admin') %}
                     <a href="{{ url_for('system') }}"><img src="{{ url_for('static', path='system.svg') }}" alt="System" class="icon"></a>
                     {% endif %}
+                    {% block gear_menu_extra %}{% endblock %}
                     <a href="{{ url_for('logout') }}"><img src="{{ url_for('static', path='signout.svg') }}" alt="Sign out" class="icon"></a>
                 </div>
             </div>
