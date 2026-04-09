@@ -103,6 +103,20 @@ const formatDuration = (seconds) => {
     return minutes + 'm';
 };
 
+const DAY_ABBREVS = ['Sun', 'Mon', 'Tues', 'Wed', 'Thur', 'Fri', 'Sat'];
+
+const formatAbsoluteTime = (dt, now) => {
+    const hours = dt.getHours();
+    const minutes = dt.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const h = hours % 12 || 12;
+    const timePart = minutes === 0 ? `${h}${ampm}` : `${h}:${String(minutes).padStart(2, '0')}${ampm}`;
+    if (dt.toDateString() === now.toDateString()) {
+        return timePart;
+    }
+    return `${DAY_ABBREVS[dt.getDay()]} ${timePart}`;
+};
+
 const serverNow = {{ now_ts|float }} * 1000;
 const loadTime = Date.now();
 const currentServerTime = () => new Date(serverNow + (Date.now() - loadTime));
@@ -114,7 +128,7 @@ function updateTimes() {
         const end = new Date(parseFloat(el.dataset.end) * 1000);
         const diff = (end - now) / 1000;
         if (diff <= 0) refresh = true;
-        el.textContent = `(Due in ${formatDuration(diff)})`;
+        el.textContent = `(Due ${formatAbsoluteTime(end, now)})`;
         el.classList.remove('due-soon', 'due-today', 'due-week', 'due-later');
         if (diff <= 3600) {
             el.classList.add('due-soon');
@@ -135,7 +149,7 @@ function updateTimes() {
         const start = new Date(parseFloat(el.dataset.start) * 1000);
         const diff = (start - now) / 1000;
         if (diff <= 0) refresh = true;
-        el.textContent = `(Starts in ${formatDuration(diff)})`;
+        el.textContent = `(Starts ${formatAbsoluteTime(start, now)})`;
     });
     if (refresh) {
         location.reload();
