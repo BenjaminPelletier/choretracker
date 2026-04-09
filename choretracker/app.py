@@ -559,15 +559,24 @@ async def index(request: Request):
     counter = count()
     single_map: dict[int, bool] = {}
 
+    # Cutoff: ignore instances that ended more than 1 week ago.
+    overdue_cutoff = now - timedelta(weeks=1)
+
+    # Preload all completions in one query to avoid N+1 DB hits.
+    completion_map: dict[tuple[int, int, int], ChoreCompletion] = {
+        (c.entry_id, c.recurrence_id, c.instance_index): c
+        for c in completion_store.list_all()
+    }
+
     for entry in calendar_store.list_entries():
         single = has_single_instance(entry)
         single_map[entry.id] = single
-        gen = enumerate_time_periods(entry)
+        gen = enumerate_time_periods(entry, min_end=overdue_cutoff)
         for period in gen:
             completion = None
             if entry.type == CalendarEntryType.Chore:
-                completion = completion_store.get(
-                    entry.id, period.recurrence_id, period.instance_index
+                completion = completion_map.get(
+                    (entry.id, period.recurrence_id, period.instance_index)
                 )
                 if completion:
                     visible_end = min(

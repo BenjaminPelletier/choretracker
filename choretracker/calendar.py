@@ -117,6 +117,7 @@ def _load_instance_specifics(session: Session, entry: CalendarEntry) -> None:
         rec.instance_specifics[spec.instance_index] = loaded
 
 
+
 def _store_instance_specifics(session: Session, entry: CalendarEntry) -> None:
     session.exec(delete(InstanceSpecifics).where(InstanceSpecifics.entry_id == entry.id))
     for rec in entry.recurrences:
@@ -207,6 +208,9 @@ class CalendarEntryStore:
     def list_entries(self) -> List[CalendarEntry]:
         with Session(self.engine) as session:
             entries = session.exec(select(CalendarEntry)).all()
+            # Load all instance specifics in one query BEFORE modifying entries,
+            # to avoid SQLAlchemy autoflush attempting to serialize Recurrence objects.
+            all_specs = session.exec(select(InstanceSpecifics)).all()
             for entry in entries:
                 entry.recurrences = [
                     rec if isinstance(rec, Recurrence) else Recurrence.model_validate(rec)
@@ -216,7 +220,19 @@ class CalendarEntryStore:
                     rec.first_start = ensure_tz(rec.first_start)
                 entry.none_after = ensure_tz(entry.none_after)
                 entry.none_before = ensure_tz(entry.none_before)
-                _load_instance_specifics(session, entry)
+            # Distribute the pre-loaded specs to their entries/recurrences.
+            entry_map = {e.id: e for e in entries}
+            for spec in all_specs:
+                entry = entry_map.get(spec.entry_id)
+                if not entry:
+                    continue
+                rec_map = {rec.id: rec for rec in entry.recurrences}
+                rec = rec_map.get(spec.recurrence_id)
+                if not rec:
+                    continue
+                loaded = InstanceSpecifics.model_validate(spec.model_dump())
+                loaded.start = ensure_tz(loaded.start)
+                rec.instance_specifics[spec.instance_index] = loaded
             return entries
 
     def delete(self, entry_id: int) -> bool:
@@ -471,6 +487,14 @@ class ChoreCompletionStore:
                 comp.completed_at = ensure_tz(comp.completed_at)
             return comps
 
+    def list_all(self) -> List[ChoreCompletion]:
+        """Load all completions in a single query for bulk lookups."""
+        with Session(self.engine) as session:
+            comps = session.exec(select(ChoreCompletion)).all()
+            for comp in comps:
+                comp.completed_at = ensure_tz(comp.completed_at)
+            return comps
+
 
 @dataclass
 class TimePeriod:
@@ -538,13 +562,49 @@ def _advance(start: datetime, rtype: RecurrenceType) -> Optional[datetime]:
 
 
 def _recurrence_generator(
-    entry: CalendarEntry, rec: Recurrence, include_skipped: bool
+    entry: CalendarEntry,
+    rec: Recurrence,
+    include_skipped: bool,
+    min_end: Optional[datetime] = None,
 ) -> Iterator[TimePeriod]:
     none_after = ensure_tz(entry.none_after)
     none_before = ensure_tz(entry.none_before)
     start = ensure_tz(rec.first_start)
     instance = 0
     specs = rec.instance_specifics
+
+    # Fast-forward: skip ahead mathematically to avoid iterating all past periods.
+    # We stay slightly before min_end (buffer of a few periods) so that any
+    # instance-specific start overrides near the boundary are handled correctly.
+    if min_end is not None and start is not None and start < min_end:
+        if rec.type == RecurrenceType.Weekly:
+            delta = min_end - start
+            skip = max(0, int(delta.total_seconds() / (7 * 86400)) - 2)
+            if skip > 0:
+                start = start + timedelta(weeks=skip)
+                instance = skip
+        elif rec.type in (
+            RecurrenceType.MonthlyDayOfMonth,
+            RecurrenceType.MonthlyDayOfWeek,
+        ):
+            months = max(
+                0,
+                (min_end.year - start.year) * 12
+                + (min_end.month - start.month)
+                - 2,
+            )
+            for _ in range(months):
+                nxt = _advance(start, rec.type)
+                if nxt is None:
+                    break
+                start = ensure_tz(nxt)
+                instance += 1
+        elif rec.type == RecurrenceType.AnnualDayOfMonth:
+            years = max(0, min_end.year - start.year - 2)
+            if years > 0:
+                start = ensure_tz(_add_months_skip(start, years * 12))
+                instance += years
+
     while start and (not none_after or start <= none_after):
         spec = specs.get(instance)
         start_override = start
@@ -560,25 +620,29 @@ def _recurrence_generator(
             )
         ):
             dur = duration_for(entry, rec.id, instance)
-            yield TimePeriod(
-                start=start_override,
-                end=start_override + dur,
-                recurrence_id=rec.id,
-                instance_index=instance,
-            )
+            period_end = start_override + dur
+            if min_end is None or period_end >= min_end:
+                yield TimePeriod(
+                    start=start_override,
+                    end=period_end,
+                    recurrence_id=rec.id,
+                    instance_index=instance,
+                )
         instance += 1
         start = _advance(start, rec.type)
         start = ensure_tz(start) if start else None
 
 
 def enumerate_time_periods(
-    entry: CalendarEntry, include_skipped: bool = False
+    entry: CalendarEntry,
+    include_skipped: bool = False,
+    min_end: Optional[datetime] = None,
 ) -> Iterator[TimePeriod]:
     heap: List[tuple[datetime, int, Iterator[TimePeriod], TimePeriod]] = []
     for rec in entry.recurrences:
         if not isinstance(rec, Recurrence):
             rec = Recurrence.model_validate(rec)
-        gen = _recurrence_generator(entry, rec, include_skipped)
+        gen = _recurrence_generator(entry, rec, include_skipped, min_end=min_end)
         first = next(gen, None)
         if first:
             heappush(heap, (first.start, rec.id, gen, first))
