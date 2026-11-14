@@ -14,6 +14,7 @@ import logging
 
 from fastapi import FastAPI, HTTPException, Request
 from starlette.requests import Request as StarletteRequest
+from starlette.concurrency import run_in_threadpool
 from fastapi.responses import (
     HTMLResponse,
     RedirectResponse,
@@ -41,7 +42,6 @@ from .users import (
     UserStore,
     init_db,
     process_profile_picture,
-    pwd_context,
     is_url_safe,
 )
 from .calendar import (
@@ -784,7 +784,7 @@ def _switch_target(request: Request, next: str | None) -> str:
 @app.get("/switch/{username}")
 async def switch_user(request: Request, username: str, next: str | None = None, pin: str | None = None):
     user = user_store.get(username)
-    if user and (not user.pin_hash or (pin and pwd_context.verify(pin, user.pin_hash))):
+    if user and await run_in_threadpool(user_store.verify_pin, user, pin or ""):
         request.session["user"] = username
         request.session["last_active"] = get_now().timestamp()
         return RedirectResponse(url=_switch_target(request, next), status_code=303)
@@ -800,7 +800,7 @@ async def switch_user_post(request: Request, username: str, next: str | None = N
     user = user_store.get(username)
     if not user:
         raise HTTPException(status_code=404)
-    if user.pin_hash and not (pin and pwd_context.verify(pin, user.pin_hash)):
+    if not await run_in_threadpool(user_store.verify_pin, user, pin):
         return JSONResponse({"error": "Invalid PIN"}, status_code=400)
     request.session["user"] = username
     request.session["last_active"] = get_now().timestamp()

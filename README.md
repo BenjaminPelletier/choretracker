@@ -43,6 +43,18 @@ docker run -e CHORETRACKER_DB=/data/choretracker.db \
 
 _Note that older versions of Docker may require the use of `--security-opt seccomp=unconfined` to support the `clone3` system the Tokio runtime uses._
 
+## PIN hashing
+
+Passwords use bcrypt. PINs are intended only to distinguish relatively trusted
+family members and use salted PBKDF2-HMAC-SHA256 with 1,000 iterations to keep
+user switching fast on a Raspberry Pi.
+
+Existing bcrypt PIN hashes continue to work. After the first successful PIN
+check, the application automatically saves a new PBKDF2 hash. That first check
+still incurs the old bcrypt cost; later checks use the fast hash. Incorrect
+PINs do not modify stored hashes. New or changed PINs use PBKDF2 immediately.
+No schema migration or PIN reset is required.
+
 ## Database migrations
 
 Schema changes between releases are handled with Alembic migrations. When

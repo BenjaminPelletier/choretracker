@@ -18,7 +18,7 @@ if hasattr(bcrypt, "_bcrypt") and not hasattr(bcrypt._bcrypt, "__about__"):
 
 from passlib.context import CryptContext
 from sqlmodel import Field, Session, SQLModel, select
-from sqlalchemy import Column, JSON, LargeBinary, text, func
+from sqlalchemy import Column, JSON, LargeBinary, text, func, update
 
 from .calendar import CalendarEntry, Recurrence, ChoreCompletion, InstanceSpecifics
 from sqlalchemy.exc import OperationalError
@@ -29,6 +29,14 @@ from PIL import Image, ImageDraw
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# PINs distinguish trusted family members rather than protecting external access.
+# Keep them inexpensive on the Pi; passwords retain their existing bcrypt cost.
+# Bcrypt remains readable so existing PINs can be upgraded after verification.
+pin_context = CryptContext(
+    schemes=["pbkdf2_sha256", "bcrypt"],
+    deprecated=["bcrypt"],
+    pbkdf2_sha256__default_rounds=1_000,
+)
 
 
 USERNAME_RE = re.compile(r"^[A-Za-z0-9._~-]+$")
@@ -52,9 +60,14 @@ class User(SQLModel, table=True):
 
 
 def hash_secret(secret: str) -> str:
-    """Hash a password or PIN using bcrypt."""
+    """Hash a password using bcrypt."""
 
     return pwd_context.hash(secret)
+
+
+def hash_pin(pin: str) -> str:
+    """Hash a family PIN with a random salt and a low-cost PBKDF2 hash."""
+    return pin_context.hash(pin)
 
 
 def process_profile_picture(data: bytes) -> bytes:
@@ -116,7 +129,7 @@ class UserStore:
             user = User(
                 username=username,
                 password_hash=hash_secret(password) if password else "",
-                pin_hash=hash_secret(pin) if pin else "",
+                pin_hash=hash_pin(pin) if pin else "",
                 permissions=list(permissions),
                 profile_picture=profile_picture,
             )
@@ -154,7 +167,7 @@ class UserStore:
             if remove_pin:
                 user.pin_hash = ""
             elif pin:
-                user.pin_hash = hash_secret(pin)
+                user.pin_hash = hash_pin(pin)
             user.permissions = list(permissions)
             if profile_picture is not None:
                 user.profile_picture = profile_picture
@@ -236,6 +249,30 @@ class UserStore:
         user = self.get(username)
         return bool(user) and ("admin" in user.permissions or permission in user.permissions)
 
+    def verify_pin(self, user: User, pin: str) -> bool:
+        """Verify a PIN, upgrading legacy bcrypt hashes after a successful check."""
+        if not user.pin_hash:
+            return True
+        if not pin:
+            return False
+        verified, replacement = pin_context.verify_and_update(pin, user.pin_hash)
+        if not verified:
+            return False
+        if replacement:
+            with Session(self.engine) as session:
+                # Do not overwrite a PIN changed by another request while the
+                # legacy bcrypt check was running, or authenticate with that old PIN.
+                result = session.exec(
+                    update(User)
+                    .where(User.id == user.id, User.pin_hash == user.pin_hash)
+                    .values(pin_hash=replacement)
+                )
+                if result.rowcount != 1:
+                    return False
+                session.commit()
+            user.pin_hash = replacement
+        return True
+
     def verify(self, username: str, password: str) -> Optional[User]:
         user = self.get_case_insensitive(username)
         if not user or not user.password_hash:
@@ -280,13 +317,13 @@ def init_db(engine) -> None:
             admin = next((u for u in users if u.username == "Admin"), None)
             if admin:
                 admin.password_hash = hash_secret("admin")
-                admin.pin_hash = hash_secret("0000")
+                admin.pin_hash = hash_pin("0000")
                 admin.permissions = ["admin"]
             else:
                 admin = User(
                     username="Admin",
                     password_hash=hash_secret("admin"),
-                    pin_hash=hash_secret("0000"),
+                    pin_hash=hash_pin("0000"),
                     permissions=["admin"],
                 )
             session.add(admin)
