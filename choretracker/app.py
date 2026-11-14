@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, date
 from pathlib import Path
 import json
+import hashlib
 import os
 import subprocess
 from urllib.parse import urlparse
@@ -17,7 +18,6 @@ from fastapi.responses import (
     HTMLResponse,
     RedirectResponse,
     Response,
-    FileResponse,
     JSONResponse,
     PlainTextResponse,
 )
@@ -841,14 +841,20 @@ async def update_logout_duration(request: Request):
 
 
 @app.get("/users/{username}/profile_picture")
-async def profile_picture(username: str):
-    headers = {"Cache-Control": "no-cache, no-store, max-age=0"}
+async def profile_picture(request: Request, username: str):
     user = user_store.get(username)
     if user and user.profile_picture:
-        return Response(user.profile_picture, media_type="image/png", headers=headers)
-    if username == "Viewer":
-        return FileResponse(BASE_PATH / "static" / "viewer_profile.png", headers=headers)
-    return FileResponse(BASE_PATH / "static" / "default_profile.png", headers=headers)
+        data = user.profile_picture
+    else:
+        filename = "viewer_profile.png" if username == "Viewer" else "default_profile.png"
+        data = (BASE_PATH / "static" / filename).read_bytes()
+    etag = '"' + hashlib.sha256(data).hexdigest() + '"'
+    # Store privately, but revalidate on each navigation so edits show immediately.
+    headers = {"Cache-Control": "private, no-cache", "ETag": etag}
+    candidates = request.headers.get("if-none-match", "").split(",")
+    if any(tag.strip() == "*" or tag.strip().removeprefix("W/") == etag for tag in candidates):
+        return Response(status_code=304, headers=headers)
+    return Response(data, media_type="image/png", headers=headers)
 
 
 @app.get("/calendar/new/{entry_type}", response_class=HTMLResponse)
