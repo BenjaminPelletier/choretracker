@@ -8,7 +8,7 @@ from alembic import context
 from sqlmodel import SQLModel
 
 # Import models so that SQLModel.metadata is populated.
-from choretracker import users, calendar  # noqa: F401
+from choretracker import users, calendar, settings, mqtt_settings  # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

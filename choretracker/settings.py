@@ -32,3 +32,41 @@ class SettingsStore:
                 setting = Setting(key="logout_duration_minutes", value=minutes)
             session.add(setting)
             session.commit()
+
+    def get_mqtt(self):
+        from .mqtt_settings import MQTTSettings
+
+        with Session(self.engine) as session:
+            setting = session.get(MQTTSettings, 1)
+            if setting is None:
+                setting = MQTTSettings()
+                session.add(setting)
+                session.commit()
+                session.refresh(setting)
+            return setting
+
+    def set_mqtt(self, *, host, port, username, password, tls, sensors):
+        from .mqtt_settings import MQTTSettings
+
+        self.get_mqtt()
+        with Session(self.engine) as session:
+            setting = session.get(MQTTSettings, 1)
+            setting.host = host
+            setting.port = port
+            setting.username = username
+            if password is not None:
+                setting.password = password
+            setting.tls = tls
+            setting.sensors = sensors
+            session.add(setting)
+            session.commit()
+
+    def set_mqtt_advertised(self, advertised):
+        from .mqtt_settings import MQTTSettings
+
+        with Session(self.engine) as session:
+            setting = session.get(MQTTSettings, 1)
+            if setting.advertised != advertised:
+                setting.advertised = advertised
+                session.add(setting)
+                session.commit()

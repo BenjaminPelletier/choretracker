@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, date
 from pathlib import Path
 import json
@@ -13,6 +14,7 @@ import secrets
 import logging
 
 from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
 from starlette.requests import Request as StarletteRequest
 from starlette.concurrency import run_in_threadpool
 from fastapi.responses import (
@@ -45,6 +47,7 @@ from .users import (
     is_url_safe,
 )
 from .calendar import (
+    OVERDUE_LOOKBACK,
     CalendarEntry,
     CalendarEntryStore,
     CalendarEntryType,
@@ -68,6 +71,8 @@ from .calendar import (
     responsible_for,
 )
 from .settings import SettingsStore
+from .mqtt_settings import MQTTSettings  # register schema before init_db
+from .mqtt import SENSOR_TYPES, SensorPublisher
 
 
 LOGOUT_DURATION = timedelta(minutes=1)
@@ -115,7 +120,27 @@ WRITE_PERMS = {
     CalendarEntryType.Chore: "chores.write",
 }
 
-app = FastAPI()
+sensor_publisher = SensorPublisher(settings_store, user_store, calendar_store, completion_store)
+
+
+@asynccontextmanager
+async def lifespan(app):
+    sensor_publisher.start()
+    try:
+        yield
+    finally:
+        await run_in_threadpool(sensor_publisher.stop)
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.middleware("http")
+async def refresh_sensors_after_change(request, call_next):
+    response = await call_next(request)
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"} and response.status_code < 400:
+        sensor_publisher.notify()
+    return response
 
 logger = logging.getLogger(__name__)
 
@@ -579,7 +604,7 @@ async def index(request: Request):
     single_map: dict[int, bool] = {}
 
     # Cutoff: ignore instances that ended more than 1 week ago.
-    overdue_cutoff = now - timedelta(weeks=1)
+    overdue_cutoff = now - OVERDUE_LOOKBACK
 
     # Read only the fields needed here, without constructing tracked ORM models
     # for the entire completion history.
@@ -822,8 +847,48 @@ async def system(request: Request):
         {
             "version": server_version(),
             "logout_minutes": int(LOGOUT_DURATION.total_seconds() // 60),
+            "mqtt": settings_store.get_mqtt(),
+            "mqtt_status": sensor_publisher.status,
+            "sensor_types": SENSOR_TYPES,
+            "sensor_users": sorted(user_store.list_users(), key=lambda user: user.username),
         },
     )
+
+
+class MQTTConfiguration(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    host: str = Field(max_length=253)
+    port: int = Field(ge=1, le=65535)
+    username: str = Field(max_length=256)
+    password: str | None = Field(default=None, max_length=4096)
+    tls: bool = False
+    sensors: dict[str, list[StrictInt]]
+
+    @field_validator("host")
+    @classmethod
+    def validate_host(cls, value):
+        value = value.strip()
+        if any(c.isspace() or ord(c) < 32 for c in value) or any(c in value for c in "/?#@"):
+            raise ValueError("Enter a hostname or IP address without a URL scheme or port")
+        # Colons are permitted for bare IPv6 addresses, but not a hostname:port.
+        if ":" in value:
+            from ipaddress import IPv6Address
+            IPv6Address(value)
+        return value
+
+
+@app.post("/system/mqtt")
+async def update_mqtt_settings(request: Request, data: MQTTConfiguration):
+    require_permission(request, "admin")
+    user_ids = {user.id for user in user_store.list_users()}
+    if any(kind not in SENSOR_TYPES or not set(ids) <= user_ids for kind, ids in data.sensors.items()):
+        return JSONResponse({"error": "Invalid sensor or user"}, status_code=400)
+    if not data.host and any(data.sensors.values()):
+        return JSONResponse({"error": "A broker hostname or IP is required to expose sensors"}, status_code=400)
+    settings_store.set_mqtt(**data.model_dump())
+    sensor_publisher.notify()
+    return JSONResponse({"ok": True})
 
 
 @app.post("/system/logout_duration")

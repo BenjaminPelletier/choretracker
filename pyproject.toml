@@ -19,4 +19,5 @@ dependencies = [
     "bcrypt>=4.1",
     "Pillow>=10.0.0",
     "tzdata>=2024.1",
+    "paho-mqtt>=2.1.0,<3",
 ]

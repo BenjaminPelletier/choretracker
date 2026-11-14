@@ -77,6 +77,41 @@ Profile pictures are highly recommended for an optimal experience.
 
 Reminders are similar to chores except they cannot be completed; they are simply reminders that appear during their active time. Events are like reminders except they actually happen throughout their active time.
 
+### Home Assistant sensors
+
+An administrator can open **System** from the gear menu and configure **Home
+Assistant sensors**. Enter the MQTT broker hostname or IP, port (usually 1883,
+or 8883 with TLS), and optional username and password. For TLS, the broker must
+have a certificate trusted by the server. Use the same broker as Home Assistant's
+[MQTT integration](https://www.home-assistant.io/integrations/mqtt/), with discovery enabled under its default `homeassistant` prefix.
+Select each user's checkbox in the sensor table and save. The Viewer profile is
+not included. Leave the password blank to keep the saved password, or select
+**Clear saved password** to remove it.
+
+The binary sensor **<username> has chores due** is on when that user is responsible
+for any uncompleted, unskipped chore whose deadline is today or earlier. This
+includes chores starting later today and overdue chores within the home page's
+one-week window. Older hidden occurrences do not keep the sensor on. A deadline
+at midnight (the end-of-day value) belongs to the preceding day. Instance timing
+and responsibility overrides apply; events and reminders do not count.
+
+Sensors refresh after changes and at least every 30 seconds, including shortly
+after midnight in `CHORETRACKER_TZ`. The publisher runs while the web server runs,
+reconnects automatically, and republishes discovery and state when Home Assistant
+restarts. Names follow user renames while entity identities remain stable.
+Unchecking a sensor removes its discovery configuration, including after a
+choretracker restart. Disable sensors while the old broker is reachable before
+moving to another broker, so retained discovery can be removed there.
+
+MQTT credentials are stored in the application database; protect database files
+and backups accordingly. The saved password is never included in page source.
+Use one web server worker per database so there is a single MQTT publisher.
+Only one choretracker deployment should connect to a given broker. Topics and
+sensor identities use the fixed `choretracker` prefix: for user ID 4, discovery
+uses `homeassistant/binary_sensor/choretracker_chores_due_4/config`, state uses
+`choretracker/chores_due/4/state`, and the unique ID is `choretracker_chores_due_4`.
+Availability is published to `choretracker/availability`.
+
 ## Examples
 
 ### Feed the dog

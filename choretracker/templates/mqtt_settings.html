@@ -1,0 +1,68 @@
+
+<section aria-labelledby="mqtt-heading" class="mqtt-settings">
+    <h2 id="mqtt-heading">Home Assistant sensors</h2>
+    <p>Connect to the same MQTT broker as Home Assistant. Enabled sensors are discovered automatically.</p>
+    <p>Status: {{ mqtt_status }}</p>
+    <form id="mqtt-settings-form" class="form" action="{{ url_for('update_mqtt_settings') }}" method="post">
+        <label for="mqtt-host">MQTT broker hostname / IP</label>
+        <input id="mqtt-host" name="host" value="{{ mqtt.host }}" maxlength="253" placeholder="mqtt.local">
+        <label for="mqtt-port">Port</label>
+        <input id="mqtt-port" name="port" type="number" min="1" max="65535" value="{{ mqtt.port }}" required>
+        <label class="mqtt-checkbox"><input name="tls" type="checkbox" {% if mqtt.tls %}checked{% endif %}> Use TLS (typically port 8883)</label>
+        <label for="mqtt-username">MQTT username</label>
+        <input id="mqtt-username" name="username" value="{{ mqtt.username }}" maxlength="256" autocomplete="off">
+        <label for="mqtt-password">MQTT password</label>
+        <input id="mqtt-password" name="password" type="password" maxlength="4096" autocomplete="new-password" placeholder="{% if mqtt.password %}Password saved; leave blank to keep{% else %}Optional{% endif %}">
+        <label class="mqtt-checkbox"><input name="clear_password" type="checkbox"> Clear saved password</label>
+        <div class="sensor-table-container">
+            <table class="sensor-table">
+                <caption>Expose sensors for each user</caption>
+                <thead><tr><th scope="col">Sensor</th>{% for user in sensor_users %}
+                    <th scope="col"><img src="{{ url_for('profile_picture', username=user.username) }}" alt="{{ user.username }}" title="{{ user.username }}" class="sensor-avatar"><span>{{ user.username }}</span></th>
+                {% endfor %}</tr></thead>
+                <tbody>{% for kind, label in sensor_types.items() %}<tr>
+                    <th scope="row">{{ label }}</th>
+                    {% for user in sensor_users %}<td><input type="checkbox" data-sensor="{{ kind }}" value="{{ user.id }}" aria-label="{{ label }} for {{ user.username }}" {% if user.id in mqtt.sensors.get(kind, []) %}checked{% endif %}></td>{% endfor %}
+                </tr>{% endfor %}</tbody>
+            </table>
+        </div>
+        <p class="mqtt-help">On means the user has an uncompleted, unskipped chore due today or overdue. Changes publish automatically; the date refreshes within 30 seconds after midnight in the application's timezone.</p>
+        <button type="submit">Save MQTT settings</button>
+        <p id="mqtt-result" role="status" aria-live="polite"></p>
+    </form>
+</section>
+<script>
+document.getElementById('mqtt-settings-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const result = document.getElementById('mqtt-result');
+    const sensors = {};
+    form.querySelectorAll('[data-sensor]').forEach(input => {
+        sensors[input.dataset.sensor] ??= [];
+        if (input.checked) sensors[input.dataset.sensor].push(Number(input.value));
+    });
+    const password = form.elements.password.value;
+    const data = {
+        host: form.elements.host.value,
+        port: Number(form.elements.port.value),
+        username: form.elements.username.value,
+        password: form.elements.clear_password.checked ? '' : (password || null),
+        tls: form.elements.tls.checked,
+        sensors
+    };
+    try {
+        const response = await fetch(form.action, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        if (response.ok && !response.redirected) {
+            location.reload();
+        } else {
+            const body = await response.json().catch(() => ({}));
+            result.textContent = body.error || 'Unable to save. Check the settings and your administrator session.';
+        }
+    } catch {
+        result.textContent = 'Unable to reach the server. Please try again.';
+    }
+});
+</script>

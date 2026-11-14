@@ -505,3 +505,16 @@ h1 .icon-button {
 h2 .icon-button {
     margin-left: 0.25rem;
 }
+
+.mqtt-settings { margin-top: 1rem; max-width: 32rem; }
+.mqtt-settings form > label:not(.mqtt-checkbox) { display: block; margin-top: 0.5rem; }
+.mqtt-settings form > input { width: 100%; max-width: 18rem; }
+.mqtt-checkbox { display: block; margin: 0.5rem 0; }
+.sensor-table-container { overflow-x: auto; margin-top: 1rem; }
+.sensor-table { border-collapse: collapse; width: 100%; }
+.sensor-table th, .sensor-table td { padding: 0.4rem; border: 1px solid #d1d5db; text-align: center; }
+.sensor-table tbody th { text-align: left; font-weight: normal; min-width: 8rem; }
+.sensor-avatar { width: 1.5rem; height: 1.5rem; border-radius: 50%; display: block; margin: auto; }
+.sensor-table thead span { font-size: 0.65rem; font-weight: normal; }
+.sensor-table input { width: 0.7rem; height: 0.7rem; }
+.mqtt-help { font-size: 0.7rem; }

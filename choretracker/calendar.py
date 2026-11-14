@@ -13,6 +13,9 @@ from sqlalchemy import JSON, ForeignKey, Integer, delete
 from .time_utils import get_now, ensure_tz
 
 
+OVERDUE_LOOKBACK = timedelta(weeks=1)
+
+
 class RecurrenceType(str, Enum):
     OneTime = "OneTime"
     Weekly = "Weekly"
