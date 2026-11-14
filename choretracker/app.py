@@ -49,6 +49,7 @@ from .calendar import (
     CalendarEntryStore,
     CalendarEntryType,
     ChoreCompletion,
+    CompletionSummary,
     ChoreCompletionStore,
     Delegation,
     InstanceSpecifics,
@@ -124,7 +125,25 @@ templates.env.globals["all_users"] = lambda: sorted(
     user_store.list_users(include_viewer=True),
     key=lambda u: (u.username == "Viewer", u.username),
 )
-templates.env.globals["user_has"] = user_store.has_permission
+
+
+def request_has_permission(request: Request, username: str | None, permission: str) -> bool:
+    if not username:
+        return False
+    if not hasattr(request.state, "user_permissions"):
+        request.state.user_permissions = {}
+    permissions = request.state.user_permissions
+    if username not in permissions:
+        permissions[username] = user_store.get_permissions(username)
+    return "admin" in permissions[username] or permission in permissions[username]
+
+
+@pass_context
+def template_user_has(context, username: str | None, permission: str) -> bool:
+    return request_has_permission(context["request"], username, permission)
+
+
+templates.env.globals["user_has"] = template_user_has
 templates.env.globals["WRITE_PERMS"] = WRITE_PERMS
 templates.env.globals["timedelta"] = timedelta
 templates.env.globals["LOGOUT_DURATION"] = LOGOUT_DURATION
@@ -551,7 +570,7 @@ async def index(request: Request):
     now = get_now()
     overdue: list[tuple[CalendarEntry, TimePeriod, list[str], bool, bool]] = []
     current: list[
-        tuple[CalendarEntry, TimePeriod, ChoreCompletion | None, list[str], bool, bool]
+        tuple[CalendarEntry, TimePeriod, CompletionSummary | None, list[str], bool, bool]
     ] = []
     upcoming_heap: list[
         tuple[datetime, int, CalendarEntry, TimePeriod, Iterator[TimePeriod]]
@@ -562,13 +581,12 @@ async def index(request: Request):
     # Cutoff: ignore instances that ended more than 1 week ago.
     overdue_cutoff = now - timedelta(weeks=1)
 
-    # Preload all completions in one query to avoid N+1 DB hits.
-    completion_map: dict[tuple[int, int, int], ChoreCompletion] = {
-        (c.entry_id, c.recurrence_id, c.instance_index): c
-        for c in completion_store.list_all()
-    }
+    # Read only the fields needed here, without constructing tracked ORM models
+    # for the entire completion history.
+    completion_map = completion_store.summaries()
+    entries = calendar_store.list_entries()
 
-    for entry in calendar_store.list_entries():
+    for entry in entries:
         single = has_single_instance(entry)
         single_map[entry.id] = single
         gen = enumerate_time_periods(entry, min_end=overdue_cutoff)
@@ -680,7 +698,7 @@ async def index(request: Request):
                         entry, period.recurrence_id, period.instance_index
                     )
                 ),
-                single_map.get(entry.id, has_single_instance(entry)),
+                single_map[entry.id],
             )
         )
         nxt = next(gen, None)
@@ -691,8 +709,8 @@ async def index(request: Request):
     current.sort(key=lambda x: (x[2] is not None, x[1].end, x[0].title))
 
     current_user = request.session.get("user")
-    can_bulk_skip = user_store.has_permission(current_user, "admin") or any(
-        current_user in entry.managers for entry in calendar_store.list_entries()
+    can_bulk_skip = request_has_permission(request, current_user, "admin") or any(
+        current_user in entry.managers for entry in entries
     )
 
     return templates.TemplateResponse(

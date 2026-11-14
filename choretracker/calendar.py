@@ -230,9 +230,10 @@ class CalendarEntryStore:
                 rec = rec_map.get(spec.recurrence_id)
                 if not rec:
                     continue
-                loaded = InstanceSpecifics.model_validate(spec.model_dump())
-                loaded.start = ensure_tz(loaded.start)
-                rec.instance_specifics[spec.instance_index] = loaded
+                # These rows are already InstanceSpecifics models. Reuse them
+                # instead of dumping and validating every override a second time.
+                spec.start = ensure_tz(spec.start)
+                rec.instance_specifics[spec.instance_index] = spec
             return entries
 
     def delete(self, entry_id: int) -> bool:
@@ -430,6 +431,12 @@ class ChoreCompletion(SQLModel, table=True):
     completed_at: datetime = Field(default_factory=get_now)
 
 
+@dataclass(frozen=True, slots=True)
+class CompletionSummary:
+    completed_at: datetime
+    completed_by: str
+
+
 class ChoreCompletionStore:
     def __init__(self, engine):
         self.engine = engine
@@ -486,6 +493,23 @@ class ChoreCompletionStore:
             for comp in comps:
                 comp.completed_at = ensure_tz(comp.completed_at)
             return comps
+
+    def summaries(self) -> dict[tuple[int, int, int], CompletionSummary]:
+        """Load lightweight completion data for the home page in one query."""
+        with Session(self.engine) as session:
+            rows = session.exec(select(
+                ChoreCompletion.entry_id,
+                ChoreCompletion.recurrence_id,
+                ChoreCompletion.instance_index,
+                ChoreCompletion.completed_at,
+                ChoreCompletion.completed_by,
+            )).all()
+            return {
+                (entry_id, recurrence_id, instance_index): CompletionSummary(
+                    completed_at=ensure_tz(completed_at), completed_by=completed_by
+                )
+                for entry_id, recurrence_id, instance_index, completed_at, completed_by in rows
+            }
 
     def list_all(self) -> List[ChoreCompletion]:
         """Load all completions in a single query for bulk lookups."""

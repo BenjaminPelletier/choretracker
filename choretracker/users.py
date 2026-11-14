@@ -224,6 +224,14 @@ class UserStore:
                 session.delete(user)
                 session.commit()
 
+    def get_permissions(self, username: str) -> Set[str]:
+        """Read permissions without fetching credentials or the profile picture."""
+        with Session(self.engine) as session:
+            permissions = session.exec(
+                select(User.permissions).where(User.username == username)
+            ).first()
+            return set(permissions or [])
+
     def has_permission(self, username: str, permission: str) -> bool:
         user = self.get(username)
         return bool(user) and ("admin" in user.permissions or permission in user.permissions)
