@@ -2406,15 +2406,16 @@ async def view_user(request: Request, username: str):
             .order_by(ChoreCompletion.completed_at.desc())
         )
         comps = session.exec(stmt).all()
+    entries = calendar_store.list_entries()
+    entries_by_id = {entry.id: entry for entry in entries}
     completion_entries = []
     for comp in comps:
-        entry = calendar_store.get(comp.entry_id)
+        entry = entries_by_id.get(comp.entry_id)
         if entry:
             has_note = bool(
                 find_instance_note(entry, comp.recurrence_id, comp.instance_index)
             )
             completion_entries.append((entry, comp, has_note))
-    entries = calendar_store.list_entries()
     responsible_entries = [
         CalendarEntry.model_validate(e.model_dump())
         for e in entries

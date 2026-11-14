@@ -5,6 +5,7 @@ from datetime import timedelta
 from choretracker.time_utils import get_now
 
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 
 # Ensure project root is on path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -51,6 +52,9 @@ def test_view_user_page(tmp_path, monkeypatch):
         duration_seconds=60,
         responsible=["Bob"],
     )
+    rec2.instance_specifics[3] = app_module.InstanceSpecifics(
+        entry_id=0, recurrence_id=0, instance_index=3, note="Special instructions"
+    )
     entry2 = CalendarEntry(
         title="Laundry",
         description="",
@@ -59,6 +63,9 @@ def test_view_user_page(tmp_path, monkeypatch):
         managers=["Admin"],
     )
     app_module.calendar_store.create(entry2)
+    entry2_id = next(e.id for e in app_module.calendar_store.list_entries() if e.title == "Laundry")
+    for instance_index in range(20):
+        app_module.completion_store.create(entry2_id, 0, instance_index, "Bob", completed_at=now)
 
     # entry managed by Bob
     rec3 = Recurrence(
@@ -83,7 +90,19 @@ def test_view_user_page(tmp_path, monkeypatch):
     assert "/users/Bob" in resp.text
     assert "/users/Bob/edit" not in resp.text
 
-    resp = client.get("/users/Bob")
+    queries = []
+
+    def record_query(conn, cursor, statement, parameters, context, many):
+        queries.append(statement.lower())
+
+    event.listen(app_module.engine, "before_cursor_execute", record_query)
+    try:
+        resp = client.get("/users/Bob")
+    finally:
+        event.remove(app_module.engine, "before_cursor_execute", record_query)
+    assert sum("from calendarentry" in q for q in queries) == 1
+    assert sum("from instancespecifics" in q for q in queries) == 1
+    assert 'Laundry<span class="note-marker">*</span>' in resp.text
     assert "Completions" in resp.text
     assert "Dishes" in resp.text
     assert "Responsible" in resp.text
